@@ -78,7 +78,7 @@ class SAGMGpsTracking {
         }
     }
 
-    // NEW: Initialize Firebase Real-time Listener
+    // Initialize Firebase Real-time Listener
     initializeFirebaseListener() {
         try {
             this.firebaseListener = database.ref('/units').on('value', (snapshot) => {
@@ -94,10 +94,14 @@ class SAGMGpsTracking {
         }
     }
 
-    // NEW: Handle real-time updates dari Firebase
+    // Handle real-time updates dari Firebase
     handleRealTimeUpdate(firebaseData) {
         if (!firebaseData) {
             console.log('📭 Tidak ada data real-time dari Firebase');
+            this.units = []; // Kosongkan units jika tidak ada data
+            this.updateStatistics();
+            this.renderUnitList();
+            this.updateMapMarkers();
             return;
         }
 
@@ -126,23 +130,20 @@ class SAGMGpsTracking {
         }
     }
 
-    // NEW: Create unit object from Firebase data
+    // Create unit object from Firebase data
     createUnitFromFirebase(unitName, firebaseData) {
         return {
             id: this.generateUnitId(unitName),
             name: unitName,
             afdeling: this.getAfdelingFromUnit(unitName),
             status: this.getStatusFromJourneyStatus(firebaseData.journeyStatus),
-            latitude: firebaseData.lat || this.getRandomLatitude(),
-            longitude: firebaseData.lng || this.getRandomLongitude(),
+            latitude: firebaseData.lat,
+            longitude: firebaseData.lng,
             speed: firebaseData.speed || 0,
             lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
             distance: firebaseData.distance || 0,
             fuelLevel: this.calculateFuelLevel(firebaseData.distance),
             fuelUsed: firebaseData.distance ? firebaseData.distance / this.vehicleConfig.fuelEfficiency : 0,
-            engineHours: 1000 + Math.floor(Math.random() * 1000),
-            totalRuntime: this.formatRuntime(1000 + Math.floor(Math.random() * 1000)),
-            block: this.getRandomBlock(),
             driver: firebaseData.driver || 'Unknown',
             accuracy: firebaseData.accuracy || 0,
             batteryLevel: firebaseData.batteryLevel || null,
@@ -151,7 +152,7 @@ class SAGMGpsTracking {
         };
     }
 
-    // NEW: Update existing unit with Firebase data
+    // Update existing unit with Firebase data
     updateUnitFromFirebase(unit, firebaseData) {
         if (unit.lastLat && unit.lastLng && firebaseData.lat && firebaseData.lng) {
             const distance = this.calculateDistance(
@@ -180,7 +181,7 @@ class SAGMGpsTracking {
         unit.lastLng = firebaseData.lng;
     }
 
-    // NEW: Generate consistent ID from unit name
+    // Generate consistent ID from unit name
     generateUnitId(unitName) {
         const unitIdMap = {
             'DT-06': 1, 'DT-07': 2, 'DT-12': 3, 'DT-13': 4, 'DT-15': 5, 'DT-16': 6,
@@ -425,12 +426,12 @@ class SAGMGpsTracking {
                 return realUnits;
             }
             
-            console.log('⚠️ Tidak ada data Firebase, menggunakan data simulasi');
-            return this.getSimulatedData();
+            console.log('📭 Tidak ada data real-time dari driver');
+            return []; // TIDAK ADA DATA SIMULASI LAGI
             
         } catch (error) {
             console.error('Error mengambil data Firebase:', error);
-            return this.getSimulatedData();
+            return []; // TIDAK ADA DATA SIMULASI LAGI
         }
     }
 
@@ -458,41 +459,10 @@ class SAGMGpsTracking {
         return statusMap[journeyStatus] || 'active';
     }
 
-    getRandomLatitude() {
-        return -0.396 + (Math.random() - 0.5) * 0.03;
-    }
-
-    getRandomLongitude() {
-        return 102.959 + (Math.random() - 0.5) * 0.03;
-    }
-
     calculateFuelLevel(distance) {
         const baseFuel = 80;
         const fuelUsed = distance ? distance / this.vehicleConfig.fuelEfficiency : 0;
         return Math.max(10, baseFuel - (fuelUsed / this.vehicleConfig.fuelTankCapacity * 100));
-    }
-
-    getRandomBlock() {
-        const blocks = ['V73', 'T46', 'U52', 'T38', 'U59', 'X83', 'V68', 'T51', 'U51', 'Q37', 'U47', 'U44', 'V70'];
-        return blocks[Math.floor(Math.random() * blocks.length)];
-    }
-
-    formatRuntime(hours) {
-        const days = Math.floor(hours / 24);
-        const remainingHours = hours % 24;
-        return `${days} hari ${remainingHours} jam`;
-    }
-
-    getSimulatedData() {
-        return new Promise(resolve => {
-            setTimeout(() => {
-                const unitData = [
-                    { id: 1, name: "CANTER PS125-001", afdeling: "AFD I", status: "active", latitude: -0.371, longitude: 102.948, speed: 45, lastUpdate: new Date().toLocaleTimeString('id-ID'), distance: 0, fuelLevel: 85, fuelUsed: 0, engineHours: 1250, totalRuntime: "52 hari 4 jam", block: "V73", driver: "Driver Simulasi" },
-                    { id: 2, name: "CANTER PS125-002", afdeling: "AFD II", status: "moving", latitude: -0.368, longitude: 102.955, speed: 60, lastUpdate: new Date().toLocaleTimeString('id-ID'), distance: 0, fuelLevel: 45, fuelUsed: 0, engineHours: 980, totalRuntime: "40 hari 20 jam", block: "T46", driver: "Driver Simulasi" },
-                ];
-                resolve(unitData);
-            }, 1000);
-        });
     }
 
     createUnitPopup(unit) {
@@ -597,6 +567,18 @@ class SAGMGpsTracking {
 
         unitList.innerHTML = '';
 
+        if (this.units.length === 0) {
+            unitList.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <div class="mb-2">📭</div>
+                    <small>Tidak ada unit aktif</small>
+                    <br>
+                    <small class="text-muted">Menunggu koneksi dari driver...</small>
+                </div>
+            `;
+            return;
+        }
+
         this.units.forEach(unit => {
             const unitElement = document.createElement('div');
             unitElement.className = `unit-item ${unit.status}`;
@@ -612,7 +594,6 @@ class SAGMGpsTracking {
                 </div>
                 <div class="mt-2">
                     <small class="text-muted">
-                        Block: <strong>${unit.block}</strong><br>
                         Kecepatan: ${unit.speed} km/h<br>
                         Jarak: ${unit.distance.toFixed(2)} km<br>
                         Bahan Bakar: ${unit.fuelLevel}%<br>
