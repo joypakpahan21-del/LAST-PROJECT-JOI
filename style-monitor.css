@@ -447,4 +447,41 @@ body {
 @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+
+}
+/* NEW: Route Styling */
+.route-line {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.route-popup {
+    font-family: 'Times New Roman', Times, serif;
+    min-width: 200px;
+}
+
+.route-popup strong {
+    color: var(--secondary-green);
+}
+
+.route-controls {
+    background: white;
+    padding: 5px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.route-controls .btn {
+    margin: 2px;
+    font-size: 0.8rem;
+    padding: 4px 8px;
+}
+
+/* NEW: Route legend in popup */
+.route-color-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    margin-right: 5px;
 }
