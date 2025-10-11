@@ -29,7 +29,12 @@ class SAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // Konfigurasi kendaraan - PARAMETER km/L
+        // NEW: Route visualization
+        this.unitPolylines = {}; // Store polylines for each unit
+        this.showRoutes = true; // Toggle untuk menampilkan rute
+        this.routeColors = {}; // Color untuk setiap unit
+        this.routeControls = null; // Controls untuk rute
+        
         this.vehicleConfig = {
             fuelEfficiency: 4, // 4 km per liter
             maxSpeed: 80,
@@ -62,6 +67,21 @@ class SAGMGpsTracking {
         };
 
         this.init();
+    }
+
+    // NEW: Generate unique color untuk setiap unit
+    generateUnitColor(unitName) {
+        if (!this.routeColors[unitName]) {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
+                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
+            ];
+            this.routeColors[unitName] = colors[Object.keys(this.routeColors).length % colors.length];
+        }
+        return this.routeColors[unitName];
     }
 
     init() {
@@ -179,6 +199,9 @@ class SAGMGpsTracking {
         
         unit.lastLat = firebaseData.lat;
         unit.lastLng = firebaseData.lng;
+
+        // NEW: Update history untuk route tracking
+        this.updateUnitHistory(unit);
     }
 
     // Generate consistent ID from unit name
@@ -210,6 +233,109 @@ class SAGMGpsTracking {
         } catch (error) {
             console.error('Error saving history:', error);
         }
+    }
+
+    // NEW: Update unit history dengan route tracking
+    updateUnitHistory(unit) {
+        if (!this.unitHistory[unit.name]) {
+            this.unitHistory[unit.name] = [];
+        }
+
+        // Only add point if significant movement (> 10 meters) atau data pertama
+        const lastPoint = this.unitHistory[unit.name][this.unitHistory[unit.name].length - 1];
+        if (lastPoint) {
+            const distance = this.calculateDistance(
+                lastPoint.latitude, lastPoint.longitude,
+                unit.latitude, unit.longitude
+            );
+            if (distance < 0.01 && this.unitHistory[unit.name].length > 0) { // Less than 10 meters
+                return; // Skip small movements
+            }
+        }
+
+        this.unitHistory[unit.name].push({
+            timestamp: new Date().toISOString(),
+            latitude: unit.latitude,
+            longitude: unit.longitude,
+            speed: unit.speed,
+            distance: unit.distance,
+            status: unit.status
+        });
+
+        // Keep only last 500 points per unit to prevent memory issues
+        if (this.unitHistory[unit.name].length > 500) {
+            this.unitHistory[unit.name].shift();
+        }
+
+        // Update route polyline
+        this.updateUnitRoute(unit);
+        this.saveHistoryToStorage();
+    }
+
+    // NEW: Create or update route polyline untuk unit
+    updateUnitRoute(unit) {
+        if (!this.showRoutes || !this.unitHistory[unit.name] || this.unitHistory[unit.name].length < 2) {
+            return;
+        }
+
+        const routePoints = this.unitHistory[unit.name].map(point => [
+            point.latitude, point.longitude
+        ]);
+
+        const unitColor = this.generateUnitColor(unit.name);
+
+        if (this.unitPolylines[unit.name]) {
+            // Update existing polyline
+            this.unitPolylines[unit.name].setLatLngs(routePoints);
+        } else {
+            // Create new polyline
+            this.unitPolylines[unit.name] = L.polyline(routePoints, {
+                color: unitColor,
+                weight: 4,
+                opacity: 0.7,
+                lineCap: 'round',
+                className: `route-line route-${unit.name}`
+            }).addTo(this.map);
+
+            // Add popup to polyline
+            this.unitPolylines[unit.name].bindPopup(`
+                <div class="route-popup">
+                    <strong>🚛 ${unit.name}</strong><br>
+                    <small>Jarak: ${unit.distance.toFixed(2)} km</small><br>
+                    <small>Points: ${this.unitHistory[unit.name].length}</small><br>
+                    <small>Status: ${unit.status}</small>
+                </div>
+            `);
+        }
+    }
+
+    // NEW: Toggle route visibility
+    toggleRoutes() {
+        this.showRoutes = !this.showRoutes;
+        
+        Object.values(this.unitPolylines).forEach(polyline => {
+            if (this.showRoutes) {
+                this.map.addLayer(polyline);
+            } else {
+                this.map.removeLayer(polyline);
+            }
+        });
+
+        this.showNotification(
+            this.showRoutes ? '🟢 Rute ditampilkan' : '🔴 Rute disembunyikan',
+            this.showRoutes ? 'success' : 'info'
+        );
+    }
+
+    // NEW: Clear all routes
+    clearAllRoutes() {
+        Object.values(this.unitPolylines).forEach(polyline => {
+            this.map.removeLayer(polyline);
+        });
+        this.unitPolylines = {};
+        this.unitHistory = {};
+        this.saveHistoryToStorage();
+        this.showNotification('🗑️ Semua rute dihapus', 'info');
     }
 
     initializeMap() {
@@ -246,11 +372,35 @@ class SAGMGpsTracking {
             L.control.zoom({ position: 'topright' }).addTo(this.map);
 
             this.addImportantLocations();
+            this.addRouteControls(); // NEW: Add route controls
 
         } catch (error) {
             console.error('Error initializing map:', error);
             throw new Error('Gagal menginisialisasi peta');
         }
+    }
+
+    // NEW: Add route controls to map
+    addRouteControls() {
+        const routeControl = L.control({ position: 'topright' });
+        
+        routeControl.onAdd = (map) => {
+            const div = L.DomUtil.create('div', 'route-controls');
+            div.innerHTML = `
+                <div class="btn-group-vertical">
+                    <button class="btn btn-sm btn-success" onclick="window.gpsSystem.toggleRoutes()" title="Toggle Routes">
+                        🗺️ Rute
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="window.gpsSystem.clearAllRoutes()" title="Clear Routes">
+                        🗑️ Hapus
+                    </button>
+                </div>
+            `;
+            return div;
+        };
+        
+        routeControl.addTo(this.map);
+        this.routeControls = routeControl;
     }
 
     addImportantLocations() {
@@ -394,7 +544,6 @@ class SAGMGpsTracking {
                 unit.fuelUsed = unit.fuelUsed || 0;
             });
             
-            this.updateUnitHistory();
             this.updateStatistics();
             this.renderUnitList();
             this.updateMapMarkers();
@@ -427,11 +576,11 @@ class SAGMGpsTracking {
             }
             
             console.log('📭 Tidak ada data real-time dari driver');
-            return []; // TIDAK ADA DATA SIMULASI LAGI
+            return [];
             
         } catch (error) {
             console.error('Error mengambil data Firebase:', error);
-            return []; // TIDAK ADA DATA SIMULASI LAGI
+            return [];
         }
     }
 
@@ -466,6 +615,18 @@ class SAGMGpsTracking {
     }
 
     createUnitPopup(unit) {
+        const routePoints = this.unitHistory[unit.name]?.length || 0;
+        const routeInfo = routePoints > 0 ? `
+            <div class="info-item">
+                <span class="info-label">Points Rute:</span>
+                <span class="info-value">${routePoints}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Warna Rute:</span>
+                <span class="info-value" style="color: ${this.generateUnitColor(unit.name)}">■</span>
+            </div>
+        ` : '';
+
         return `
             <div class="unit-popup">
                 <div class="popup-header">
@@ -510,6 +671,7 @@ class SAGMGpsTracking {
                         <span class="info-label">Update Terakhir:</span>
                         <span class="info-value">${unit.lastUpdate}</span>
                     </div>
+                    ${routeInfo}
                 </div>
             </div>
         `;
@@ -521,11 +683,29 @@ class SAGMGpsTracking {
 
     showNotification(message, type = 'info') {
         console.log(`[NOTIFICATION ${type}] ${message}`);
+        
+        // Simple notification display
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
     }
 
     showError(message) {
         console.error(`[ERROR] ${message}`);
-        this.showNotification(message, 'error');
+        this.showNotification(message, 'danger');
     }
 
     showLoading(show) {
@@ -638,22 +818,6 @@ class SAGMGpsTracking {
         console.log('Filtering units...', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
     }
 
-    updateUnitHistory() {
-        this.units.forEach(unit => {
-            if (!this.unitHistory[unit.name]) {
-                this.unitHistory[unit.name] = [];
-            }
-            this.unitHistory[unit.name].push({
-                timestamp: new Date().toISOString(),
-                latitude: unit.latitude,
-                longitude: unit.longitude,
-                speed: unit.speed,
-                distance: unit.distance
-            });
-        });
-        this.saveHistoryToStorage();
-    }
-
     destroy() {
         if (this.firebaseListener) {
             database.ref('/units').off('value', this.firebaseListener);
@@ -688,6 +852,19 @@ function exportData() {
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     sidebar.classList.toggle('show');
+}
+
+// NEW: Global functions untuk route controls
+function toggleRoutes() {
+    if (gpsSystem) {
+        gpsSystem.toggleRoutes();
+    }
+}
+
+function clearRoutes() {
+    if (gpsSystem) {
+        gpsSystem.clearAllRoutes();
+    }
 }
 
 // Cleanup on page unload
