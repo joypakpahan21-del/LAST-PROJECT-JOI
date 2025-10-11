@@ -204,7 +204,6 @@
         </div>
     </div>
 
-    <!-- Ganti script-mobile.js dengan versi yang sudah diperbaiki -->
     <script>
 // ==== FIREBASE CONFIG (SAMA DENGAN MONITOR) ====
 const FIREBASE_CONFIG = {
@@ -221,6 +220,129 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
+// ===== OFFLINE QUEUE SYSTEM =====
+class OfflineQueueManager {
+    constructor() {
+        this.queue = [];
+        this.isOnline = navigator.onLine;
+        this.maxQueueSize = 1000;
+        this.syncInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.loadQueueFromStorage();
+        this.setupOnlineOfflineListeners();
+        this.startSyncMonitor();
+    }
+
+    setupOnlineOfflineListeners() {
+        window.addEventListener('online', () => {
+            console.log('📱 Koneksi online - sync data offline');
+            this.isOnline = true;
+            this.processQueue();
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📱 Koneksi offline - menyimpan data lokal');
+            this.isOnline = false;
+        });
+    }
+
+    loadQueueFromStorage() {
+        try {
+            const saved = localStorage.getItem('gps_offline_queue');
+            if (saved) {
+                this.queue = JSON.parse(saved);
+                console.log(`📂 Loaded ${this.queue.length} queued items`);
+            }
+        } catch (error) {
+            console.error('Error loading queue:', error);
+            this.queue = [];
+        }
+    }
+
+    saveQueueToStorage() {
+        try {
+            localStorage.setItem('gps_offline_queue', JSON.stringify(this.queue));
+        } catch (error) {
+            console.error('Error saving queue:', error);
+        }
+    }
+
+    addToQueue(gpsData) {
+        if (this.queue.length >= this.maxQueueSize) {
+            this.queue.shift(); // Remove oldest item
+        }
+        
+        this.queue.push({
+            ...gpsData,
+            queueTimestamp: new Date().toISOString(),
+            offlineId: 'offline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+        });
+
+        this.saveQueueToStorage();
+        console.log(`💾 Saved to offline queue. Total: ${this.queue.length}`);
+    }
+
+    async processQueue() {
+        if (this.queue.length === 0 || !this.isOnline) return;
+
+        console.log(`🔄 Processing ${this.queue.length} queued items...`);
+        
+        const successItems = [];
+        const failedItems = [];
+
+        for (const item of this.queue) {
+            try {
+                await this.sendQueuedData(item);
+                successItems.push(item);
+            } catch (error) {
+                console.error('Failed to send queued data:', error);
+                failedItems.push(item);
+            }
+        }
+
+        // Update queue dengan yang gagal saja
+        this.queue = failedItems;
+        this.saveQueueToStorage();
+
+        console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
+        
+        if (successItems.length > 0) {
+            window.dtLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
+        }
+    }
+
+    async sendQueuedData(queuedData) {
+        if (!window.dtLogger?.firebaseRef) {
+            throw new Error('No Firebase reference');
+        }
+
+        // Remove queue-specific fields
+        const { queueTimestamp, offlineId, ...cleanData } = queuedData;
+        
+        await window.dtLogger.firebaseRef.set(cleanData);
+    }
+
+    startSyncMonitor() {
+        this.syncInterval = setInterval(() => {
+            if (this.isOnline && this.queue.length > 0) {
+                this.processQueue();
+            }
+        }, 10000); // Check every 10 seconds
+    }
+
+    getQueueSize() {
+        return this.queue.length;
+    }
+
+    clearQueue() {
+        this.queue = [];
+        this.saveQueueToStorage();
+    }
+}
+
 class DTGPSLogger {
     constructor() {
         this.driverData = null;
@@ -234,6 +356,7 @@ class DTGPSLogger {
         this.isOnline = false;
         this.journeyStatus = 'ready'; // ready, started, paused, ended
         this.firebaseRef = null;
+        this.offlineQueue = new OfflineQueueManager(); // NEW: Offline queue
         
         this.init();
     }
@@ -412,32 +535,50 @@ class DTGPSLogger {
     async sendToFirebase() {
         if (!this.firebaseRef || !this.lastPosition) return;
 
-        try {
-            const gpsData = {
-                driver: this.driverData.name,
-                unit: this.driverData.unit,
-                lat: this.lastPosition.lat,
-                lng: this.lastPosition.lng,
-                speed: this.lastPosition.speed,
-                accuracy: this.lastPosition.accuracy,
-                bearing: this.lastPosition.bearing,
-                timestamp: new Date().toISOString(),
-                lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                distance: this.totalDistance,
-                journeyStatus: this.journeyStatus,
-                batteryLevel: this.getBatteryLevel(), // Simulasi level baterai
-                sessionId: this.driverData.sessionId
-            };
+        const gpsData = {
+            driver: this.driverData.name,
+            unit: this.driverData.unit,
+            lat: this.lastPosition.lat,
+            lng: this.lastPosition.lng,
+            speed: this.lastPosition.speed,
+            accuracy: this.lastPosition.accuracy,
+            bearing: this.lastPosition.bearing,
+            timestamp: new Date().toISOString(),
+            lastUpdate: new Date().toLocaleTimeString('id-ID'),
+            distance: this.totalDistance,
+            journeyStatus: this.journeyStatus,
+            batteryLevel: this.getBatteryLevel(),
+            sessionId: this.driverData.sessionId,
+            isOfflineData: false // Flag untuk data real-time
+        };
 
-            // Kirim ke Firebase
-            await this.firebaseRef.set(gpsData);
-            
-            this.addLog(`📡 Data terkirim ke Firebase: ${this.lastPosition.speed.toFixed(1)} km/h`, 'success');
-            this.updateConnectionStatus(true);
+        try {
+            if (this.isOnline) {
+                await this.firebaseRef.set(gpsData);
+                this.addLog(`📡 Data terkirim: ${this.lastPosition.speed.toFixed(1)} km/h`, 'success');
+                this.updateConnectionStatus(true);
+                
+                // Process any queued data when online
+                if (this.offlineQueue.getQueueSize() > 0) {
+                    this.offlineQueue.processQueue();
+                }
+            } else {
+                // OFFLINE: Save to queue
+                this.offlineQueue.addToQueue(gpsData);
+                this.addLog(`💾 Data disimpan offline (${this.offlineQueue.getQueueSize()} dalam antrian)`, 'warning');
+                this.updateConnectionStatus(false);
+            }
             
         } catch (error) {
             console.error('Error sending to Firebase:', error);
-            this.addLog('❌ Gagal mengirim ke Firebase', 'error');
+            
+            // Jika gagal kirim, simpan ke offline queue
+            if (this.isOnline) {
+                this.offlineQueue.addToQueue(gpsData);
+                this.addLog(`❌ Gagal kirim, disimpan offline`, 'error');
+            } else {
+                this.addLog(`❌ Offline - data dalam antrian`, 'warning');
+            }
             this.updateConnectionStatus(false);
         }
     }
@@ -448,7 +589,18 @@ class DTGPSLogger {
     }
 
     checkNetworkStatus() {
+        const wasOnline = this.isOnline;
         this.isOnline = navigator.onLine;
+        
+        if (wasOnline !== this.isOnline) {
+            if (this.isOnline) {
+                this.addLog('📱 Koneksi pulih - sync data offline', 'success');
+                this.offlineQueue.processQueue();
+            } else {
+                this.addLog('📱 Koneksi terputus - menyimpan data lokal', 'warning');
+            }
+        }
+        
         this.updateConnectionStatus(this.isOnline);
     }
 
@@ -464,6 +616,12 @@ class DTGPSLogger {
             dot.className = 'connection-status disconnected';
             status.textContent = 'OFFLINE';
             status.className = 'text-danger';
+            
+            // Tampilkan jumlah data dalam antrian
+            const queueSize = this.offlineQueue.getQueueSize();
+            if (queueSize > 0) {
+                status.textContent = `OFFLINE (${queueSize} data antrian)`;
+            }
         }
     }
 
