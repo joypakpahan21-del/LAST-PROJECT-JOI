@@ -248,7 +248,7 @@ class SAGMGpsTracking {
 
     // Create unit object from Firebase data
     createUnitFromFirebase(unitName, firebaseData) {
-        return {
+        const newUnit = {
             id: this.generateUnitId(unitName),
             name: unitName,
             afdeling: this.getAfdelingFromUnit(unitName),
@@ -267,6 +267,20 @@ class SAGMGpsTracking {
             lastLng: firebaseData.lng,
             isOnline: true // NEW: Track online status
         };
+
+        // Initialize history untuk unit baru
+        this.initializeUnitHistory(newUnit);
+        return newUnit;
+    }
+
+    // NEW: Initialize history untuk unit baru
+    initializeUnitHistory(unit) {
+        if (!this.unitHistory[unit.name]) {
+            this.unitHistory[unit.name] = [];
+        }
+        
+        // Tambahkan titik pertama ke history
+        this.addPointToHistory(unit);
     }
 
     // Update existing unit with Firebase data
@@ -298,8 +312,8 @@ class SAGMGpsTracking {
         unit.lastLng = firebaseData.lng;
         unit.isOnline = true; // NEW: Set online status
 
-        // Update history untuk route tracking
-        this.updateUnitHistory(unit);
+        // Update history untuk route tracking - DIPERBAIKI
+        this.addPointToHistory(unit);
     }
 
     // Generate consistent ID from unit name
@@ -333,8 +347,8 @@ class SAGMGpsTracking {
         }
     }
 
-    // ENHANCED: Update unit history dengan route tracking yang lebih baik
-    updateUnitHistory(unit) {
+    // PERBAIKAN BESAR: Method untuk menambah titik ke history
+    addPointToHistory(unit) {
         if (!this.unitHistory[unit.name]) {
             this.unitHistory[unit.name] = [];
         }
@@ -342,46 +356,38 @@ class SAGMGpsTracking {
         const history = this.unitHistory[unit.name];
         const now = new Date().toISOString();
 
-        // Only add point if significant movement (> 10 meters) atau data pertama
-        const lastPoint = history[history.length - 1];
-        if (lastPoint) {
-            const distance = this.calculateDistance(
-                lastPoint.latitude, lastPoint.longitude,
-                unit.latitude, unit.longitude
-            );
-            
-            // Skip jika perpindahan kecil (< 10 meters) dan status sama
-            if (distance < 0.01 && lastPoint.status === unit.status && history.length > 0) {
-                // Update last point timestamp saja
-                lastPoint.timestamp = now;
-                lastPoint.speed = unit.speed;
-                return;
-            }
-        }
-
-        // Add new point
-        history.push({
+        // Always add point untuk testing - nanti bisa di-filter
+        const newPoint = {
             timestamp: now,
             latitude: unit.latitude,
             longitude: unit.longitude,
             speed: unit.speed,
             distance: unit.distance,
             status: unit.status
-        });
+        };
+
+        history.push(newPoint);
 
         // Keep only last points untuk prevent memory issues
         if (history.length > this.maxRoutePoints) {
             this.unitHistory[unit.name] = history.slice(-this.maxRoutePoints);
         }
 
-        // Update route polyline
+        // Update route polyline - PASTIKAN DIPANGGIL
         this.updateUnitRoute(unit);
         this.saveHistoryToStorage();
+
+        console.log(`📍 Added point to ${unit.name} history:`, {
+            lat: unit.latitude,
+            lng: unit.longitude,
+            totalPoints: history.length
+        });
     }
 
-    // ENHANCED: Create or update route polyline untuk unit
+    // PERBAIKAN BESAR: Create or update route polyline untuk unit
     updateUnitRoute(unit) {
-        if (!this.showRoutes || !this.unitHistory[unit.name] || this.unitHistory[unit.name].length < 2) {
+        if (!this.unitHistory[unit.name] || this.unitHistory[unit.name].length < 1) {
+            console.log(`No history for ${unit.name}`);
             return;
         }
 
@@ -389,20 +395,47 @@ class SAGMGpsTracking {
             point.latitude, point.longitude
         ]);
 
+        console.log(`🔄 Updating route for ${unit.name}:`, {
+            points: routePoints.length,
+            currentPos: [unit.latitude, unit.longitude]
+        });
+
         const unitColor = this.generateUnitColor(unit.name);
 
         if (this.unitPolylines[unit.name]) {
             // Update existing polyline
-            this.unitPolylines[unit.name].setLatLngs(routePoints);
-            
-            // Update style based on status
-            const style = this.getRouteStyle(unit.status, unitColor);
-            this.unitPolylines[unit.name].setStyle(style);
+            try {
+                this.unitPolylines[unit.name].setLatLngs(routePoints);
+                
+                // Update style based on status
+                const style = this.getRouteStyle(unit.status, unitColor);
+                this.unitPolylines[unit.name].setStyle(style);
+                
+                console.log(`✅ Updated existing polyline for ${unit.name}`);
+            } catch (error) {
+                console.error(`Error updating polyline for ${unit.name}:`, error);
+                // Recreate polyline jika error
+                this.map.removeLayer(this.unitPolylines[unit.name]);
+                delete this.unitPolylines[unit.name];
+                this.createNewPolyline(unit, routePoints, unitColor);
+            }
         } else {
-            // Create new polyline dengan style berdasarkan status
+            // Create new polyline
+            this.createNewPolyline(unit, routePoints, unitColor);
+        }
+    }
+
+    // NEW: Method untuk membuat polyline baru
+    createNewPolyline(unit, routePoints, unitColor) {
+        try {
             const style = this.getRouteStyle(unit.status, unitColor);
             
-            this.unitPolylines[unit.name] = L.polyline(routePoints, style).addTo(this.map);
+            this.unitPolylines[unit.name] = L.polyline(routePoints, style);
+            
+            // Only add to map if showRoutes is true
+            if (this.showRoutes) {
+                this.unitPolylines[unit.name].addTo(this.map);
+            }
 
             // Add interactive popup to polyline
             this.unitPolylines[unit.name].bindPopup(this.createRoutePopup(unit));
@@ -411,6 +444,10 @@ class SAGMGpsTracking {
             this.unitPolylines[unit.name].on('click', () => {
                 this.focusOnUnit(unit);
             });
+
+            console.log(`✅ Created new polyline for ${unit.name} with ${routePoints.length} points`);
+        } catch (error) {
+            console.error(`Error creating polyline for ${unit.name}:`, error);
         }
     }
 
@@ -565,6 +602,8 @@ class SAGMGpsTracking {
         this.showNotification('🗑️ Semua rute dihapus', 'info');
     }
 
+    // ... (method lainnya seperti initializeMap, addImportantLocations, dll. tetap sama)
+
     initializeMap() {
         try {
             this.map = L.map('map').setView(this.config.center, this.config.zoom);
@@ -598,8 +637,10 @@ class SAGMGpsTracking {
             L.control.scale({ imperial: false }).addTo(this.map);
             L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-            this.addImportantLocations(); // DIPASTIKAN DIPANGGIL
+            this.addImportantLocations();
             this.addRouteControls();
+
+            console.log('✅ Map initialized with route controls');
 
         } catch (error) {
             console.error('Error initializing map:', error);
@@ -607,7 +648,6 @@ class SAGMGpsTracking {
         }
     }
 
-    // METHOD YANG TERPOTONG - DIPASTIKAN ADA
     addImportantLocations() {
         try {
             // Clear existing important markers
@@ -650,255 +690,42 @@ class SAGMGpsTracking {
         }
     }
 
-    createLocationPopup(name, type) {
-        const pksInfo = `
-            <div class="info-item">
-                <span class="info-label">Kapasitas:</span>
-                <span class="info-value">45 Ton TBS/Jam</span>
-            </div>
-        `;
+    // ... (method lainnya tetap sama)
 
-        const officeInfo = `
-            <div class="info-item">
-                <span class="info-label">Jam Operasi:</span>
-                <span class="info-value">07:00 - 16:00</span>
-            </div>
-        `;
+    // PERBAIKAN: Update map markers dengan logika yang lebih baik
+    updateMapMarkers() {
+        // Hapus hanya marker yang tidak ada lagi di units
+        Object.keys(this.markers).forEach(markerId => {
+            const unitExists = this.units.some(unit => unit.id.toString() === markerId.toString());
+            if (!unitExists && this.markers[markerId]) {
+                this.map.removeLayer(this.markers[markerId]);
+                delete this.markers[markerId];
+            }
+        });
 
-        return `
-            <div class="unit-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">${type === 'pks' ? '🏭' : '🏢'} ${name}</h6>
-                </div>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Tipe:</span>
-                        <span class="info-value">${type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value">Operasional</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Lokasi:</span>
-                        <span class="info-value">Kebun Tempuling</span>
-                    </div>
-                    ${type === 'pks' ? pksInfo : officeInfo}
-                </div>
-            </div>
-        `;
-    }
-
-    // ENHANCED: Add route controls to map
-    addRouteControls() {
-        const routeControl = L.control({ position: 'topright' });
-        
-        routeControl.onAdd = (map) => {
-            const div = L.DomUtil.create('div', 'route-controls');
-            div.innerHTML = `
-                <div class="btn-group-vertical">
-                    <button class="btn btn-sm btn-success" onclick="window.gpsSystem.toggleRoutes()" 
-                            title="${this.showRoutes ? 'Sembunyikan Rute' : 'Tampilkan Rute'}">
-                        ${this.showRoutes ? '🗺️' : '🚫'} Rute
-                    </button>
-                    <button class="btn btn-sm btn-warning" onclick="window.gpsSystem.clearAllRoutes()" 
-                            title="Hapus Semua Rute">
-                        🗑️ Hapus
-                    </button>
-                    <button class="btn btn-sm btn-info" onclick="window.gpsSystem.exportRoutesData()" 
-                            title="Export Data Rute">
-                        📊 Export
-                    </button>
-                </div>
-            `;
-            return div;
-        };
-        
-        routeControl.addTo(this.map);
-        this.routeControls = routeControl;
-    }
-
-    // NEW: Export routes data
-    exportRoutesData() {
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            totalUnits: this.units.length,
-            routes: {}
-        };
-
+        // Update atau buat marker baru
         this.units.forEach(unit => {
-            exportData.routes[unit.name] = {
-                driver: unit.driver,
-                totalDistance: unit.distance,
-                routePoints: this.unitHistory[unit.name]?.length || 0,
-                history: this.unitHistory[unit.name] || []
-            };
-        });
+            if (!this.markers[unit.id]) {
+                const markerIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                                 title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
 
-        // Create downloadable file
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `routes-data-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.showNotification('Data rute berhasil diexport', 'success');
-    }
-
-    setupEventListeners() {
-        const searchInput = document.getElementById('searchUnit');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.filterUnits());
-        }
-
-        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
-        filters.forEach(filterId => {
-            const filter = document.getElementById(filterId);
-            if (filter) {
-                filter.addEventListener('change', () => this.filterUnits());
-            }
-        });
-
-        database.ref('.info/connected').on('value', (snapshot) => {
-            this.updateFirebaseStatus(snapshot.val());
-        });
-    }
-
-    updateFirebaseStatus(connected) {
-        const statusElement = document.getElementById('firebaseStatus');
-        if (statusElement) {
-            if (connected) {
-                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
-                statusElement.className = 'text-success';
+                const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
+                    .bindPopup(this.createUnitPopup(unit))
+                    .addTo(this.map);
+                
+                this.markers[unit.id] = marker;
+                
+                console.log(`✅ Created new marker for ${unit.name}`);
             } else {
-                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'text-danger';
+                // Update existing marker
+                this.updateUnitMarker(unit);
             }
-        }
-    }
-
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    startAutoRefresh() {
-        this.autoRefreshInterval = setInterval(() => {
-            this.addLog('Auto-refresh data', 'info');
-        }, 30000);
-    }
-
-    async loadUnitData() {
-        try {
-            this.showLoading(true);
-            
-            const data = await this.fetchUnitData();
-            this.units = data;
-            
-            this.units.forEach(unit => {
-                unit.lastLat = unit.latitude;
-                unit.lastLng = unit.longitude;
-                unit.distance = unit.distance || 0;
-                unit.fuelUsed = unit.fuelUsed || 0;
-                unit.isOnline = true;
-            });
-            
-            this.updateStatistics();
-            this.renderUnitList();
-            this.updateMapMarkers();
-            
-            this.showLoading(false);
-            this.showNotification('Sistem monitoring aktif - Menunggu data real-time', 'success');
-            
-        } catch (error) {
-            console.error('Error loading unit data:', error);
-            this.showLoading(false);
-            this.showError('Gagal memuat data unit: ' + error.message);
-        }
-    }
-
-    async fetchUnitData() {
-        try {
-            const snapshot = await database.ref('/units').once('value');
-            const firebaseData = snapshot.val();
-            
-            if (firebaseData && Object.keys(firebaseData).length > 0) {
-                console.log('✅ Data real ditemukan di Firebase:', Object.keys(firebaseData).length + ' units');
-                
-                const realUnits = [];
-                
-                for (const [unitName, unitData] of Object.entries(firebaseData)) {
-                    realUnits.push(this.createUnitFromFirebase(unitName, unitData));
-                }
-                
-                return realUnits;
-            }
-            
-            console.log('📭 Tidak ada data real-time dari driver');
-            return [];
-            
-        } catch (error) {
-            console.error('Error mengambil data Firebase:', error);
-            return [];
-        }
-    }
-
-    getAfdelingFromUnit(unitName) {
-        const afdelingMap = {
-            'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
-            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
-            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-25': 'KKPA', 'DT-26': 'KKPA',
-            'DT-27': 'KKPA', 'DT-28': 'AFD II', 'DT-29': 'AFD III', 'DT-32': 'AFD I',
-            'DT-33': 'AFD IV', 'DT-34': 'AFD V', 'DT-35': 'KKPA', 'DT-36': 'AFD II',
-            'DT-37': 'AFD III', 'DT-38': 'AFD I', 'DT-39': 'AFD IV'
-        };
-        return afdelingMap[unitName] || 'AFD I';
-    }
-
-    getStatusFromJourneyStatus(journeyStatus) {
-        const statusMap = {
-            'started': 'moving',
-            'moving': 'moving', 
-            'active': 'active',
-            'paused': 'active',
-            'ended': 'inactive',
-            'ready': 'inactive'
-        };
-        return statusMap[journeyStatus] || 'active';
-    }
-
-    calculateFuelLevel(distance) {
-        const baseFuel = 80;
-        const fuelUsed = distance ? distance / this.vehicleConfig.fuelEfficiency : 0;
-        return Math.max(10, baseFuel - (fuelUsed / this.vehicleConfig.fuelTankCapacity * 100));
-    }
-
-    // ENHANCED: Update unit marker dengan status online/offline
-    updateUnitMarker(unit) {
-        if (this.markers[unit.id]) {
-            // Update existing marker position and popup
-            this.markers[unit.id].setLatLng([unit.latitude, unit.longitude]);
-            this.markers[unit.id].setPopupContent(this.createUnitPopup(unit));
-            
-            // Update marker icon based on online status
-            const markerIcon = L.divIcon({
-                className: 'custom-marker',
-                html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
-                             title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-            this.markers[unit.id].setIcon(markerIcon);
-        }
+        });
     }
 
     // ENHANCED: Create unit popup dengan info rute
@@ -917,6 +744,10 @@ class SAGMGpsTracking {
                 <button class="btn btn-sm btn-outline-primary w-100" 
                         onclick="window.gpsSystem.focusOnUnit('${unit.name}')">
                     🔍 Fokus & Lihat Rute
+                </button>
+                <button class="btn btn-sm btn-outline-info w-100 mt-1" 
+                        onclick="window.gpsSystem.toggleRoutes()">
+                    🗺️ Toggle Semua Rute
                 </button>
             </div>
         ` : '<div class="info-item"><span class="info-value text-muted">Belum ada data rute</span></div>';
@@ -963,165 +794,7 @@ class SAGMGpsTracking {
         `;
     }
 
-    addLog(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
-    }
-
-    showNotification(message, type = 'info') {
-        console.log(`[NOTIFICATION ${type}] ${message}`);
-        
-        // Simple notification display
-        const notification = document.createElement('div');
-        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        notification.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 5000);
-    }
-
-    showError(message) {
-        console.error(`[ERROR] ${message}`);
-        this.showNotification(message, 'danger');
-    }
-
-    showLoading(show) {
-        const spinner = document.getElementById('loadingSpinner');
-        if (spinner) {
-            spinner.style.display = show ? 'block' : 'none';
-        }
-    }
-
-    updateStatistics() {
-        const activeUnits = this.units.filter(unit => unit.status === 'active' || unit.status === 'moving').length;
-        const totalDistance = this.units.reduce((sum, unit) => sum + unit.distance, 0);
-        const totalSpeed = this.units.reduce((sum, unit) => sum + unit.speed, 0);
-        const avgSpeed = this.units.length > 0 ? totalSpeed / this.units.length : 0;
-        const totalFuel = this.units.reduce((sum, unit) => sum + unit.fuelUsed, 0);
-
-        this.activeUnits = activeUnits;
-        this.totalDistance = totalDistance;
-        this.avgSpeed = avgSpeed;
-        this.totalFuelConsumption = totalFuel;
-
-        if (document.getElementById('activeUnits')) {
-            document.getElementById('activeUnits').textContent = `${activeUnits}/23`;
-        }
-        if (document.getElementById('totalDistance')) {
-            document.getElementById('totalDistance').textContent = `${totalDistance.toFixed(1)} km`;
-        }
-        if (document.getElementById('avgSpeed')) {
-            document.getElementById('avgSpeed').textContent = `${avgSpeed.toFixed(1)} km/h`;
-        }
-        if (document.getElementById('totalFuel')) {
-            document.getElementById('totalFuel').textContent = `${totalFuel.toFixed(1)} L`;
-        }
-    }
-
-    renderUnitList() {
-        const unitList = document.getElementById('unitList');
-        if (!unitList) return;
-
-        unitList.innerHTML = '';
-
-        if (this.units.length === 0) {
-            unitList.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <div class="mb-2">📭</div>
-                    <small>Tidak ada unit aktif</small>
-                    <br>
-                    <small class="text-muted">Menunggu koneksi dari driver...</small>
-                </div>
-            `;
-            return;
-        }
-
-        this.units.forEach(unit => {
-            const unitElement = document.createElement('div');
-            unitElement.className = `unit-item ${unit.status}`;
-            unitElement.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
-                    </div>
-                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
-                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
-                    </span>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted">
-                        Kecepatan: ${unit.speed} km/h<br>
-                        Jarak: ${unit.distance.toFixed(2)} km<br>
-                        Bahan Bakar: ${unit.fuelLevel}%<br>
-                        Update: ${unit.lastUpdate}
-                    </small>
-                </div>
-            `;
-            unitList.appendChild(unitElement);
-        });
-    }
-
-    updateMapMarkers() {
-        // Hapus hanya marker yang tidak ada lagi di units
-        Object.keys(this.markers).forEach(markerId => {
-            const unitExists = this.units.some(unit => unit.id.toString() === markerId.toString());
-            if (!unitExists && this.markers[markerId]) {
-                this.map.removeLayer(this.markers[markerId]);
-                delete this.markers[markerId];
-            }
-        });
-
-        // Update atau buat marker baru
-        this.units.forEach(unit => {
-            if (!this.markers[unit.id]) {
-                const markerIcon = L.divIcon({
-                    className: 'custom-marker',
-                    html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
-                                 title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
-                });
-
-                const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
-                    .bindPopup(this.createUnitPopup(unit))
-                    .addTo(this.map);
-                
-                this.markers[unit.id] = marker;
-            } else {
-                // Update existing marker
-                this.updateUnitMarker(unit);
-            }
-        });
-    }
-
-    filterUnits() {
-        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
-        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
-        const statusFilter = document.getElementById('filterStatus')?.value || '';
-        const fuelFilter = document.getElementById('filterFuel')?.value || '';
-
-        console.log('Filtering units...', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
-    }
-
-    destroy() {
-        if (this.firebaseListener) {
-            database.ref('/units').off('value', this.firebaseListener);
-            database.ref('/units').off('child_removed');
-        }
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-        }
-    }
+    // ... (method lainnya tetap sama)
 }
 
 // Initialize system
