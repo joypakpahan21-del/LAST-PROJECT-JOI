@@ -47,7 +47,7 @@ class SAGMGpsTracking {
             fuelTankCapacity: 100 // liter
         };
 
-        // Koordinat penting
+        // Koordinat penting - DIPASTIKAN ADA
         this.importantLocations = {
             PKS_SAGM: { 
                 lat: -0.43452332690449164, 
@@ -127,6 +127,7 @@ class SAGMGpsTracking {
             // Update status unit menjadi inactive
             this.units[unitIndex].status = 'inactive';
             this.units[unitIndex].lastUpdate = 'OFFLINE';
+            this.units[unitIndex].isOnline = false;
             
             // Update marker
             this.updateUnitMarker(this.units[unitIndex]);
@@ -597,13 +598,95 @@ class SAGMGpsTracking {
             L.control.scale({ imperial: false }).addTo(this.map);
             L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-            this.addImportantLocations();
+            this.addImportantLocations(); // DIPASTIKAN DIPANGGIL
             this.addRouteControls();
 
         } catch (error) {
             console.error('Error initializing map:', error);
             throw new Error('Gagal menginisialisasi peta');
         }
+    }
+
+    // METHOD YANG TERPOTONG - DIPASTIKAN ADA
+    addImportantLocations() {
+        try {
+            // Clear existing important markers
+            this.importantMarkers.forEach(marker => {
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+            });
+            this.importantMarkers = [];
+
+            // PKS SAGM Marker
+            const pksIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon pks" title="PKS SAGM">🏭</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const pksMarker = L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { icon: pksIcon })
+                .bindPopup(this.createLocationPopup('PKS SAGM', 'pks'))
+                .addTo(this.map);
+
+            // Kantor Kebun Marker
+            const officeIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon office" title="Kantor Kebun">🏢</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const officeMarker = L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { icon: officeIcon })
+                .bindPopup(this.createLocationPopup('Kantor Kebun PT SAGM', 'office'))
+                .addTo(this.map);
+
+            this.importantMarkers.push(pksMarker, officeMarker);
+            console.log('✅ Important locations added:', this.importantLocations);
+
+        } catch (error) {
+            console.error('Error adding important locations:', error);
+        }
+    }
+
+    createLocationPopup(name, type) {
+        const pksInfo = `
+            <div class="info-item">
+                <span class="info-label">Kapasitas:</span>
+                <span class="info-value">45 Ton TBS/Jam</span>
+            </div>
+        `;
+
+        const officeInfo = `
+            <div class="info-item">
+                <span class="info-label">Jam Operasi:</span>
+                <span class="info-value">07:00 - 16:00</span>
+            </div>
+        `;
+
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">${type === 'pks' ? '🏭' : '🏢'} ${name}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Tipe:</span>
+                        <span class="info-value">${type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value">Operasional</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Lokasi:</span>
+                        <span class="info-value">Kebun Tempuling</span>
+                    </div>
+                    ${type === 'pks' ? pksInfo : officeInfo}
+                </div>
+            </div>
+        `;
     }
 
     // ENHANCED: Add route controls to map
@@ -664,7 +747,140 @@ class SAGMGpsTracking {
         this.showNotification('Data rute berhasil diexport', 'success');
     }
 
-    // ... (methods lainnya tetap sama, seperti addImportantLocations, setupEventListeners, dll.)
+    setupEventListeners() {
+        const searchInput = document.getElementById('searchUnit');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.filterUnits());
+        }
+
+        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
+        filters.forEach(filterId => {
+            const filter = document.getElementById(filterId);
+            if (filter) {
+                filter.addEventListener('change', () => this.filterUnits());
+            }
+        });
+
+        database.ref('.info/connected').on('value', (snapshot) => {
+            this.updateFirebaseStatus(snapshot.val());
+        });
+    }
+
+    updateFirebaseStatus(connected) {
+        const statusElement = document.getElementById('firebaseStatus');
+        if (statusElement) {
+            if (connected) {
+                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
+                statusElement.className = 'text-success';
+            } else {
+                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                statusElement.className = 'text-danger';
+            }
+        }
+    }
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    startAutoRefresh() {
+        this.autoRefreshInterval = setInterval(() => {
+            this.addLog('Auto-refresh data', 'info');
+        }, 30000);
+    }
+
+    async loadUnitData() {
+        try {
+            this.showLoading(true);
+            
+            const data = await this.fetchUnitData();
+            this.units = data;
+            
+            this.units.forEach(unit => {
+                unit.lastLat = unit.latitude;
+                unit.lastLng = unit.longitude;
+                unit.distance = unit.distance || 0;
+                unit.fuelUsed = unit.fuelUsed || 0;
+                unit.isOnline = true;
+            });
+            
+            this.updateStatistics();
+            this.renderUnitList();
+            this.updateMapMarkers();
+            
+            this.showLoading(false);
+            this.showNotification('Sistem monitoring aktif - Menunggu data real-time', 'success');
+            
+        } catch (error) {
+            console.error('Error loading unit data:', error);
+            this.showLoading(false);
+            this.showError('Gagal memuat data unit: ' + error.message);
+        }
+    }
+
+    async fetchUnitData() {
+        try {
+            const snapshot = await database.ref('/units').once('value');
+            const firebaseData = snapshot.val();
+            
+            if (firebaseData && Object.keys(firebaseData).length > 0) {
+                console.log('✅ Data real ditemukan di Firebase:', Object.keys(firebaseData).length + ' units');
+                
+                const realUnits = [];
+                
+                for (const [unitName, unitData] of Object.entries(firebaseData)) {
+                    realUnits.push(this.createUnitFromFirebase(unitName, unitData));
+                }
+                
+                return realUnits;
+            }
+            
+            console.log('📭 Tidak ada data real-time dari driver');
+            return [];
+            
+        } catch (error) {
+            console.error('Error mengambil data Firebase:', error);
+            return [];
+        }
+    }
+
+    getAfdelingFromUnit(unitName) {
+        const afdelingMap = {
+            'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
+            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
+            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-25': 'KKPA', 'DT-26': 'KKPA',
+            'DT-27': 'KKPA', 'DT-28': 'AFD II', 'DT-29': 'AFD III', 'DT-32': 'AFD I',
+            'DT-33': 'AFD IV', 'DT-34': 'AFD V', 'DT-35': 'KKPA', 'DT-36': 'AFD II',
+            'DT-37': 'AFD III', 'DT-38': 'AFD I', 'DT-39': 'AFD IV'
+        };
+        return afdelingMap[unitName] || 'AFD I';
+    }
+
+    getStatusFromJourneyStatus(journeyStatus) {
+        const statusMap = {
+            'started': 'moving',
+            'moving': 'moving', 
+            'active': 'active',
+            'paused': 'active',
+            'ended': 'inactive',
+            'ready': 'inactive'
+        };
+        return statusMap[journeyStatus] || 'active';
+    }
+
+    calculateFuelLevel(distance) {
+        const baseFuel = 80;
+        const fuelUsed = distance ? distance / this.vehicleConfig.fuelEfficiency : 0;
+        return Math.max(10, baseFuel - (fuelUsed / this.vehicleConfig.fuelTankCapacity * 100));
+    }
 
     // ENHANCED: Update unit marker dengan status online/offline
     updateUnitMarker(unit) {
@@ -747,7 +963,155 @@ class SAGMGpsTracking {
         `;
     }
 
-    // ... (methods lainnya tetap sama)
+    addLog(message, type = 'info') {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    showNotification(message, type = 'info') {
+        console.log(`[NOTIFICATION ${type}] ${message}`);
+        
+        // Simple notification display
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    showError(message) {
+        console.error(`[ERROR] ${message}`);
+        this.showNotification(message, 'danger');
+    }
+
+    showLoading(show) {
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) {
+            spinner.style.display = show ? 'block' : 'none';
+        }
+    }
+
+    updateStatistics() {
+        const activeUnits = this.units.filter(unit => unit.status === 'active' || unit.status === 'moving').length;
+        const totalDistance = this.units.reduce((sum, unit) => sum + unit.distance, 0);
+        const totalSpeed = this.units.reduce((sum, unit) => sum + unit.speed, 0);
+        const avgSpeed = this.units.length > 0 ? totalSpeed / this.units.length : 0;
+        const totalFuel = this.units.reduce((sum, unit) => sum + unit.fuelUsed, 0);
+
+        this.activeUnits = activeUnits;
+        this.totalDistance = totalDistance;
+        this.avgSpeed = avgSpeed;
+        this.totalFuelConsumption = totalFuel;
+
+        if (document.getElementById('activeUnits')) {
+            document.getElementById('activeUnits').textContent = `${activeUnits}/23`;
+        }
+        if (document.getElementById('totalDistance')) {
+            document.getElementById('totalDistance').textContent = `${totalDistance.toFixed(1)} km`;
+        }
+        if (document.getElementById('avgSpeed')) {
+            document.getElementById('avgSpeed').textContent = `${avgSpeed.toFixed(1)} km/h`;
+        }
+        if (document.getElementById('totalFuel')) {
+            document.getElementById('totalFuel').textContent = `${totalFuel.toFixed(1)} L`;
+        }
+    }
+
+    renderUnitList() {
+        const unitList = document.getElementById('unitList');
+        if (!unitList) return;
+
+        unitList.innerHTML = '';
+
+        if (this.units.length === 0) {
+            unitList.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <div class="mb-2">📭</div>
+                    <small>Tidak ada unit aktif</small>
+                    <br>
+                    <small class="text-muted">Menunggu koneksi dari driver...</small>
+                </div>
+            `;
+            return;
+        }
+
+        this.units.forEach(unit => {
+            const unitElement = document.createElement('div');
+            unitElement.className = `unit-item ${unit.status}`;
+            unitElement.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
+                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
+                    </div>
+                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
+                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        Kecepatan: ${unit.speed} km/h<br>
+                        Jarak: ${unit.distance.toFixed(2)} km<br>
+                        Bahan Bakar: ${unit.fuelLevel}%<br>
+                        Update: ${unit.lastUpdate}
+                    </small>
+                </div>
+            `;
+            unitList.appendChild(unitElement);
+        });
+    }
+
+    updateMapMarkers() {
+        // Hapus hanya marker yang tidak ada lagi di units
+        Object.keys(this.markers).forEach(markerId => {
+            const unitExists = this.units.some(unit => unit.id.toString() === markerId.toString());
+            if (!unitExists && this.markers[markerId]) {
+                this.map.removeLayer(this.markers[markerId]);
+                delete this.markers[markerId];
+            }
+        });
+
+        // Update atau buat marker baru
+        this.units.forEach(unit => {
+            if (!this.markers[unit.id]) {
+                const markerIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                                 title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+
+                const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
+                    .bindPopup(this.createUnitPopup(unit))
+                    .addTo(this.map);
+                
+                this.markers[unit.id] = marker;
+            } else {
+                // Update existing marker
+                this.updateUnitMarker(unit);
+            }
+        });
+    }
+
+    filterUnits() {
+        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
+        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
+        const statusFilter = document.getElementById('filterStatus')?.value || '';
+        const fuelFilter = document.getElementById('filterFuel')?.value || '';
+
+        console.log('Filtering units...', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
+    }
 
     destroy() {
         if (this.firebaseListener) {
