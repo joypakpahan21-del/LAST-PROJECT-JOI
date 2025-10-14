@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// SAGM GPS Tracking System for Kebun Tempuling dengan FIREBASE REAL-TIME
+// SAGM GPS Tracking System for Kebun Tempuling
 class SAGMGpsTracking {
     constructor() {
         this.map = null;
@@ -29,25 +29,45 @@ class SAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // ENHANCED: Route visualization dengan perbaikan
-        this.unitPolylines = {}; // Store polylines for each unit
-        this.showRoutes = true; // Toggle untuk menampilkan rute
-        this.routeColors = {}; // Color untuk setiap unit
-        this.routeControls = null; // Controls untuk rute
-        this.maxRoutePoints = 200; // Batasi jumlah titik untuk performa
+        // Route visualization
+        this.unitPolylines = {};
+        this.showRoutes = true;
+        this.routeColors = {};
+        this.routeControls = null;
+        this.maxRoutePoints = 200;
         
-        // NEW: Tracking driver online status
-        this.driverOnlineStatus = {}; // Track jika driver masih online
-        this.lastDataTimestamps = {}; // Track last update time per unit
+        // Enhanced tracking
+        this.driverOnlineStatus = {};
+        this.lastDataTimestamps = {};
+        this.unitSessions = {};
         
+        // Data Logger System
+        this.dataLogger = {
+            logs: [],
+            maxLogs: 1000,
+            logLevels: {
+                INFO: 'info',
+                SUCCESS: 'success', 
+                WARNING: 'warning',
+                ERROR: 'error',
+                GPS: 'gps',
+                SYSTEM: 'system'
+            },
+            autoExport: false,
+            exportInterval: null
+        };
+        
+        // Vehicle configuration dengan perhitungan akurat
         this.vehicleConfig = {
-            fuelEfficiency: 4, // 4 km per liter
+            fuelEfficiency: 4.5,
             maxSpeed: 80,
-            idleFuelConsumption: 1.5, // liter per jam saat idle
-            fuelTankCapacity: 100 // liter
+            fuelTankCapacity: 100,
+            baseFuelConsumption: 0.25,
+            movingFuelConsumption: 0.22,
+            idleFuelConsumptionPerMin: 0.013
         };
 
-        // Koordinat penting - DIPASTIKAN ADA
+        // Important locations
         this.importantLocations = {
             PKS_SAGM: { 
                 lat: -0.43452332690449164, 
@@ -71,606 +91,31 @@ class SAGMGpsTracking {
             zoom: 13
         };
 
-        this.init();
+        this.initializeSystem();
     }
 
-    // NEW: Generate unique color untuk setiap unit
-    generateUnitColor(unitName) {
-        if (!this.routeColors[unitName]) {
-            const colors = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
-                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
-                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
-            ];
-            this.routeColors[unitName] = colors[Object.keys(this.routeColors).length % colors.length];
-        }
-        return this.routeColors[unitName];
-    }
-
-    init() {
+    // ===== INITIALIZATION METHODS =====
+    initializeSystem() {
         try {
-            console.log('🚀 Initializing GPS Tracking System...');
-            this.initializeMap();
-            this.setupEventListeners();
-            this.initializeFirebaseListener();
-            this.loadUnitData();
-            this.startAutoRefresh();
-            this.initializeHistoryStorage();
-            this.startOnlineStatusChecker();
-            
-            // Test Firebase connection setelah 3 detik
-            setTimeout(() => {
-                this.testFirebaseConnection();
-            }, 3000);
-            
+            console.log('🚀 Starting GPS Tracking System...');
+            this.setupMap();
+            this.setupEventHandlers();
+            this.connectToFirebase();
+            this.loadInitialData();
+            this.startPeriodicTasks();
+            this.setupDataLogger();
+            this.testFirebaseConnection();
         } catch (error) {
-            console.error('Error initializing GPS system:', error);
-            this.showError('Gagal menginisialisasi sistem GPS');
+            console.error('System initialization failed:', error);
+            this.displayError('Gagal memulai sistem GPS');
         }
     }
 
-    // NEW: Test Firebase connection
-    testFirebaseConnection() {
-        console.log('🧪 Testing Firebase connection...');
-        
-        // Test read data
-        database.ref('/units').once('value')
-            .then((snapshot) => {
-                const data = snapshot.val();
-                console.log('📊 Current Firebase data:', data);
-                
-                if (data && Object.keys(data).length > 0) {
-                    console.log('✅ Firebase data found:', Object.keys(data));
-                    this.showNotification('Firebase connected - Data ditemukan', 'success');
-                } else {
-                    console.log('📭 No data in Firebase');
-                    this.showNotification('Firebase connected - Tidak ada data', 'warning');
-                }
-            })
-            .catch((error) => {
-                console.error('❌ Firebase test failed:', error);
-                this.showNotification('Firebase test failed: ' + error.message, 'danger');
-            });
-    }
-
-    // NEW: Check online status of drivers
-    startOnlineStatusChecker() {
-        setInterval(() => {
-            const now = Date.now();
-            Object.keys(this.lastDataTimestamps).forEach(unitName => {
-                const lastUpdate = this.lastDataTimestamps[unitName];
-                const timeDiff = now - lastUpdate;
-                
-                // Jika tidak ada update dalam 30 detik, anggap driver offline
-                if (timeDiff > 30000) {
-                    this.handleDriverOffline(unitName);
-                }
-            });
-        }, 10000); // Check every 10 seconds
-    }
-
-    // NEW: Handle ketika driver logout/offline
-    handleDriverOffline(unitName) {
-        const unitIndex = this.units.findIndex(u => u.name === unitName);
-        if (unitIndex !== -1) {
-            // Update status unit menjadi inactive
-            this.units[unitIndex].status = 'inactive';
-            this.units[unitIndex].lastUpdate = 'OFFLINE';
-            this.units[unitIndex].isOnline = false;
-            
-            // Update marker
-            this.updateUnitMarker(this.units[unitIndex]);
-            
-            // Update statistics dan UI
-            this.updateStatistics();
-            this.renderUnitList();
-            
-            console.log(`🚫 Driver ${unitName} offline`);
-            this.addLog(`Driver ${unitName} offline - data dihapus dari peta`, 'warning');
-        }
-        
-        // Hapus dari tracking
-        delete this.driverOnlineStatus[unitName];
-        delete this.lastDataTimestamps[unitName];
-    }
-
-    // Initialize Firebase Real-time Listener dengan PERBAIKAN BESAR
-    initializeFirebaseListener() {
-        try {
-            console.log('🟡 Mencoba connect ke Firebase...');
-            
-            // Cek koneksi Firebase
-            database.ref('.info/connected').on('value', (snapshot) => {
-                const connected = snapshot.val();
-                console.log('📡 Firebase connection status:', connected);
-                this.updateFirebaseStatus(connected);
-            });
-
-            this.firebaseListener = database.ref('/units').on('value', (snapshot) => {
-                const data = snapshot.val();
-                console.log('📨 Data received from Firebase:', data);
-                this.handleRealTimeUpdate(data);
-            }, (error) => {
-                console.error('❌ Firebase listener error:', error);
-                this.showError('Koneksi real-time terputus: ' + error.message);
-            });
-            
-            // NEW: Listen for removed data (when driver logs out)
-            database.ref('/units').on('child_removed', (snapshot) => {
-                console.log('🗑️ Data removed from Firebase:', snapshot.key);
-                this.handleDriverLogout(snapshot.key);
-            });
-            
-            console.log('✅ Firebase real-time listener aktif');
-            
-        } catch (error) {
-            console.error('❌ Error initializing Firebase listener:', error);
-            this.showError('Gagal menginisialisasi Firebase: ' + error.message);
-        }
-    }
-
-    // NEW: Handle ketika driver logout dan data dihapus dari Firebase
-    handleDriverLogout(unitName) {
-        console.log(`🚫 Data dihapus dari Firebase untuk unit: ${unitName}`);
-        
-        // Hapus unit dari daftar
-        this.units = this.units.filter(unit => unit.name !== unitName);
-        
-        // Hapus marker dari peta
-        if (this.markers[unitName]) {
-            this.map.removeLayer(this.markers[unitName]);
-            delete this.markers[unitName];
-        }
-        
-        // Hapus polyline rute
-        if (this.unitPolylines[unitName]) {
-            this.map.removeLayer(this.unitPolylines[unitName]);
-            delete this.unitPolylines[unitName];
-        }
-        
-        // Hapus dari tracking
-        delete this.driverOnlineStatus[unitName];
-        delete this.lastDataTimestamps[unitName];
-        delete this.unitHistory[unitName];
-        
-        // Update UI
-        this.updateStatistics();
-        this.renderUnitList();
-        
-        this.addLog(`Driver ${unitName} logout - data dihapus dari sistem`, 'info');
-    }
-
-    // Handle real-time updates dari Firebase dengan PERBAIKAN BESAR
-    handleRealTimeUpdate(firebaseData) {
-        console.log('🔄 handleRealTimeUpdate called with:', firebaseData);
-        
-        if (!firebaseData) {
-            console.log('📭 Tidak ada data real-time dari Firebase');
-            // Tidak mengosongkan units sepenuhnya, biarkan data terakhir tetap
-            this.updateStatistics();
-            this.renderUnitList();
-            return;
-        }
-
-        console.log('🔄 Update real-time dari Firebase:', Object.keys(firebaseData).length + ' units');
-        
-        let updatedCount = 0;
-        const currentUnitNames = new Set();
-        
-        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            console.log(`📝 Processing unit ${unitName}:`, unitData);
-            currentUnitNames.add(unitName);
-            
-            // NEW: Track last update time
-            this.lastDataTimestamps[unitName] = Date.now();
-            this.driverOnlineStatus[unitName] = true;
-            
-            const existingUnitIndex = this.units.findIndex(u => u.name === unitName);
-            
-            if (existingUnitIndex !== -1) {
-                console.log(`🔄 Updating existing unit: ${unitName}`);
-                this.updateUnitFromFirebase(this.units[existingUnitIndex], unitData);
-                updatedCount++;
-            } else {
-                console.log(`🆕 Creating new unit: ${unitName}`);
-                const newUnit = this.createUnitFromFirebase(unitName, unitData);
-                if (newUnit) {
-                    this.units.push(newUnit);
-                    updatedCount++;
-                }
-            }
-        });
-
-        // NEW: Handle units yang tidak lagi ada di Firebase
-        this.units.forEach(unit => {
-            if (!currentUnitNames.has(unit.name)) {
-                console.log(`🚫 Unit ${unit.name} tidak ada di Firebase, marking offline`);
-                this.handleDriverOffline(unit.name);
-            }
-        });
-
-        if (updatedCount > 0) {
-            console.log(`✅ Updated ${updatedCount} units`);
-            this.updateStatistics();
-            this.renderUnitList();
-            this.updateMapMarkers();
-            this.addLog(`Data real-time diperbarui: ${updatedCount} unit`, 'success');
-        } else {
-            console.log('ℹ️ No units updated');
-        }
-    }
-
-    // Create unit object from Firebase data dengan VALIDASI
-    createUnitFromFirebase(unitName, firebaseData) {
-        // Validasi data penting
-        if (!firebaseData || !firebaseData.lat || !firebaseData.lng) {
-            console.warn(`⚠️ Data tidak valid untuk unit ${unitName}:`, firebaseData);
-            return null;
-        }
-
-        const newUnit = {
-            id: this.generateUnitId(unitName),
-            name: unitName,
-            afdeling: this.getAfdelingFromUnit(unitName),
-            status: this.getStatusFromJourneyStatus(firebaseData.journeyStatus),
-            latitude: parseFloat(firebaseData.lat),
-            longitude: parseFloat(firebaseData.lng),
-            speed: parseFloat(firebaseData.speed) || 0,
-            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
-            distance: parseFloat(firebaseData.distance) || 0,
-            fuelLevel: this.calculateFuelLevel(firebaseData.distance),
-            fuelUsed: firebaseData.distance ? parseFloat(firebaseData.distance) / this.vehicleConfig.fuelEfficiency : 0,
-            driver: firebaseData.driver || 'Unknown',
-            accuracy: parseFloat(firebaseData.accuracy) || 0,
-            batteryLevel: firebaseData.batteryLevel || null,
-            lastLat: parseFloat(firebaseData.lat),
-            lastLng: parseFloat(firebaseData.lng),
-            isOnline: true
-        };
-
-        console.log(`✅ Created unit: ${unitName}`, newUnit);
-        
-        // Initialize history untuk unit baru
-        this.initializeUnitHistory(newUnit);
-        return newUnit;
-    }
-
-    // NEW: Initialize history untuk unit baru
-    initializeUnitHistory(unit) {
-        if (!this.unitHistory[unit.name]) {
-            this.unitHistory[unit.name] = [];
-        }
-        
-        // Tambahkan titik pertama ke history
-        this.addPointToHistory(unit);
-    }
-
-    // Update existing unit with Firebase data
-    updateUnitFromFirebase(unit, firebaseData) {
-        // Calculate distance hanya jika ada perpindahan signifikan
-        if (unit.lastLat && unit.lastLng && firebaseData.lat && firebaseData.lng) {
-            const distance = this.calculateDistance(
-                unit.lastLat, unit.lastLng, 
-                firebaseData.lat, firebaseData.lng
-            );
-            
-            // Hanya tambahkan distance jika perpindahan > 10 meter
-            if (distance > 0.01 && unit.status === 'moving') {
-                unit.distance += distance;
-                unit.fuelUsed += distance / this.vehicleConfig.fuelEfficiency;
-            }
-        }
-
-        unit.latitude = firebaseData.lat || unit.latitude;
-        unit.longitude = firebaseData.lng || unit.longitude;
-        unit.speed = firebaseData.speed || unit.speed;
-        unit.status = this.getStatusFromJourneyStatus(firebaseData.journeyStatus) || unit.status;
-        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
-        unit.driver = firebaseData.driver || unit.driver;
-        unit.accuracy = firebaseData.accuracy || unit.accuracy;
-        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
-        unit.fuelLevel = this.calculateFuelLevel(unit.distance);
-        unit.lastLat = firebaseData.lat;
-        unit.lastLng = firebaseData.lng;
-        unit.isOnline = true; // NEW: Set online status
-
-        // Update history untuk route tracking - DIPERBAIKI
-        this.addPointToHistory(unit);
-    }
-
-    // Generate consistent ID from unit name
-    generateUnitId(unitName) {
-        const unitIdMap = {
-            'DT-06': 1, 'DT-07': 2, 'DT-12': 3, 'DT-13': 4, 'DT-15': 5, 'DT-16': 6,
-            'DT-17': 7, 'DT-18': 8, 'DT-23': 9, 'DT-24': 10, 'DT-25': 11, 'DT-26': 12,
-            'DT-27': 13, 'DT-28': 14, 'DT-29': 15, 'DT-32': 16, 'DT-33': 17, 'DT-34': 18,
-            'DT-35': 19, 'DT-36': 20, 'DT-37': 21, 'DT-38': 22, 'DT-39': 23
-        };
-        return unitIdMap[unitName] || Date.now();
-    }
-
-    initializeHistoryStorage() {
-        try {
-            const savedHistory = localStorage.getItem('sagm_unit_history');
-            if (savedHistory) {
-                this.unitHistory = JSON.parse(savedHistory);
-                console.log('📂 Loaded history from storage:', Object.keys(this.unitHistory).length + ' units');
-            }
-        } catch (error) {
-            console.error('Error loading history:', error);
-            this.unitHistory = {};
-        }
-    }
-
-    saveHistoryToStorage() {
-        try {
-            localStorage.setItem('sagm_unit_history', JSON.stringify(this.unitHistory));
-        } catch (error) {
-            console.error('Error saving history:', error);
-        }
-    }
-
-    // PERBAIKAN BESAR: Method untuk menambah titik ke history
-    addPointToHistory(unit) {
-        if (!this.unitHistory[unit.name]) {
-            this.unitHistory[unit.name] = [];
-        }
-
-        const history = this.unitHistory[unit.name];
-        const now = new Date().toISOString();
-
-        // Always add point untuk testing - nanti bisa di-filter
-        const newPoint = {
-            timestamp: now,
-            latitude: unit.latitude,
-            longitude: unit.longitude,
-            speed: unit.speed,
-            distance: unit.distance,
-            status: unit.status
-        };
-
-        history.push(newPoint);
-
-        // Keep only last points untuk prevent memory issues
-        if (history.length > this.maxRoutePoints) {
-            this.unitHistory[unit.name] = history.slice(-this.maxRoutePoints);
-        }
-
-        // Update route polyline - PASTIKAN DIPANGGIL
-        this.updateUnitRoute(unit);
-        this.saveHistoryToStorage();
-
-        console.log(`📍 Added point to ${unit.name} history:`, {
-            lat: unit.latitude,
-            lng: unit.longitude,
-            totalPoints: history.length
-        });
-    }
-
-    // PERBAIKAN BESAR: Create or update route polyline untuk unit
-    updateUnitRoute(unit) {
-        if (!this.unitHistory[unit.name] || this.unitHistory[unit.name].length < 1) {
-            console.log(`No history for ${unit.name}`);
-            return;
-        }
-
-        const routePoints = this.unitHistory[unit.name].map(point => [
-            point.latitude, point.longitude
-        ]);
-
-        console.log(`🔄 Updating route for ${unit.name}:`, {
-            points: routePoints.length,
-            currentPos: [unit.latitude, unit.longitude]
-        });
-
-        const unitColor = this.generateUnitColor(unit.name);
-
-        if (this.unitPolylines[unit.name]) {
-            // Update existing polyline
-            try {
-                this.unitPolylines[unit.name].setLatLngs(routePoints);
-                
-                // Update style based on status
-                const style = this.getRouteStyle(unit.status, unitColor);
-                this.unitPolylines[unit.name].setStyle(style);
-                
-                console.log(`✅ Updated existing polyline for ${unit.name}`);
-            } catch (error) {
-                console.error(`Error updating polyline for ${unit.name}:`, error);
-                // Recreate polyline jika error
-                this.map.removeLayer(this.unitPolylines[unit.name]);
-                delete this.unitPolylines[unit.name];
-                this.createNewPolyline(unit, routePoints, unitColor);
-            }
-        } else {
-            // Create new polyline
-            this.createNewPolyline(unit, routePoints, unitColor);
-        }
-    }
-
-    // NEW: Method untuk membuat polyline baru
-    createNewPolyline(unit, routePoints, unitColor) {
-        try {
-            const style = this.getRouteStyle(unit.status, unitColor);
-            
-            this.unitPolylines[unit.name] = L.polyline(routePoints, style);
-            
-            // Only add to map if showRoutes is true
-            if (this.showRoutes) {
-                this.unitPolylines[unit.name].addTo(this.map);
-            }
-
-            // Add interactive popup to polyline
-            this.unitPolylines[unit.name].bindPopup(this.createRoutePopup(unit));
-            
-            // Add click event to focus on unit
-            this.unitPolylines[unit.name].on('click', () => {
-                this.focusOnUnit(unit);
-            });
-
-            console.log(`✅ Created new polyline for ${unit.name} with ${routePoints.length} points`);
-        } catch (error) {
-            console.error(`Error creating polyline for ${unit.name}:`, error);
-        }
-    }
-
-    // NEW: Get route style based on unit status
-    getRouteStyle(status, color) {
-        const baseStyle = {
-            color: color,
-            weight: 4,
-            opacity: 0.7,
-            lineCap: 'round',
-            className: 'route-line'
-        };
-
-        switch(status) {
-            case 'moving':
-                return {
-                    ...baseStyle,
-                    opacity: 0.9,
-                    weight: 5,
-                    dashArray: null // Solid line for moving
-                };
-            case 'active':
-                return {
-                    ...baseStyle,
-                    opacity: 0.7,
-                    weight: 4,
-                    dashArray: '5, 10' // Dashed line for active but not moving
-                };
-            case 'inactive':
-                return {
-                    ...baseStyle,
-                    opacity: 0.4,
-                    weight: 3,
-                    dashArray: '2, 8' // Dotted line for inactive
-                };
-            default:
-                return baseStyle;
-        }
-    }
-
-    // NEW: Create popup for route
-    createRoutePopup(unit) {
-        const routePoints = this.unitHistory[unit.name]?.length || 0;
-        const totalDistance = unit.distance.toFixed(2);
-        const routeColor = this.generateUnitColor(unit.name);
-
-        return `
-            <div class="route-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">🗺️ Rute ${unit.name}</h6>
-                </div>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Driver:</span>
-                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Total Jarak:</span>
-                        <span class="info-value">${totalDistance} km</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Points Rute:</span>
-                        <span class="info-value">${routePoints}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Warna Rute:</span>
-                        <span class="info-value">
-                            <span style="color: ${routeColor}">■</span> ${routeColor}
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-danger'}">
-                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
-                        </span>
-                    </div>
-                </div>
-                <div class="text-center mt-2">
-                    <button class="btn btn-sm btn-outline-primary" onclick="window.gpsSystem.focusOnUnit('${unit.name}')">
-                        🔍 Fokus ke Unit
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="window.gpsSystem.clearUnitRoute('${unit.name}')">
-                        🗑️ Hapus Rute
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    // NEW: Focus map on specific unit
-    focusOnUnit(unitOrName) {
-        let unit;
-        if (typeof unitOrName === 'string') {
-            unit = this.units.find(u => u.name === unitOrName);
-        } else {
-            unit = unitOrName;
-        }
-
-        if (unit && this.map) {
-            this.map.setView([unit.latitude, unit.longitude], 15);
-            
-            // Open popup if marker exists
-            if (this.markers[unit.name]) {
-                this.markers[unit.name].openPopup();
-            }
-            
-            this.showNotification(`Memfokuskan peta ke ${unit.name}`, 'info');
-        }
-    }
-
-    // NEW: Clear route for specific unit
-    clearUnitRoute(unitName) {
-        if (this.unitPolylines[unitName]) {
-            this.map.removeLayer(this.unitPolylines[unitName]);
-            delete this.unitPolylines[unitName];
-        }
-        
-        if (this.unitHistory[unitName]) {
-            this.unitHistory[unitName] = [];
-            this.saveHistoryToStorage();
-        }
-        
-        this.showNotification(`Rute untuk ${unitName} dihapus`, 'info');
-    }
-
-    // NEW: Toggle route visibility
-    toggleRoutes() {
-        this.showRoutes = !this.showRoutes;
-        
-        Object.entries(this.unitPolylines).forEach(([unitName, polyline]) => {
-            if (this.showRoutes) {
-                this.map.addLayer(polyline);
-            } else {
-                this.map.removeLayer(polyline);
-            }
-        });
-
-        this.showNotification(
-            this.showRoutes ? '🟢 Rute ditampilkan' : '🔴 Rute disembunyikan',
-            this.showRoutes ? 'success' : 'info'
-        );
-    }
-
-    // NEW: Clear all routes
-    clearAllRoutes() {
-        Object.values(this.unitPolylines).forEach(polyline => {
-            this.map.removeLayer(polyline);
-        });
-        this.unitPolylines = {};
-        this.unitHistory = {};
-        this.saveHistoryToStorage();
-        this.showNotification('🗑️ Semua rute dihapus', 'info');
-    }
-
-    initializeMap() {
+    setupMap() {
         try {
             this.map = L.map('map').setView(this.config.center, this.config.zoom);
 
+            // Base maps
             const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 attribution: '© Google Satellite',
                 maxZoom: 22,
@@ -690,6 +135,7 @@ class SAGMGpsTracking {
 
             googleSatellite.addTo(this.map);
 
+            // Map controls
             const baseMaps = {
                 "🛰️ Google Satellite": googleSatellite,
                 "🛰️ Google Hybrid": googleHybrid,
@@ -700,20 +146,18 @@ class SAGMGpsTracking {
             L.control.scale({ imperial: false }).addTo(this.map);
             L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-            this.addImportantLocations();
+            this.addLocationMarkers();
             this.addRouteControls();
 
-            console.log('✅ Map initialized with route controls');
-
         } catch (error) {
-            console.error('Error initializing map:', error);
-            throw new Error('Gagal menginisialisasi peta');
+            console.error('Map setup failed:', error);
+            throw new Error('Gagal menyiapkan peta');
         }
     }
 
-    addImportantLocations() {
+    addLocationMarkers() {
         try {
-            // Clear existing important markers
+            // Clear existing markers
             this.importantMarkers.forEach(marker => {
                 if (marker && this.map) {
                     this.map.removeLayer(marker);
@@ -730,7 +174,7 @@ class SAGMGpsTracking {
             });
 
             const pksMarker = L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { icon: pksIcon })
-                .bindPopup(this.createLocationPopup('PKS SAGM', 'pks'))
+                .bindPopup(this.createLocationInfo('PKS SAGM', 'pks'))
                 .addTo(this.map);
 
             // Kantor Kebun Marker
@@ -742,26 +186,26 @@ class SAGMGpsTracking {
             });
 
             const officeMarker = L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { icon: officeIcon })
-                .bindPopup(this.createLocationPopup('Kantor Kebun PT SAGM', 'office'))
+                .bindPopup(this.createLocationInfo('Kantor Kebun PT SAGM', 'office'))
                 .addTo(this.map);
 
             this.importantMarkers.push(pksMarker, officeMarker);
-            console.log('✅ Important locations added:', this.importantLocations);
+            console.log('✅ Location markers added');
 
         } catch (error) {
-            console.error('Error adding important locations:', error);
+            console.error('Failed to add location markers:', error);
         }
     }
 
-    createLocationPopup(name, type) {
-        const pksInfo = `
+    createLocationInfo(name, type) {
+        const pksDetails = `
             <div class="info-item">
                 <span class="info-label">Kapasitas:</span>
                 <span class="info-value">45 Ton TBS/Jam</span>
             </div>
         `;
 
-        const officeInfo = `
+        const officeDetails = `
             <div class="info-item">
                 <span class="info-label">Jam Operasi:</span>
                 <span class="info-value">07:00 - 16:00</span>
@@ -786,13 +230,12 @@ class SAGMGpsTracking {
                         <span class="info-label">Lokasi:</span>
                         <span class="info-value">Kebun Tempuling</span>
                     </div>
-                    ${type === 'pks' ? pksInfo : officeInfo}
+                    ${type === 'pks' ? pksDetails : officeDetails}
                 </div>
             </div>
         `;
     }
 
-    // ENHANCED: Add route controls to map
     addRouteControls() {
         const routeControl = L.control({ position: 'topright' });
         
@@ -800,15 +243,15 @@ class SAGMGpsTracking {
             const div = L.DomUtil.create('div', 'route-controls');
             div.innerHTML = `
                 <div class="btn-group-vertical">
-                    <button class="btn btn-sm btn-success" onclick="window.gpsSystem.toggleRoutes()" 
+                    <button class="btn btn-sm btn-success" onclick="window.gpsSystem.toggleRouteDisplay()" 
                             title="${this.showRoutes ? 'Sembunyikan Rute' : 'Tampilkan Rute'}">
                         ${this.showRoutes ? '🗺️' : '🚫'} Rute
                     </button>
-                    <button class="btn btn-sm btn-warning" onclick="window.gpsSystem.clearAllRoutes()" 
+                    <button class="btn btn-sm btn-warning" onclick="window.gpsSystem.removeAllRoutes()" 
                             title="Hapus Semua Rute">
                         🗑️ Hapus
                     </button>
-                    <button class="btn btn-sm btn-info" onclick="window.gpsSystem.exportRoutesData()" 
+                    <button class="btn btn-sm btn-info" onclick="window.gpsSystem.downloadRouteData()" 
                             title="Export Data Rute">
                         📊 Export
                     </button>
@@ -821,145 +264,239 @@ class SAGMGpsTracking {
         this.routeControls = routeControl;
     }
 
-    // NEW: Export routes data
-    exportRoutesData() {
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            totalUnits: this.units.length,
-            routes: {}
-        };
-
-        this.units.forEach(unit => {
-            exportData.routes[unit.name] = {
-                driver: unit.driver,
-                totalDistance: unit.distance,
-                routePoints: this.unitHistory[unit.name]?.length || 0,
-                history: this.unitHistory[unit.name] || []
-            };
-        });
-
-        // Create downloadable file
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `routes-data-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.showNotification('Data rute berhasil diexport', 'success');
-    }
-
-    setupEventListeners() {
+    // ===== EVENT HANDLERS =====
+    setupEventHandlers() {
+        // Search input
         const searchInput = document.getElementById('searchUnit');
         if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.filterUnits());
+            searchInput.addEventListener('input', (e) => this.applyFilters());
         }
 
+        // Filter dropdowns
         const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
         filters.forEach(filterId => {
             const filter = document.getElementById(filterId);
             if (filter) {
-                filter.addEventListener('change', () => this.filterUnits());
+                filter.addEventListener('change', () => this.applyFilters());
             }
         });
 
-        // Firebase connection status sudah dipindah ke initializeFirebaseListener
+        // Firebase connection status
+        database.ref('.info/connected').on('value', (snapshot) => {
+            this.updateConnectionStatus(snapshot.val());
+        });
     }
 
-    updateFirebaseStatus(connected) {
+    updateConnectionStatus(connected) {
         const statusElement = document.getElementById('firebaseStatus');
         if (statusElement) {
             if (connected) {
                 statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
                 statusElement.className = 'text-success';
-                console.log('✅ Firebase connected');
             } else {
                 statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
                 statusElement.className = 'text-danger';
-                console.log('❌ Firebase disconnected');
             }
         }
     }
 
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    startAutoRefresh() {
-        this.autoRefreshInterval = setInterval(() => {
-            this.addLog('Auto-refresh data', 'info');
-        }, 30000);
-    }
-
-    async loadUnitData() {
+    // ===== FIREBASE METHODS =====
+    connectToFirebase() {
         try {
-            this.showLoading(true);
+            console.log('🟡 Connecting to Firebase...');
             
-            const data = await this.fetchUnitData();
-            this.units = data;
-            
-            this.units.forEach(unit => {
-                unit.lastLat = unit.latitude;
-                unit.lastLng = unit.longitude;
-                unit.distance = unit.distance || 0;
-                unit.fuelUsed = unit.fuelUsed || 0;
-                unit.isOnline = true;
+            // Connection status monitoring
+            database.ref('.info/connected').on('value', (snapshot) => {
+                const connected = snapshot.val();
+                this.updateConnectionStatus(connected);
+                
+                if (connected) {
+                    this.logData('Firebase connected', 'success');
+                } else {
+                    this.logData('Firebase disconnected', 'warning');
+                }
+            });
+
+            // Real-time data listener
+            this.firebaseListener = database.ref('/units').on('value', (snapshot) => {
+                const data = snapshot.val();
+                this.processRealTimeData(data);
+            }, (error) => {
+                console.error('Firebase listener error:', error);
+                this.logData('Firebase connection error', 'error', { error: error.message });
             });
             
-            this.updateStatistics();
-            this.renderUnitList();
-            this.updateMapMarkers();
+            // Handle data removal (logout)
+            database.ref('/units').on('child_removed', (snapshot) => {
+                this.handleDataRemoval(snapshot.key);
+            });
             
-            this.showLoading(false);
-            this.showNotification('Sistem monitoring aktif - Menunggu data real-time', 'success');
+            console.log('✅ Firebase listener active');
+            this.logData('Firebase real-time listener active', 'system');
             
         } catch (error) {
-            console.error('Error loading unit data:', error);
-            this.showLoading(false);
-            this.showError('Gagal memuat data unit: ' + error.message);
+            console.error('Firebase connection failed:', error);
+            this.logData('Firebase connection failed', 'error', { error: error.message });
         }
     }
 
-    async fetchUnitData() {
-        try {
-            console.log('📡 Fetching initial data from Firebase...');
-            const snapshot = await database.ref('/units').once('value');
-            const firebaseData = snapshot.val();
-            
-            if (firebaseData && Object.keys(firebaseData).length > 0) {
-                console.log('✅ Data real ditemukan di Firebase:', Object.keys(firebaseData).length + ' units');
-                
-                const realUnits = [];
-                
-                for (const [unitName, unitData] of Object.entries(firebaseData)) {
-                    const unit = this.createUnitFromFirebase(unitName, unitData);
-                    if (unit) {
-                        realUnits.push(unit);
+    testFirebaseConnection() {
+        setTimeout(() => {
+            database.ref('/units').once('value')
+                .then((snapshot) => {
+                    const data = snapshot.val();
+                    if (data && Object.keys(data).length > 0) {
+                        this.logData('Firebase test successful - data found', 'success', {
+                            units: Object.keys(data)
+                        });
+                    } else {
+                        this.logData('Firebase test successful - no data', 'warning');
                     }
-                }
-                
-                return realUnits;
+                })
+                .catch((error) => {
+                    this.logData('Firebase test failed', 'error', { error: error.message });
+                });
+        }, 3000);
+    }
+
+    processRealTimeData(firebaseData) {
+        if (!firebaseData) {
+            this.logData('No real-time data from Firebase', 'warning');
+            this.clearAllData();
+            return;
+        }
+
+        const unitCount = Object.keys(firebaseData).length;
+        this.logData(`Real-time update: ${unitCount} units`, 'info', {
+            units: unitCount,
+            timestamp: new Date().toISOString()
+        });
+
+        let updates = 0;
+        const activeUnits = new Set();
+        const currentTime = Date.now();
+        
+        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+            // Session validation for one-session-per-DT
+            if (unitData.sessionId && !this.validateSession(unitName, unitData.sessionId)) {
+                this.logData(`Invalid session for ${unitName}`, 'warning', {
+                    unit: unitName,
+                    sessionId: unitData.sessionId
+                });
+                return;
             }
             
-            console.log('📭 Tidak ada data real-time dari driver');
-            return [];
+            activeUnits.add(unitName);
+            this.lastDataTimestamps[unitName] = currentTime;
+            this.driverOnlineStatus[unitName] = true;
             
-        } catch (error) {
-            console.error('Error mengambil data Firebase:', error);
-            return [];
+            const existingUnit = this.units.find(u => u.name === unitName);
+            
+            if (existingUnit) {
+                this.refreshUnitData(existingUnit, unitData);
+                updates++;
+                
+                this.logData(`GPS update: ${unitName}`, 'gps', {
+                    unit: unitName,
+                    latitude: unitData.lat,
+                    longitude: unitData.lng,
+                    speed: unitData.speed,
+                    driver: unitData.driver
+                });
+            } else {
+                const newUnit = this.createNewUnit(unitName, unitData);
+                if (newUnit) {
+                    this.units.push(newUnit);
+                    updates++;
+                    
+                    this.unitSessions[unitName] = {
+                        sessionId: unitData.sessionId,
+                        startTime: currentTime,
+                        lastActivity: currentTime
+                    };
+
+                    this.logData(`New unit detected: ${unitName}`, 'success', {
+                        unit: unitName,
+                        driver: unitData.driver,
+                        location: { lat: unitData.lat, lng: unitData.lng }
+                    });
+                }
+            }
+        });
+
+        // Remove inactive units
+        this.removeInactiveUnits(activeUnits);
+
+        if (updates > 0) {
+            this.refreshDisplay();
         }
     }
 
-    getAfdelingFromUnit(unitName) {
+    validateSession(unitName, sessionId) {
+        if (!this.unitSessions[unitName]) {
+            return true; // New unit, accept data
+        }
+        return this.unitSessions[unitName].sessionId === sessionId;
+    }
+
+    handleDataRemoval(unitName) {
+        this.logData(`Data removed for unit: ${unitName}`, 'info', {
+            unit: unitName,
+            action: 'logout'
+        });
+        
+        this.removeUnitCompletely(unitName);
+    }
+
+    // ===== UNIT MANAGEMENT =====
+    createNewUnit(unitName, firebaseData) {
+        if (!firebaseData || !firebaseData.lat || !firebaseData.lng) {
+            this.logData(`Invalid data for unit ${unitName}`, 'warning', {
+                unit: unitName,
+                data: firebaseData
+            });
+            return null;
+        }
+
+        const initialFuel = 100; // Full tank assumption
+        
+        const unit = {
+            id: this.getUnitId(unitName),
+            name: unitName,
+            afdeling: this.determineAfdeling(unitName),
+            status: this.determineStatus(firebaseData.journeyStatus),
+            latitude: parseFloat(firebaseData.lat),
+            longitude: parseFloat(firebaseData.lng),
+            speed: parseFloat(firebaseData.speed) || 0,
+            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+            distance: parseFloat(firebaseData.distance) || 0,
+            fuelLevel: this.computeFuelLevel(initialFuel, firebaseData.distance, firebaseData.journeyStatus),
+            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
+            driver: firebaseData.driver || 'Unknown',
+            accuracy: parseFloat(firebaseData.accuracy) || 0,
+            batteryLevel: firebaseData.batteryLevel || null,
+            lastLat: parseFloat(firebaseData.lat),
+            lastLng: parseFloat(firebaseData.lng),
+            isOnline: true,
+            sessionId: firebaseData.sessionId,
+            lastFuelUpdate: Date.now()
+        };
+
+        this.initializeUnitHistory(unit);
+        return unit;
+    }
+
+    getUnitId(unitName) {
+        const unitIdMap = {
+            'DT-06': 1, 'DT-07': 2, 'DT-12': 3, 'DT-13': 4, 'DT-15': 5, 'DT-16': 6,
+            'DT-17': 7, 'DT-18': 8, 'DT-23': 9, 'DT-24': 10, 'DT-25': 11, 'DT-26': 12,
+            'DT-27': 13, 'DT-28': 14, 'DT-29': 15, 'DT-32': 16, 'DT-33': 17, 'DT-34': 18,
+            'DT-35': 19, 'DT-36': 20, 'DT-37': 21, 'DT-38': 22, 'DT-39': 23
+        };
+        return unitIdMap[unitName] || Date.now();
+    }
+
+    determineAfdeling(unitName) {
         const afdelingMap = {
             'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
             'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
@@ -971,7 +508,7 @@ class SAGMGpsTracking {
         return afdelingMap[unitName] || 'AFD I';
     }
 
-    getStatusFromJourneyStatus(journeyStatus) {
+    determineStatus(journeyStatus) {
         const statusMap = {
             'started': 'moving',
             'moving': 'moving', 
@@ -983,20 +520,433 @@ class SAGMGpsTracking {
         return statusMap[journeyStatus] || 'active';
     }
 
-    calculateFuelLevel(distance) {
-        const baseFuel = 80;
-        const fuelUsed = distance ? distance / this.vehicleConfig.fuelEfficiency : 0;
-        return Math.max(10, baseFuel - (fuelUsed / this.vehicleConfig.fuelTankCapacity * 100));
+    refreshUnitData(unit, firebaseData) {
+        const now = Date.now();
+        const timeDiff = (now - unit.lastFuelUpdate) / 1000 / 60; // minutes
+        
+        // Calculate distance if significant movement
+        if (unit.lastLat && unit.lastLng && firebaseData.lat && firebaseData.lng) {
+            const distance = this.computeDistance(
+                unit.lastLat, unit.lastLng, 
+                firebaseData.lat, firebaseData.lng
+            );
+            
+            if (distance > 0.01) {
+                unit.distance += distance;
+                unit.fuelUsed += this.computeFuelConsumption(distance, unit.status);
+            }
+        }
+
+        // Calculate idle fuel consumption
+        if (unit.status === 'active' && timeDiff > 1) {
+            const idleConsumption = timeDiff * this.vehicleConfig.idleFuelConsumptionPerMin;
+            unit.fuelUsed += idleConsumption;
+        }
+
+        // Update unit properties
+        unit.latitude = firebaseData.lat || unit.latitude;
+        unit.longitude = firebaseData.lng || unit.longitude;
+        unit.speed = firebaseData.speed || unit.speed;
+        unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
+        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
+        unit.driver = firebaseData.driver || unit.driver;
+        unit.accuracy = firebaseData.accuracy || unit.accuracy;
+        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
+        unit.fuelLevel = this.computeFuelLevel(100, unit.distance, unit.status);
+        unit.lastLat = firebaseData.lat;
+        unit.lastLng = firebaseData.lng;
+        unit.isOnline = true;
+        unit.lastFuelUpdate = now;
+
+        this.addHistoryPoint(unit);
     }
 
-    // ENHANCED: Update unit marker dengan status online/offline
-    updateUnitMarker(unit) {
+    // ===== FUEL CALCULATION METHODS =====
+    computeFuelConsumption(distance, status) {
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelUsage(distance, status) {
+        if (!distance) return 0;
+        
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelLevel(initialFuel, distance, status) {
+        if (!distance) return initialFuel;
+        
+        const fuelUsed = this.computeFuelUsage(distance, status);
+        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
+        const fuelPercentage = (fuelRemaining / this.vehicleConfig.fuelTankCapacity) * 100;
+        
+        return Math.max(5, Math.min(100, fuelPercentage));
+    }
+
+    computeDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // ===== ROUTE HISTORY METHODS =====
+    initializeUnitHistory(unit) {
+        if (!this.unitHistory[unit.name]) {
+            this.unitHistory[unit.name] = [];
+        }
+        this.addHistoryPoint(unit);
+    }
+
+    addHistoryPoint(unit) {
+        if (!this.unitHistory[unit.name]) {
+            this.unitHistory[unit.name] = [];
+        }
+
+        const history = this.unitHistory[unit.name];
+        const timestamp = new Date().toISOString();
+
+        const point = {
+            timestamp: timestamp,
+            latitude: unit.latitude,
+            longitude: unit.longitude,
+            speed: unit.speed,
+            distance: unit.distance,
+            status: unit.status,
+            fuelLevel: unit.fuelLevel
+        };
+
+        history.push(point);
+
+        if (history.length > this.maxRoutePoints) {
+            this.unitHistory[unit.name] = history.slice(-this.maxRoutePoints);
+        }
+
+        this.updateUnitRoute(unit);
+        this.saveHistory();
+    }
+
+    updateUnitRoute(unit) {
+        if (!this.unitHistory[unit.name] || this.unitHistory[unit.name].length < 1) {
+            return;
+        }
+
+        const routePoints = this.unitHistory[unit.name].map(point => [
+            point.latitude, point.longitude
+        ]);
+
+        const routeColor = this.getRouteColor(unit.name);
+
+        if (this.unitPolylines[unit.name]) {
+            try {
+                this.unitPolylines[unit.name].setLatLngs(routePoints);
+                const style = this.getRouteStyle(unit.status, routeColor);
+                this.unitPolylines[unit.name].setStyle(style);
+            } catch (error) {
+                this.map.removeLayer(this.unitPolylines[unit.name]);
+                delete this.unitPolylines[unit.name];
+                this.createRoutePolyline(unit, routePoints, routeColor);
+            }
+        } else {
+            this.createRoutePolyline(unit, routePoints, routeColor);
+        }
+    }
+
+    getRouteColor(unitName) {
+        if (!this.routeColors[unitName]) {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
+                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
+            ];
+            this.routeColors[unitName] = colors[Object.keys(this.routeColors).length % colors.length];
+        }
+        return this.routeColors[unitName];
+    }
+
+    getRouteStyle(status, color) {
+        const baseStyle = {
+            color: color,
+            weight: 4,
+            opacity: 0.7,
+            lineCap: 'round',
+            className: 'route-line'
+        };
+
+        switch(status) {
+            case 'moving':
+                return { ...baseStyle, opacity: 0.9, weight: 5, dashArray: null };
+            case 'active':
+                return { ...baseStyle, opacity: 0.7, weight: 4, dashArray: '5, 10' };
+            case 'inactive':
+                return { ...baseStyle, opacity: 0.4, weight: 3, dashArray: '2, 8' };
+            default:
+                return baseStyle;
+        }
+    }
+
+    createRoutePolyline(unit, routePoints, routeColor) {
+        try {
+            const style = this.getRouteStyle(unit.status, routeColor);
+            this.unitPolylines[unit.name] = L.polyline(routePoints, style);
+            
+            if (this.showRoutes) {
+                this.unitPolylines[unit.name].addTo(this.map);
+            }
+
+            this.unitPolylines[unit.name].bindPopup(this.createRoutePopup(unit));
+            this.unitPolylines[unit.name].on('click', () => {
+                this.centerOnUnit(unit);
+            });
+
+            this.logData(`Route polyline created for ${unit.name}`, 'system', {
+                unit: unit.name,
+                points: routePoints.length
+            });
+        } catch (error) {
+            this.logData(`Failed to create route for ${unit.name}`, 'error', {
+                unit: unit.name,
+                error: error.message
+            });
+        }
+    }
+
+    createRoutePopup(unit) {
+        const routePoints = this.unitHistory[unit.name]?.length || 0;
+        const totalDistance = unit.distance.toFixed(2);
+        const fuelUsed = unit.fuelUsed.toFixed(2);
+        const routeColor = this.getRouteColor(unit.name);
+
+        return `
+            <div class="route-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">🗺️ Rute ${unit.name}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Driver:</span>
+                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Jarak:</span>
+                        <span class="info-value">${totalDistance} km</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Bahan Bakar Digunakan:</span>
+                        <span class="info-value">${fuelUsed} L</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Points Rute:</span>
+                        <span class="info-value">${routePoints}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Warna Rute:</span>
+                        <span class="info-value">
+                            <span style="color: ${routeColor}">■</span> ${routeColor}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // ===== DATA MANAGEMENT =====
+    loadInitialData() {
+        this.loadUnitData();
+        this.loadHistoryData();
+    }
+
+    loadUnitData() {
+        this.showLoadingIndicator(true);
+        
+        database.ref('/units').once('value')
+            .then((snapshot) => {
+                const firebaseData = snapshot.val();
+                if (firebaseData && Object.keys(firebaseData).length > 0) {
+                    Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+                        const unit = this.createNewUnit(unitName, unitData);
+                        if (unit) {
+                            this.units.push(unit);
+                        }
+                    });
+                    this.logData('Initial data loaded successfully', 'success', {
+                        units: this.units.length
+                    });
+                } else {
+                    this.logData('No initial data found', 'warning');
+                }
+                
+                this.refreshDisplay();
+                this.showLoadingIndicator(false);
+                
+            })
+            .catch((error) => {
+                console.error('Failed to load initial data:', error);
+                this.logData('Failed to load initial data', 'error', { error: error.message });
+                this.showLoadingIndicator(false);
+            });
+    }
+
+    loadHistoryData() {
+        try {
+            const savedHistory = localStorage.getItem('sagm_unit_history');
+            if (savedHistory) {
+                this.unitHistory = JSON.parse(savedHistory);
+                this.logData('Route history loaded', 'system', {
+                    units: Object.keys(this.unitHistory).length
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load history:', error);
+            this.unitHistory = {};
+        }
+    }
+
+    saveHistory() {
+        try {
+            localStorage.setItem('sagm_unit_history', JSON.stringify(this.unitHistory));
+        } catch (error) {
+            console.error('Failed to save history:', error);
+        }
+    }
+
+    // ===== DISPLAY METHODS =====
+    refreshDisplay() {
+        this.updateStatistics();
+        this.renderUnitList();
+        this.updateMapMarkers();
+    }
+
+    updateStatistics() {
+        const activeUnits = this.units.filter(unit => unit.status === 'active' || unit.status === 'moving').length;
+        const totalDistance = this.units.reduce((sum, unit) => sum + unit.distance, 0);
+        const totalSpeed = this.units.reduce((sum, unit) => sum + unit.speed, 0);
+        const avgSpeed = this.units.length > 0 ? totalSpeed / this.units.length : 0;
+        const totalFuel = this.units.reduce((sum, unit) => sum + unit.fuelUsed, 0);
+
+        this.activeUnits = activeUnits;
+        this.totalDistance = totalDistance;
+        this.avgSpeed = avgSpeed;
+        this.totalFuelConsumption = totalFuel;
+
+        // Update DOM elements
+        const updateElement = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+
+        updateElement('activeUnits', `${activeUnits}/23`);
+        updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
+        updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
+        updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
+
+        // Update fuel efficiency
+        const fuelEfficiency = totalDistance > 0 ? totalDistance / totalFuel : 0;
+        updateElement('fuelEfficiency', `${fuelEfficiency.toFixed(1)} km/L`);
+    }
+
+    renderUnitList() {
+        const unitList = document.getElementById('unitList');
+        if (!unitList) return;
+
+        if (this.units.length === 0) {
+            unitList.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <div class="mb-2">📭</div>
+                    <small>Tidak ada unit aktif</small>
+                    <br>
+                    <small class="text-muted">Menunggu koneksi dari driver...</small>
+                </div>
+            `;
+            return;
+        }
+
+        unitList.innerHTML = '';
+        this.units.forEach(unit => {
+            const unitElement = document.createElement('div');
+            unitElement.className = `unit-item ${unit.status}`;
+            unitElement.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
+                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
+                    </div>
+                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
+                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        Kecepatan: ${unit.speed} km/h<br>
+                        Jarak: ${unit.distance.toFixed(2)} km<br>
+                        Bahan Bakar: ${unit.fuelLevel}%<br>
+                        Update: ${unit.lastUpdate}
+                    </small>
+                </div>
+            `;
+            unitList.appendChild(unitElement);
+        });
+    }
+
+    updateMapMarkers() {
+        // Remove markers for units that no longer exist
+        Object.keys(this.markers).forEach(markerId => {
+            const unitExists = this.units.some(unit => unit.id.toString() === markerId.toString());
+            if (!unitExists && this.markers[markerId]) {
+                this.map.removeLayer(this.markers[markerId]);
+                delete this.markers[markerId];
+            }
+        });
+
+        // Create or update markers
+        this.units.forEach(unit => {
+            if (!this.markers[unit.id]) {
+                this.createUnitMarker(unit);
+            } else {
+                this.refreshUnitMarker(unit);
+            }
+        });
+    }
+
+    createUnitMarker(unit) {
+        const markerIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                         title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
+            .bindPopup(this.createUnitPopup(unit))
+            .addTo(this.map);
+        
+        this.markers[unit.id] = marker;
+    }
+
+    refreshUnitMarker(unit) {
         if (this.markers[unit.id]) {
-            // Update existing marker position and popup
             this.markers[unit.id].setLatLng([unit.latitude, unit.longitude]);
             this.markers[unit.id].setPopupContent(this.createUnitPopup(unit));
             
-            // Update marker icon based on online status
             const markerIcon = L.divIcon({
                 className: 'custom-marker',
                 html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
@@ -1008,7 +958,6 @@ class SAGMGpsTracking {
         }
     }
 
-    // ENHANCED: Create unit popup dengan info rute
     createUnitPopup(unit) {
         const routePoints = this.unitHistory[unit.name]?.length || 0;
         const routeInfo = routePoints > 0 ? `
@@ -1018,16 +967,12 @@ class SAGMGpsTracking {
             </div>
             <div class="info-item">
                 <span class="info-label">Warna Rute:</span>
-                <span class="info-value" style="color: ${this.generateUnitColor(unit.name)}">■ ${this.generateUnitColor(unit.name)}</span>
+                <span class="info-value" style="color: ${this.getRouteColor(unit.name)}">■ ${this.getRouteColor(unit.name)}</span>
             </div>
             <div class="text-center mt-2">
                 <button class="btn btn-sm btn-outline-primary w-100" 
-                        onclick="window.gpsSystem.focusOnUnit('${unit.name}')">
+                        onclick="window.gpsSystem.centerOnUnit('${unit.name}')">
                     🔍 Fokus & Lihat Rute
-                </button>
-                <button class="btn btn-sm btn-outline-info w-100 mt-1" 
-                        onclick="window.gpsSystem.toggleRoutes()">
-                    🗺️ Toggle Semua Rute
                 </button>
             </div>
         ` : '<div class="info-item"><span class="info-value text-muted">Belum ada data rute</span></div>';
@@ -1074,16 +1019,450 @@ class SAGMGpsTracking {
         `;
     }
 
-    addLog(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
+    // ===== DATA LOGGER METHODS =====
+    setupDataLogger() {
+        this.loadLogs();
+        this.renderLogger();
+        this.startAutoExport();
+        
+        this.logData('GPS Monitoring System initialized', 'system', {
+            timestamp: new Date().toISOString(),
+            units: this.units.length,
+            version: '2.0'
+        });
     }
 
-    showNotification(message, type = 'info') {
-        console.log(`[NOTIFICATION ${type}] ${message}`);
+    logData(message, level = 'info', metadata = {}) {
+        const logEntry = {
+            id: 'LOG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            dateDisplay: new Date().toLocaleDateString('id-ID'),
+            level: level,
+            message: message,
+            metadata: metadata
+        };
+
+        this.dataLogger.logs.unshift(logEntry);
+
+        if (this.dataLogger.logs.length > this.dataLogger.maxLogs) {
+            this.dataLogger.logs = this.dataLogger.logs.slice(0, this.dataLogger.maxLogs);
+        }
+
+        this.saveLogs();
+        this.renderLogger();
         
-        // Simple notification display
+        console.log(`[${level.toUpperCase()}] ${message}`, metadata);
+    }
+
+    loadLogs() {
+        try {
+            const savedLogs = localStorage.getItem('sagm_data_logs');
+            if (savedLogs) {
+                this.dataLogger.logs = JSON.parse(savedLogs);
+            }
+        } catch (error) {
+            console.error('Failed to load logs:', error);
+            this.dataLogger.logs = [];
+        }
+    }
+
+    saveLogs() {
+        try {
+            localStorage.setItem('sagm_data_logs', JSON.stringify(this.dataLogger.logs));
+        } catch (error) {
+            console.error('Failed to save logs:', error);
+        }
+    }
+
+    renderLogger() {
+        const container = document.getElementById('dataLoggerContainer');
+        if (!container) return;
+
+        let html = `
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">📊 Data Logger System</h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.clearAllLogs()">
+                            🗑️ Clear
+                        </button>
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.exportLogData()">
+                            📥 Export
+                        </button>
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.toggleAutoExport()">
+                            ${this.dataLogger.autoExport ? '⏹️ Auto Export' : '▶️ Auto Export'}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th width="120">Waktu</th>
+                                    <th width="80">Level</th>
+                                    <th>Pesan</th>
+                                    <th width="100">Unit</th>
+                                    <th width="80">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        if (this.dataLogger.logs.length === 0) {
+            html += `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-3">
+                        Tidak ada data log
+                    </td>
+                </tr>
+            `;
+        } else {
+            this.dataLogger.logs.forEach(log => {
+                const levelBadge = this.getLogLevelBadge(log.level);
+                const unitInfo = log.metadata.unit ? `<span class="badge bg-primary">${log.metadata.unit}</span>` : '';
+                
+                html += `
+                    <tr class="log-entry log-${log.level}">
+                        <td><small>${log.timeDisplay}</small></td>
+                        <td>${levelBadge}</td>
+                        <td>
+                            <div class="log-message">${log.message}</div>
+                            ${log.metadata.details ? `<small class="text-muted">${log.metadata.details}</small>` : ''}
+                        </td>
+                        <td>${unitInfo}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="window.gpsSystem.showLogDetails('${log.id}')">
+                                👁️
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <small class="text-muted d-block">Total Logs</small>
+                            <strong>${this.dataLogger.logs.length}</strong>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-muted d-block">Info</small>
+                            <span class="badge bg-info">${this.getLogCount('info')}</span>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-muted d-block">Warning</small>
+                            <span class="badge bg-warning">${this.getLogCount('warning')}</span>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-muted d-block">Error</small>
+                            <span class="badge bg-danger">${this.getLogCount('error')}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    getLogLevelBadge(level) {
+        const badges = {
+            'info': '<span class="badge bg-info">INFO</span>',
+            'success': '<span class="badge bg-success">SUCCESS</span>',
+            'warning': '<span class="badge bg-warning">WARNING</span>',
+            'error': '<span class="badge bg-danger">ERROR</span>',
+            'gps': '<span class="badge bg-primary">GPS</span>',
+            'system': '<span class="badge bg-secondary">SYSTEM</span>'
+        };
+        return badges[level] || '<span class="badge bg-dark">UNKNOWN</span>';
+    }
+
+    getLogCount(level) {
+        return this.dataLogger.logs.filter(log => log.level === level).length;
+    }
+
+    showLogDetails(logId) {
+        const log = this.dataLogger.logs.find(l => l.id === logId);
+        if (!log) return;
+
+        const details = JSON.stringify(log.metadata, null, 2);
+        const modalHtml = `
+            <div class="modal fade" id="logDetailsModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Log Details</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Waktu:</strong> ${log.timeDisplay}
+                                </div>
+                                <div class="col-6">
+                                    <strong>Level:</strong> ${this.getLogLevelBadge(log.level)}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Pesan:</strong><br>
+                                ${log.message}
+                            </div>
+                            <div>
+                                <strong>Metadata:</strong>
+                                <pre class="bg-light p-3 mt-2" style="font-size: 12px; max-height: 300px; overflow-y: auto;">${details}</pre>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const existingModal = document.getElementById('logDetailsModal');
+        if (existingModal) existingModal.remove();
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('logDetailsModal'));
+        modal.show();
+    }
+
+    clearAllLogs() {
+        if (confirm('Yakin ingin menghapus semua logs?')) {
+            this.dataLogger.logs = [];
+            this.saveLogs();
+            this.renderLogger();
+            this.logData('All logs cleared', 'system');
+        }
+    }
+
+    exportLogData() {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalLogs: this.dataLogger.logs.length,
+            system: 'SAGM GPS Tracking System',
+            logs: this.dataLogger.logs
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `sagm-logs-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.logData('Logs exported successfully', 'success', {
+            file: link.download,
+            totalLogs: this.dataLogger.logs.length
+        });
+    }
+
+    startAutoExport() {
+        if (this.dataLogger.exportInterval) {
+            clearInterval(this.dataLogger.exportInterval);
+        }
+
+        this.dataLogger.exportInterval = setInterval(() => {
+            if (this.dataLogger.autoExport && this.dataLogger.logs.length > 0) {
+                this.exportLogData();
+            }
+        }, 300000);
+    }
+
+    toggleAutoExport() {
+        this.dataLogger.autoExport = !this.dataLogger.autoExport;
+        this.renderLogger();
+        this.logData(
+            this.dataLogger.autoExport ? 'Auto export enabled' : 'Auto export disabled',
+            'system'
+        );
+    }
+
+    // ===== UTILITY METHODS =====
+    startPeriodicTasks() {
+        this.autoRefreshInterval = setInterval(() => {
+            this.logData('Auto-refresh cycle', 'info');
+        }, 30000);
+
+        // Online status checker
+        setInterval(() => {
+            const now = Date.now();
+            Object.keys(this.lastDataTimestamps).forEach(unitName => {
+                const lastUpdate = this.lastDataTimestamps[unitName];
+                const timeDiff = now - lastUpdate;
+                
+                if (timeDiff > 15000) {
+                    this.markUnitOffline(unitName);
+                }
+            });
+        }, 5000);
+    }
+
+    markUnitOffline(unitName) {
+        const unitIndex = this.units.findIndex(u => u.name === unitName);
+        if (unitIndex !== -1) {
+            const unit = this.units[unitIndex];
+            
+            this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                unit: unitName,
+                driver: unit.driver,
+                lastLocation: { lat: unit.latitude, lng: unit.longitude }
+            });
+            
+            this.removeUnitCompletely(unitName);
+        }
+    }
+
+    removeUnitCompletely(unitName) {
+        this.units = this.units.filter(unit => unit.name !== unitName);
+        
+        if (this.markers[unitName]) {
+            this.map.removeLayer(this.markers[unitName]);
+            delete this.markers[unitName];
+        }
+        
+        if (this.unitPolylines[unitName]) {
+            this.map.removeLayer(this.unitPolylines[unitName]);
+            delete this.unitPolylines[unitName];
+        }
+        
+        delete this.driverOnlineStatus[unitName];
+        delete this.lastDataTimestamps[unitName];
+        delete this.unitSessions[unitName];
+        
+        this.refreshDisplay();
+    }
+
+    removeInactiveUnits(activeUnits) {
+        this.units.forEach(unit => {
+            if (!activeUnits.has(unit.name)) {
+                this.logData(`Unit inactive: ${unit.name}`, 'warning', { unit: unit.name });
+                this.markUnitOffline(unit.name);
+            }
+        });
+    }
+
+    clearAllData() {
+        this.units = [];
+        this.refreshDisplay();
+        this.clearAllMarkers();
+    }
+
+    clearAllMarkers() {
+        Object.values(this.markers).forEach(marker => {
+            if (marker && this.map) {
+                this.map.removeLayer(marker);
+            }
+        });
+        this.markers = {};
+        this.logData('All markers cleared', 'system');
+    }
+
+    applyFilters() {
+        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
+        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
+        const statusFilter = document.getElementById('filterStatus')?.value || '';
+        const fuelFilter = document.getElementById('filterFuel')?.value || '';
+
+        console.log('Applying filters:', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
+    }
+
+    centerOnUnit(unitOrName) {
+        let unit;
+        if (typeof unitOrName === 'string') {
+            unit = this.units.find(u => u.name === unitOrName);
+        } else {
+            unit = unitOrName;
+        }
+
+        if (unit && this.map) {
+            this.map.setView([unit.latitude, unit.longitude], 15);
+            if (this.markers[unit.name]) {
+                this.markers[unit.name].openPopup();
+            }
+            this.logData(`Map centered on ${unit.name}`, 'info', {
+                unit: unit.name,
+                location: { lat: unit.latitude, lng: unit.longitude }
+            });
+        }
+    }
+
+    toggleRouteDisplay() {
+        this.showRoutes = !this.showRoutes;
+        
+        Object.entries(this.unitPolylines).forEach(([unitName, polyline]) => {
+            if (this.showRoutes) {
+                this.map.addLayer(polyline);
+            } else {
+                this.map.removeLayer(polyline);
+            }
+        });
+
+        this.logData(
+            this.showRoutes ? 'Routes displayed' : 'Routes hidden',
+            'system'
+        );
+    }
+
+    removeAllRoutes() {
+        Object.values(this.unitPolylines).forEach(polyline => {
+            this.map.removeLayer(polyline);
+        });
+        this.unitPolylines = {};
+        this.unitHistory = {};
+        this.saveHistory();
+        this.logData('All routes removed', 'system');
+    }
+
+    downloadRouteData() {
+        const exportData = {
+            timestamp: new Date().toISOString(),
+            totalUnits: this.units.length,
+            routes: {}
+        };
+
+        this.units.forEach(unit => {
+            exportData.routes[unit.name] = {
+                driver: unit.driver,
+                totalDistance: unit.distance,
+                routePoints: this.unitHistory[unit.name]?.length || 0,
+                history: this.unitHistory[unit.name] || []
+            };
+        });
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `routes-data-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.logData('Route data exported', 'success');
+    }
+
+    showLoadingIndicator(show) {
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) {
+            spinner.style.display = show ? 'block' : 'none';
+        }
+    }
+
+    displayError(message) {
+        this.logData(message, 'error');
+        
         const notification = document.createElement('div');
-        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.className = 'alert alert-danger alert-dismissible fade show position-fixed';
         notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
         notification.innerHTML = `
             ${message}
@@ -1092,7 +1471,6 @@ class SAGMGpsTracking {
         
         document.body.appendChild(notification);
         
-        // Auto remove after 5 seconds
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -1100,195 +1478,25 @@ class SAGMGpsTracking {
         }, 5000);
     }
 
-    showError(message) {
-        console.error(`[ERROR] ${message}`);
-        this.showNotification(message, 'danger');
-    }
-
-    showLoading(show) {
-        const spinner = document.getElementById('loadingSpinner');
-        if (spinner) {
-            spinner.style.display = show ? 'block' : 'none';
-        }
-    }
-
-    updateStatistics() {
-        const activeUnits = this.units.filter(unit => unit.status === 'active' || unit.status === 'moving').length;
-        const totalDistance = this.units.reduce((sum, unit) => sum + unit.distance, 0);
-        const totalSpeed = this.units.reduce((sum, unit) => sum + unit.speed, 0);
-        const avgSpeed = this.units.length > 0 ? totalSpeed / this.units.length : 0;
-        const totalFuel = this.units.reduce((sum, unit) => sum + unit.fuelUsed, 0);
-
-        this.activeUnits = activeUnits;
-        this.totalDistance = totalDistance;
-        this.avgSpeed = avgSpeed;
-        this.totalFuelConsumption = totalFuel;
-
-        if (document.getElementById('activeUnits')) {
-            document.getElementById('activeUnits').textContent = `${activeUnits}/23`;
-        }
-        if (document.getElementById('totalDistance')) {
-            document.getElementById('totalDistance').textContent = `${totalDistance.toFixed(1)} km`;
-        }
-        if (document.getElementById('avgSpeed')) {
-            document.getElementById('avgSpeed').textContent = `${avgSpeed.toFixed(1)} km/h`;
-        }
-        if (document.getElementById('totalFuel')) {
-            document.getElementById('totalFuel').textContent = `${totalFuel.toFixed(1)} L`;
-        }
-    }
-
-    renderUnitList() {
-        const unitList = document.getElementById('unitList');
-        if (!unitList) return;
-
-        unitList.innerHTML = '';
-
-        if (this.units.length === 0) {
-            unitList.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <div class="mb-2">📭</div>
-                    <small>Tidak ada unit aktif</small>
-                    <br>
-                    <small class="text-muted">Menunggu koneksi dari driver...</small>
-                </div>
-            `;
-            return;
-        }
-
-        this.units.forEach(unit => {
-            const unitElement = document.createElement('div');
-            unitElement.className = `unit-item ${unit.status}`;
-            unitElement.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
-                    </div>
-                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
-                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
-                    </span>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted">
-                        Kecepatan: ${unit.speed} km/h<br>
-                        Jarak: ${unit.distance.toFixed(2)} km<br>
-                        Bahan Bakar: ${unit.fuelLevel}%<br>
-                        Update: ${unit.lastUpdate}
-                    </small>
-                </div>
-            `;
-            unitList.appendChild(unitElement);
-        });
-    }
-
-    updateMapMarkers() {
-        // Hapus hanya marker yang tidak ada lagi di units
-        Object.keys(this.markers).forEach(markerId => {
-            const unitExists = this.units.some(unit => unit.id.toString() === markerId.toString());
-            if (!unitExists && this.markers[markerId]) {
-                this.map.removeLayer(this.markers[markerId]);
-                delete this.markers[markerId];
-            }
-        });
-
-        // Update atau buat marker baru
-        this.units.forEach(unit => {
-            if (!this.markers[unit.id]) {
-                const markerIcon = L.divIcon({
-                    className: 'custom-marker',
-                    html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
-                                 title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
-                });
-
-                const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
-                    .bindPopup(this.createUnitPopup(unit))
-                    .addTo(this.map);
-                
-                this.markers[unit.id] = marker;
-                
-                console.log(`✅ Created new marker for ${unit.name}`);
-            } else {
-                // Update existing marker
-                this.updateUnitMarker(unit);
-            }
-        });
-    }
-
-    filterUnits() {
-        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
-        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
-        const statusFilter = document.getElementById('filterStatus')?.value || '';
-        const fuelFilter = document.getElementById('filterFuel')?.value || '';
-
-        console.log('Filtering units...', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
-    }
-
-    destroy() {
+    cleanup() {
         if (this.firebaseListener) {
             database.ref('/units').off('value', this.firebaseListener);
-            database.ref('/units').off('child_removed');
         }
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
         }
+        if (this.dataLogger.exportInterval) {
+            clearInterval(this.dataLogger.exportInterval);
+        }
     }
 }
 
-// Initialize system
+// Initialize the system
 let gpsSystem;
-
-// Global functions untuk debug
-function debugFirebase() {
-    if (gpsSystem) {
-        gpsSystem.testFirebaseConnection();
-    }
-}
-
-function showCurrentData() {
-    if (gpsSystem) {
-        console.log('📊 Current units:', gpsSystem.units);
-        console.log('📊 Current markers:', gpsSystem.markers);
-        console.log('📊 Current polylines:', gpsSystem.unitPolylines);
-        gpsSystem.showNotification('Data logged ke console', 'info');
-    }
-}
-
-function forceRefresh() {
-    if (gpsSystem) {
-        gpsSystem.loadUnitData();
-    }
-}
-
-// Tambahkan tombol debug di HTML
-function addDebugButtons() {
-    const debugDiv = document.createElement('div');
-    debugDiv.className = 'position-fixed bottom-0 start-0 p-3';
-    debugDiv.style.zIndex = '1000';
-    debugDiv.innerHTML = `
-        <div class="btn-group-vertical">
-            <button class="btn btn-sm btn-warning mb-1" onclick="debugFirebase()" title="Test Firebase Connection">
-                🐛 Test Firebase
-            </button>
-            <button class="btn btn-sm btn-info mb-1" onclick="showCurrentData()" title="Show Current Data">
-                📊 Show Data
-            </button>
-            <button class="btn btn-sm btn-success" onclick="forceRefresh()" title="Force Refresh Data">
-                🔄 Refresh
-            </button>
-        </div>
-    `;
-    document.body.appendChild(debugDiv);
-}
 
 document.addEventListener('DOMContentLoaded', function() {
     gpsSystem = new SAGMGpsTracking();
-    window.gpsSystem = gpsSystem; // Make it globally available
-    
-    // Tambahkan tombol debug setelah 2 detik
-    setTimeout(addDebugButtons, 2000);
+    window.gpsSystem = gpsSystem;
 });
 
 // Global functions
@@ -1300,7 +1508,7 @@ function refreshData() {
 
 function exportData() {
     if (gpsSystem) {
-        gpsSystem.exportRoutesData();
+        gpsSystem.downloadRouteData();
     }
 }
 
@@ -1309,22 +1517,21 @@ function toggleSidebar() {
     sidebar.classList.toggle('show');
 }
 
-// Global functions untuk route controls
 function toggleRoutes() {
     if (gpsSystem) {
-        gpsSystem.toggleRoutes();
+        gpsSystem.toggleRouteDisplay();
     }
 }
 
 function clearRoutes() {
     if (gpsSystem) {
-        gpsSystem.clearAllRoutes();
+        gpsSystem.removeAllRoutes();
     }
 }
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
     if (gpsSystem) {
-        gpsSystem.destroy();
+        gpsSystem.cleanup();
     }
 });
