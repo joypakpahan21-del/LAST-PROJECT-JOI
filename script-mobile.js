@@ -1,4 +1,4 @@
-// ==== FIREBASE CONFIG (SAMA DENGAN MONITOR) ====
+// ==== FIREBASE CONFIG ====
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
     authDomain: "joi-gps-tracker.firebaseapp.com",
@@ -24,8 +24,16 @@ class DTGPSLogger {
         this.lastPosition = null;
         this.dataPoints = 0;
         this.isOnline = false;
-        this.journeyStatus = 'ready'; // ready, started, paused, ended
+        this.journeyStatus = 'ready';
         this.firebaseRef = null;
+        
+        // NEW: Enhanced distance calculation
+        this.lastUpdateTime = null;
+        this.currentSpeed = 0;
+        this.movingStartTime = null;
+        this.isCurrentlyMoving = false;
+        
+        this.offlineQueue = new OfflineQueueManager();
         
         this.init();
     }
@@ -57,14 +65,19 @@ class DTGPSLogger {
                 sessionId: this.generateSessionId()
             };
 
-            // Setup Firebase reference untuk unit ini
             this.firebaseRef = database.ref('/units/' + unitNumber);
+            this.firebaseRef.set({
+                driver: driverName,
+                unit: unitNumber,
+                sessionId: this.driverData.sessionId,
+                journeyStatus: 'ready',
+                lastUpdate: new Date().toLocaleTimeString('id-ID')
+            });
 
             this.showDriverApp();
             this.startGPSTracking();
             this.startDataTransmission();
             
-            // Auto start journey setelah 3 detik
             setTimeout(() => {
                 this.startJourney();
             }, 3000);
@@ -99,6 +112,7 @@ class DTGPSLogger {
         document.getElementById('driverDisplayName').textContent = this.driverData.name;
         
         this.sessionStartTime = new Date();
+        this.lastUpdateTime = new Date();
         this.updateSessionDuration();
     }
 
@@ -116,7 +130,6 @@ class DTGPSLogger {
             maximumAge: 0
         };
 
-        // Watch position untuk real-time tracking
         this.watchId = navigator.geolocation.watchPosition(
             (position) => this.handlePositionUpdate(position),
             (error) => this.handleGPSError(error),
@@ -127,7 +140,6 @@ class DTGPSLogger {
     }
 
     startDataTransmission() {
-        // Kirim data ke Firebase setiap 2 detik
         this.sendInterval = setInterval(() => {
             if (this.lastPosition) {
                 this.sendToFirebase();
@@ -135,14 +147,15 @@ class DTGPSLogger {
         }, 2000);
     }
 
+    // PERBAIKAN BESAR: Enhanced position update dengan perhitungan jarak yang akurat
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        const speed = position.coords.speed !== null ? position.coords.speed * 3.6 : 0;
+        const speed = position.coords.speed !== null ? position.coords.speed * 3.6 : 0; // Convert m/s to km/h
         const accuracy = position.coords.accuracy;
         const bearing = position.coords.heading;
-        const timestamp = new Date().toISOString();
-
+        const timestamp = new Date();
+        
         // Update UI
         document.getElementById('currentLat').textContent = lat.toFixed(6);
         document.getElementById('currentLng').textContent = lng.toFixed(6);
@@ -150,18 +163,8 @@ class DTGPSLogger {
         document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
 
-        // Calculate distance jika perjalanan aktif
-        if (this.lastPosition && this.journeyStatus === 'started') {
-            const distance = this.calculateDistance(
-                this.lastPosition.lat, this.lastPosition.lng,
-                lat, lng
-            );
-            // Hanya tambahkan distance jika perpindahan signifikan (> 10 meter)
-            if (distance > 0.01) {
-                this.totalDistance += distance;
-                document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(2);
-            }
-        }
+        // PERBAIKAN: Hitung jarak berdasarkan kecepatan dan waktu
+        this.calculateDistanceWithSpeed(speed, timestamp);
 
         // Simpan data terbaru
         this.lastPosition = { 
@@ -181,7 +184,42 @@ class DTGPSLogger {
         this.updateAverageSpeed();
     }
 
-    calculateDistance(lat1, lon1, lat2, lon2) {
+    // NEW: Enhanced distance calculation menggunakan rumus S = V × t
+    calculateDistanceWithSpeed(currentSpeed, currentTime) {
+        if (!this.lastUpdateTime) {
+            this.lastUpdateTime = currentTime;
+            return;
+        }
+
+        // Hitung selisih waktu dalam jam
+        const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600; // dalam jam
+        
+        // Hanya hitung jika ada pergerakan (speed > 2 km/h untuk menghindari drift GPS)
+        if (currentSpeed > 2 && this.journeyStatus === 'started') {
+            // Rumus: Jarak (km) = Kecepatan (km/jam) × Waktu (jam)
+            const distanceIncrement = currentSpeed * timeDiff;
+            
+            // Hanya tambahkan jika perhitungan valid
+            if (distanceIncrement > 0 && distanceIncrement < 1) { // Batasi maksimal 1km per interval
+                this.totalDistance += distanceIncrement;
+                document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
+                
+                this.addLog(`📏 +${(distanceIncrement * 1000).toFixed(1)}m (${currentSpeed.toFixed(1)} km/h)`, 'info');
+            }
+            
+            this.isCurrentlyMoving = true;
+            this.movingStartTime = this.movingStartTime || currentTime;
+        } else {
+            this.isCurrentlyMoving = false;
+            this.movingStartTime = null;
+        }
+
+        this.lastUpdateTime = currentTime;
+        this.currentSpeed = currentSpeed;
+    }
+
+    // Alternatif: Perhitungan jarak menggunakan koordinat GPS (lebih akurat untuk perpindahan kecil)
+    calculateDistanceWithCoordinates(lat1, lon1, lat2, lon2) {
         const R = 6371; // Earth radius in km
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -215,32 +253,58 @@ class DTGPSLogger {
                 bearing: this.lastPosition.bearing,
                 timestamp: new Date().toISOString(),
                 lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                distance: this.totalDistance,
+                distance: parseFloat(this.totalDistance.toFixed(3)),
                 journeyStatus: this.journeyStatus,
-                batteryLevel: this.getBatteryLevel(), // Simulasi level baterai
-                sessionId: this.driverData.sessionId
+                batteryLevel: this.getBatteryLevel(),
+                sessionId: this.driverData.sessionId,
+                isOfflineData: false
             };
 
-            // Kirim ke Firebase
-            await this.firebaseRef.set(gpsData);
-            
-            this.addLog(`📡 Data terkirim ke Firebase: ${this.lastPosition.speed.toFixed(1)} km/h`, 'success');
-            this.updateConnectionStatus(true);
+            if (this.isOnline) {
+                await this.firebaseRef.set(gpsData);
+                this.addLog(`📡 Data terkirim: ${this.lastPosition.speed.toFixed(1)} km/h | ${this.totalDistance.toFixed(3)} km`, 'success');
+                this.updateConnectionStatus(true);
+                
+                if (this.offlineQueue.getQueueSize() > 0) {
+                    this.offlineQueue.processQueue();
+                }
+            } else {
+                this.offlineQueue.addToQueue(gpsData);
+                this.addLog(`💾 Data disimpan offline (${this.offlineQueue.getQueueSize()} dalam antrian)`, 'warning');
+                this.updateConnectionStatus(false);
+            }
             
         } catch (error) {
             console.error('Error sending to Firebase:', error);
-            this.addLog('❌ Gagal mengirim ke Firebase', 'error');
+            
+            if (this.isOnline) {
+                this.offlineQueue.addToQueue(gpsData);
+                this.addLog(`❌ Gagal kirim, disimpan offline`, 'error');
+            } else {
+                this.addLog(`❌ Offline - data dalam antrian`, 'warning');
+            }
             this.updateConnectionStatus(false);
         }
     }
 
     getBatteryLevel() {
-        // Simulasi level baterai (dalam real app, gunakan Battery Status API)
+        // Simulasi level baterai
         return Math.max(20, Math.floor(Math.random() * 100));
     }
 
     checkNetworkStatus() {
+        const wasOnline = this.isOnline;
         this.isOnline = navigator.onLine;
+        
+        if (wasOnline !== this.isOnline) {
+            if (this.isOnline) {
+                this.addLog('📱 Koneksi pulih - sync data offline', 'success');
+                this.offlineQueue.processQueue();
+            } else {
+                this.addLog('📱 Koneksi terputus - menyimpan data lokal', 'warning');
+            }
+        }
+        
         this.updateConnectionStatus(this.isOnline);
     }
 
@@ -256,6 +320,11 @@ class DTGPSLogger {
             dot.className = 'connection-status disconnected';
             status.textContent = 'OFFLINE';
             status.className = 'text-danger';
+            
+            const queueSize = this.offlineQueue.getQueueSize();
+            if (queueSize > 0) {
+                status.textContent = `OFFLINE (${queueSize} data antrian)`;
+            }
         }
     }
 
@@ -295,7 +364,6 @@ class DTGPSLogger {
         
         logContainer.insertBefore(logEntry, logContainer.firstChild);
         
-        // Keep only last 6 logs
         if (logContainer.children.length > 6) {
             logContainer.removeChild(logContainer.lastChild);
         }
@@ -323,9 +391,13 @@ class DTGPSLogger {
 
     startJourney() {
         this.journeyStatus = 'started';
+        this.lastUpdateTime = new Date(); // Reset timer untuk perhitungan jarak
         document.getElementById('vehicleStatus').textContent = 'ON TRIP';
         document.getElementById('vehicleStatus').className = 'bg-success text-white rounded px-2 py-1';
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
+        
+        // Kirim status awal ke Firebase
+        this.sendToFirebase();
     }
 
     pauseJourney() {
@@ -333,13 +405,16 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'PAUSED';
         document.getElementById('vehicleStatus').className = 'bg-warning text-dark rounded px-2 py-1';
         this.addLog('Perjalanan dijeda', 'warning');
+        
+        // Kirim status pause ke Firebase
+        this.sendToFirebase();
     }
 
     endJourney() {
         this.journeyStatus = 'ended';
         document.getElementById('vehicleStatus').textContent = 'COMPLETED';
         document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
-        this.addLog('Perjalanan selesai', 'info');
+        this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
         
         // Kirim data final ke Firebase
         this.sendToFirebase();
@@ -353,7 +428,6 @@ class DTGPSLogger {
             clearInterval(this.sendInterval);
         }
         if (this.firebaseRef) {
-            // Hapus data dari Firebase saat logout
             this.firebaseRef.remove();
         }
         
@@ -368,13 +442,14 @@ class DTGPSLogger {
             driver: this.driverData.name,
             unit: this.driverData.unit,
             duration: document.getElementById('sessionDuration').textContent,
-            totalDistance: this.totalDistance,
+            totalDistance: this.totalDistance.toFixed(3),
             dataPoints: this.dataPoints,
             avgSpeed: document.getElementById('avgSpeed').textContent,
             sessionId: this.driverData.sessionId
         };
         
         console.log('Session Summary:', sessionSummary);
+        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
         
         this.driverData = null;
         this.firebaseRef = null;
@@ -382,11 +457,135 @@ class DTGPSLogger {
         document.getElementById('driverApp').style.display = 'none';
         document.getElementById('loginForm').reset();
         
-        this.addLog('Session ended - Driver logged out', 'info');
+        // Reset semua data
+        this.totalDistance = 0;
+        this.dataPoints = 0;
+        this.lastPosition = null;
+        this.lastUpdateTime = null;
     }
 }
 
-// Global functions untuk button controls
+// Offline Queue Manager (tetap sama)
+class OfflineQueueManager {
+    constructor() {
+        this.queue = [];
+        this.isOnline = navigator.onLine;
+        this.maxQueueSize = 1000;
+        this.syncInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.loadQueueFromStorage();
+        this.setupOnlineOfflineListeners();
+        this.startSyncMonitor();
+    }
+
+    setupOnlineOfflineListeners() {
+        window.addEventListener('online', () => {
+            console.log('📱 Koneksi online - sync data offline');
+            this.isOnline = true;
+            this.processQueue();
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📱 Koneksi offline - menyimpan data lokal');
+            this.isOnline = false;
+        });
+    }
+
+    loadQueueFromStorage() {
+        try {
+            const saved = localStorage.getItem('gps_offline_queue');
+            if (saved) {
+                this.queue = JSON.parse(saved);
+                console.log(`📂 Loaded ${this.queue.length} queued items`);
+            }
+        } catch (error) {
+            console.error('Error loading queue:', error);
+            this.queue = [];
+        }
+    }
+
+    saveQueueToStorage() {
+        try {
+            localStorage.setItem('gps_offline_queue', JSON.stringify(this.queue));
+        } catch (error) {
+            console.error('Error saving queue:', error);
+        }
+    }
+
+    addToQueue(gpsData) {
+        if (this.queue.length >= this.maxQueueSize) {
+            this.queue.shift();
+        }
+        
+        this.queue.push({
+            ...gpsData,
+            queueTimestamp: new Date().toISOString(),
+            offlineId: 'offline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+        });
+
+        this.saveQueueToStorage();
+        console.log(`💾 Saved to offline queue. Total: ${this.queue.length}`);
+    }
+
+    async processQueue() {
+        if (this.queue.length === 0 || !this.isOnline) return;
+
+        console.log(`🔄 Processing ${this.queue.length} queued items...`);
+        
+        const successItems = [];
+        const failedItems = [];
+
+        for (const item of this.queue) {
+            try {
+                await this.sendQueuedData(item);
+                successItems.push(item);
+            } catch (error) {
+                console.error('Failed to send queued data:', error);
+                failedItems.push(item);
+            }
+        }
+
+        this.queue = failedItems;
+        this.saveQueueToStorage();
+
+        console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
+        
+        if (successItems.length > 0) {
+            window.dtLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
+        }
+    }
+
+    async sendQueuedData(queuedData) {
+        if (!window.dtLogger?.firebaseRef) {
+            throw new Error('No Firebase reference');
+        }
+
+        const { queueTimestamp, offlineId, ...cleanData } = queuedData;
+        await window.dtLogger.firebaseRef.set(cleanData);
+    }
+
+    startSyncMonitor() {
+        this.syncInterval = setInterval(() => {
+            if (this.isOnline && this.queue.length > 0) {
+                this.processQueue();
+            }
+        }, 10000);
+    }
+
+    getQueueSize() {
+        return this.queue.length;
+    }
+
+    clearQueue() {
+        this.queue = [];
+        this.saveQueueToStorage();
+    }
+}
+
+// Global functions
 function startJourney() {
     if (window.dtLogger) {
         window.dtLogger.startJourney();
