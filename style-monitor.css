@@ -546,3 +546,72 @@ body {
     font-size: 0.7rem;
     padding: 3px 6px;
 }
+/* NEW: Data Logger Styles */
+.log-entry {
+    font-size: 0.8rem;
+    transition: background-color 0.2s ease;
+}
+
+.log-entry:hover {
+    background-color: #f8f9fa !important;
+}
+
+.log-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.log-success {
+    border-left: 4px solid #28a745;
+}
+
+.log-warning {
+    border-left: 4px solid #ffc107;
+}
+
+.log-error {
+    border-left: 4px solid #dc3545;
+}
+
+.log-gps {
+    border-left: 4px solid #007bff;
+}
+
+.log-system {
+    border-left: 4px solid #6c757d;
+}
+
+.log-message {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.table-responsive {
+    scrollbar-width: thin;
+    scrollbar-color: #c1c1c1 #f1f1f1;
+}
+
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Sticky table header */
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
