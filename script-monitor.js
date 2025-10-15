@@ -29,6 +29,14 @@ class SAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
+        // ✅ TAMBAHKAN: Chat System Properties untuk Monitor
+        this.monitorChatRefs = {};
+        this.monitorChatMessages = {};
+        this.monitorUnreadCounts = {};
+        this.activeChatUnit = null;
+        this.isMonitorChatOpen = false;
+        this.monitorChatInitialized = false;
+        
         // Route visualization
         this.unitPolylines = {};
         this.showRoutes = true;
@@ -85,7 +93,7 @@ class SAGMGpsTracking {
 
         this.config = {
             center: [
-                (this.importantLocations.PKS_SAGM.lat + this.importantLocations.KANTOR_KEBUN.lat) / 2,
+                (this.importantLocations.PKS_SAGM.lat + this.importantLocations.KANTOR_KEBUN.lng) / 2,
                 (this.importantLocations.PKS_SAGM.lng + this.importantLocations.KANTOR_KEBUN.lng) / 2
             ],
             zoom: 13
@@ -105,10 +113,303 @@ class SAGMGpsTracking {
             this.startPeriodicTasks();
             this.setupDataLogger();
             this.testFirebaseConnection();
+            
+            // ✅ TAMBAHKAN: Setup monitor chat system
+            this.setupMonitorChatSystem();
+            
         } catch (error) {
             console.error('System initialization failed:', error);
             this.displayError('Gagal memulai sistem GPS');
         }
+    }
+
+    // ✅ METHOD BARU: Setup chat system untuk monitor
+    setupMonitorChatSystem() {
+        // Listen untuk semua unit yang aktif
+        database.ref('/chat').on('child_added', (snapshot) => {
+            const unitName = snapshot.key;
+            this.setupUnitChatListener(unitName);
+        });
+
+        // Listen untuk unit yang dihapus (logout)
+        database.ref('/chat').on('child_removed', (snapshot) => {
+            const unitName = snapshot.key;
+            this.cleanupUnitChatListener(unitName);
+        });
+
+        this.monitorChatInitialized = true;
+        console.log('💬 Monitor chat system activated');
+        this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
+    }
+
+    // ✅ METHOD BARU: Setup listener per unit
+    setupUnitChatListener(unitName) {
+        if (this.monitorChatRefs[unitName]) return; // Already listening
+        
+        this.monitorChatRefs[unitName] = database.ref('/chat/' + unitName);
+        this.monitorChatMessages[unitName] = [];
+        this.monitorUnreadCounts[unitName] = 0;
+        
+        this.monitorChatRefs[unitName].on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            this.handleMonitorChatMessage(unitName, message);
+        });
+
+        // Update unit dropdown
+        this.updateMonitorChatUnitSelect();
+        
+        console.log(`💬 Now listening to chat for unit: ${unitName}`);
+    }
+
+    // ✅ METHOD BARU: Cleanup listener saat unit logout
+    cleanupUnitChatListener(unitName) {
+        if (this.monitorChatRefs[unitName]) {
+            this.monitorChatRefs[unitName].off();
+            delete this.monitorChatRefs[unitName];
+            delete this.monitorChatMessages[unitName];
+            delete this.monitorUnreadCounts[unitName];
+            
+            // Update unit dropdown
+            this.updateMonitorChatUnitSelect();
+            
+            // Jika unit yang aktif di-chat logout, reset chat
+            if (this.activeChatUnit === unitName) {
+                this.activeChatUnit = null;
+                this.updateMonitorChatUI();
+            }
+            
+            console.log(`💬 Stopped listening to chat for unit: ${unitName}`);
+        }
+    }
+
+    // ✅ METHOD BARU: Handle pesan baru di monitor
+    handleMonitorChatMessage(unitName, message) {
+        if (!this.monitorChatMessages[unitName]) {
+            this.monitorChatMessages[unitName] = [];
+        }
+        
+        // Cek apakah message sudah ada (prevent duplicates)
+        const messageExists = this.monitorChatMessages[unitName].some(msg => 
+            msg.timestamp === message.timestamp && msg.sender === message.sender
+        );
+        
+        if (!messageExists) {
+            this.monitorChatMessages[unitName].push(message);
+            
+            // Tambah unread count jika bukan dari monitor dan chat tidak aktif
+            if (message.type !== 'monitor' && this.activeChatUnit !== unitName) {
+                this.monitorUnreadCounts[unitName] = (this.monitorUnreadCounts[unitName] || 0) + 1;
+            }
+            
+            // Update UI
+            this.updateMonitorChatUI();
+            
+            // Show notification jika bukan chat aktif
+            if (this.activeChatUnit !== unitName && message.type !== 'monitor') {
+                this.showMonitorChatNotification(unitName, message);
+            }
+            
+            console.log(`💬 New message from ${unitName}:`, message);
+        }
+    }
+
+    // ✅ METHOD BARU: Kirim pesan dari monitor
+    async sendMonitorMessage() {
+        const messageText = document.getElementById('monitorChatInput').value.trim();
+        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs[this.activeChatUnit]) return;
+        
+        const messageData = {
+            text: messageText,
+            sender: 'MONITOR',
+            unit: this.activeChatUnit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            type: 'monitor'
+        };
+        
+        try {
+            await this.monitorChatRefs[this.activeChatUnit].push(messageData);
+            this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
+            
+            // Clear input
+            document.getElementById('monitorChatInput').value = '';
+            
+        } catch (error) {
+            console.error('Failed to send monitor message:', error);
+            this.logData('❌ Gagal mengirim pesan ke driver', 'error');
+        }
+    }
+
+    // ✅ METHOD BARU: Update chat UI di monitor
+    updateMonitorChatUI() {
+        const messageList = document.getElementById('monitorChatMessages');
+        const unreadBadge = document.getElementById('monitorUnreadBadge');
+        const chatInput = document.getElementById('monitorChatInput');
+        const sendBtn = document.getElementById('monitorSendBtn');
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        
+        if (!messageList) return;
+        
+        // Update total unread badge
+        const totalUnread = Object.values(this.monitorUnreadCounts).reduce((sum, count) => sum + count, 0);
+        if (unreadBadge) {
+            unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
+            unreadBadge.style.display = totalUnread > 0 ? 'block' : 'none';
+        }
+        
+        // Enable/disable input based on active unit
+        const hasActiveUnit = !!this.activeChatUnit;
+        if (chatInput) chatInput.disabled = !hasActiveUnit;
+        if (sendBtn) sendBtn.disabled = !hasActiveUnit;
+        
+        // Render messages untuk unit aktif
+        messageList.innerHTML = '';
+        
+        if (!this.activeChatUnit) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Pilih unit untuk memulai percakapan...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        const activeMessages = this.monitorChatMessages[this.activeChatUnit] || [];
+        
+        if (activeMessages.length === 0) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan driver ${this.activeChatUnit}...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        activeMessages.forEach(message => {
+            const messageElement = document.createElement('div');
+            const isMonitorMessage = message.type === 'monitor';
+            messageElement.className = `chat-message ${isMonitorMessage ? 'message-sent' : 'message-received'}`;
+            
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    ${!isMonitorMessage ? 
+                      `<div class="message-sender">${this.escapeHtml(message.sender)} (${message.unit})</div>` : ''}
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-time">${message.timeDisplay}</div>
+                </div>
+            `;
+            
+            messageList.appendChild(messageElement);
+        });
+        
+        // Auto scroll to bottom
+        messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    // ✅ METHOD BARU: Update unit dropdown
+    updateMonitorChatUnitSelect() {
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        if (!unitSelect) return;
+        
+        // Simpan selected value
+        const currentValue = unitSelect.value;
+        
+        // Clear existing options (keep first option)
+        unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
+        
+        // Add active units
+        Object.keys(this.monitorChatRefs).forEach(unitName => {
+            const unreadCount = this.monitorUnreadCounts[unitName] || 0;
+            const option = document.createElement('option');
+            option.value = unitName;
+            option.textContent = unreadCount > 0 ? 
+                `${unitName} (${unreadCount} pesan baru)` : unitName;
+            unitSelect.appendChild(option);
+        });
+        
+        // Restore selected value jika masih ada
+        if (currentValue && this.monitorChatRefs[currentValue]) {
+            unitSelect.value = currentValue;
+        }
+    }
+
+    // ✅ METHOD BARU: Pilih unit untuk chat
+    selectChatUnit(unitName) {
+        this.activeChatUnit = unitName;
+        
+        // Reset unread count untuk unit ini
+        if (unitName && this.monitorUnreadCounts[unitName]) {
+            this.monitorUnreadCounts[unitName] = 0;
+        }
+        
+        this.updateMonitorChatUI();
+        this.updateMonitorChatUnitSelect();
+        
+        console.log(`💬 Now chatting with unit: ${unitName}`);
+    }
+
+    // ✅ METHOD BARU: Toggle chat window di monitor
+    toggleMonitorChat() {
+        this.isMonitorChatOpen = !this.isMonitorChatOpen;
+        const chatWindow = document.getElementById('monitorChatWindow');
+        
+        if (chatWindow) {
+            chatWindow.style.display = this.isMonitorChatOpen ? 'block' : 'none';
+            
+            if (this.isMonitorChatOpen) {
+                this.updateMonitorChatUnitSelect();
+                this.updateMonitorChatUI();
+            }
+        }
+    }
+
+    // ✅ METHOD BARU: Handle chat input di monitor
+    handleMonitorChatInput(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            this.sendMonitorMessage();
+        }
+    }
+
+    // ✅ METHOD BARU: Show notification di monitor
+    showMonitorChatNotification(unitName, message) {
+        const notification = document.createElement('div');
+        notification.className = 'chat-notification alert alert-warning';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>💬 Pesan Baru dari ${unitName}</strong>
+                    <div class="small">${message.sender}: ${message.text}</div>
+                </div>
+                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto remove setelah 5 detik
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    // ✅ METHOD BARU: Escape HTML untuk keamanan
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     setupMap() {
@@ -1488,6 +1789,11 @@ class SAGMGpsTracking {
         if (this.dataLogger.exportInterval) {
             clearInterval(this.dataLogger.exportInterval);
         }
+        
+        // ✅ TAMBAHKAN: Cleanup chat system
+        database.ref('/chat').off('child_added');
+        database.ref('/chat').off('child_removed');
+        Object.values(this.monitorChatRefs).forEach(ref => ref.off());
     }
 }
 
@@ -1526,6 +1832,31 @@ function toggleRoutes() {
 function clearRoutes() {
     if (gpsSystem) {
         gpsSystem.removeAllRoutes();
+    }
+}
+
+// ✅ TAMBAHKAN: Global functions untuk chat system
+function toggleMonitorChat() {
+    if (gpsSystem) {
+        gpsSystem.toggleMonitorChat();
+    }
+}
+
+function selectChatUnit(unitName) {
+    if (gpsSystem) {
+        gpsSystem.selectChatUnit(unitName);
+    }
+}
+
+function sendMonitorMessage() {
+    if (gpsSystem) {
+        gpsSystem.sendMonitorMessage();
+    }
+}
+
+function handleMonitorChatInput(event) {
+    if (gpsSystem) {
+        gpsSystem.handleMonitorChatInput(event);
     }
 }
 
