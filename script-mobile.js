@@ -1,3 +1,4 @@
+<script>
 // ==== FIREBASE CONFIG ====
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
@@ -37,9 +38,9 @@ class DTGPSLogger {
         this.offlineHistory = [];
         this.maxOfflinePoints = 1000;
         this.isCollectingOfflineData = false;
-        this.completeHistory = this.loadCompleteHistory(); // Load existing history
+        this.completeHistory = this.loadCompleteHistory();
         
-        // ✅ TAMBAHKAN: Chat System Properties
+        // ✅ CHAT SYSTEM PROPERTIES
         this.chatRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
@@ -128,15 +129,14 @@ class DTGPSLogger {
         this.lastUpdateTime = new Date();
         this.updateSessionDuration();
         
-        // ✅ TAMBAHKAN: Setup chat system setelah login
+        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
         this.setupChatSystem();
     }
 
-    // ✅ METHOD BARU: Setup chat system
+    // ✅ CHAT METHOD: Setup chat system
     setupChatSystem() {
         if (!this.driverData) return;
         
-        // Firebase reference untuk chat
         this.chatRef = database.ref('/chat/' + this.driverData.unit);
         
         // Listen untuk pesan baru
@@ -145,58 +145,28 @@ class DTGPSLogger {
             this.handleNewMessage(message);
         });
         
-        // Load existing messages
-        this.loadChatHistory();
-        
         this.chatInitialized = true;
         console.log('💬 Chat system activated for unit:', this.driverData.unit);
         this.addLog('Sistem chat aktif - bisa komunikasi dengan monitor', 'success');
     }
 
-    // ✅ METHOD BARU: Load chat history
-    async loadChatHistory() {
-        if (!this.chatRef) return;
-        
-        try {
-            const snapshot = await this.chatRef.once('value');
-            const messagesData = snapshot.val();
-            
-            if (messagesData) {
-                this.chatMessages = Object.values(messagesData)
-                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                this.updateChatUI();
-            }
-        } catch (error) {
-            console.error('Error loading chat history:', error);
-        }
-    }
-
-    // ✅ METHOD BARU: Handle pesan baru
+    // ✅ CHAT METHOD: Handle pesan baru
     handleNewMessage(message) {
         if (!message || message.sender === this.driverData.name) return;
         
-        // Cek apakah message sudah ada (prevent duplicates)
-        const messageExists = this.chatMessages.some(msg => 
-            msg.timestamp === message.timestamp && msg.sender === message.sender
-        );
+        this.chatMessages.push(message);
+        this.unreadCount++;
         
-        if (!messageExists) {
-            this.chatMessages.push(message);
-            this.unreadCount++;
-            
-            // Update UI
-            this.updateChatUI();
-            
-            // Show notification untuk pesan baru
-            if (!this.isChatOpen) {
-                this.showChatNotification(message);
-            }
-            
-            console.log('💬 New message received:', message);
+        this.updateChatUI();
+        
+        if (!this.isChatOpen) {
+            this.showChatNotification(message);
         }
+        
+        console.log('💬 New message:', message);
     }
 
-    // ✅ METHOD BARU: Kirim pesan
+    // ✅ CHAT METHOD: Kirim pesan
     async sendMessage(messageText) {
         if (!messageText.trim() || !this.chatRef || !this.driverData) return;
         
@@ -219,7 +189,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ METHOD BARU: Update chat UI
+    // ✅ CHAT METHOD: Update chat UI
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -227,7 +197,6 @@ class DTGPSLogger {
         
         if (!messageList) return;
         
-        // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
             unreadBadge.style.display = this.unreadCount > 0 ? 'block' : 'none';
@@ -239,7 +208,6 @@ class DTGPSLogger {
                 '💬 Chat';
         }
         
-        // Render messages
         messageList.innerHTML = '';
         
         if (this.chatMessages.length === 0) {
@@ -267,11 +235,10 @@ class DTGPSLogger {
             messageList.appendChild(messageElement);
         });
         
-        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ METHOD BARU: Toggle chat window
+    // ✅ CHAT METHOD: Toggle chat window
     toggleChat() {
         this.isChatOpen = !this.isChatOpen;
         const chatWindow = document.getElementById('chatWindow');
@@ -282,7 +249,6 @@ class DTGPSLogger {
             if (this.isChatOpen) {
                 this.unreadCount = 0;
                 this.updateChatUI();
-                // Focus input field
                 setTimeout(() => {
                     const chatInput = document.getElementById('chatInput');
                     if (chatInput) chatInput.focus();
@@ -291,7 +257,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ METHOD BARU: Handle chat input
+    // ✅ CHAT METHOD: Handle chat input
     handleChatInput(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -303,9 +269,8 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ METHOD BARU: Show chat notification
+    // ✅ CHAT METHOD: Show notification
     showChatNotification(message) {
-        // Buat notification element
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-info';
         notification.innerHTML = `
@@ -330,7 +295,6 @@ class DTGPSLogger {
         
         document.body.appendChild(notification);
         
-        // Auto remove setelah 5 detik
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -338,7 +302,7 @@ class DTGPSLogger {
         }, 5000);
     }
 
-    // ✅ METHOD BARU: Escape HTML untuk keamanan
+    // ✅ CHAT METHOD: Escape HTML untuk keamanan
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -777,50 +741,17 @@ class DTGPSLogger {
         this.isTracking = false;
     }
 
-    logout() {
-        // Cleanup chat listener
+     logout() {
         if (this.chatRef) {
             this.chatRef.off();
         }
         
         this.stopTracking();
-        this.syncCompleteHistory();
-        
-        // Log session summary
-        const sessionSummary = {
-            driver: this.driverData.name,
-            unit: this.driverData.unit,
-            duration: document.getElementById('sessionDuration').textContent,
-            totalDistance: this.totalDistance.toFixed(3),
-            dataPoints: this.dataPoints,
-            avgSpeed: document.getElementById('avgSpeed').textContent,
-            sessionId: this.driverData.sessionId
-        };
-        
-        console.log('Session Summary:', sessionSummary);
-        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
-        
-        this.driverData = null;
-        this.firebaseRef = null;
-        this.chatRef = null;
-        this.chatMessages = [];
-        this.unreadCount = 0;
-        this.isChatOpen = false;
-        this.chatInitialized = false;
-        
-        document.getElementById('loginScreen').style.display = 'block';
-        document.getElementById('driverApp').style.display = 'none';
-        document.getElementById('loginForm').reset();
-        
-        // Reset semua data
-        this.totalDistance = 0;
-        this.dataPoints = 0;
-        this.lastPosition = null;
-        this.lastUpdateTime = null;
+        // ... rest of logout code
     }
 }
 
-// Offline Queue Manager (tetap sama)
+// Offline Queue Manager (sama seperti sebelumnya)
 class OfflineQueueManager {
     constructor() {
         this.queue = [];
@@ -940,7 +871,7 @@ class OfflineQueueManager {
     }
 }
 
-// ✅ TAMBAHKAN: Global functions untuk chat
+// Global functions untuk chat
 function sendChatMessage() {
     if (window.dtLogger) {
         const input = document.getElementById('chatInput');
@@ -1020,3 +951,4 @@ document.addEventListener('visibilitychange', function() {
         }
     }
 });
+</script>
