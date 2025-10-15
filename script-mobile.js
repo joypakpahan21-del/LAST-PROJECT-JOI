@@ -33,6 +33,12 @@ class DTGPSLogger {
         this.movingStartTime = null;
         this.isCurrentlyMoving = false;
         
+        // NEW: Complete history tracking
+        this.offlineHistory = [];
+        this.maxOfflinePoints = 1000;
+        this.isCollectingOfflineData = false;
+        this.completeHistory = this.loadCompleteHistory(); // Load existing history
+        
         this.offlineQueue = new OfflineQueueManager();
         
         this.init();
@@ -147,6 +153,95 @@ class DTGPSLogger {
         }, 2000);
     }
 
+    // NEW: Simpan semua titik ke localStorage
+    saveToCompleteHistory(positionData) {
+        if (!this.driverData) return;
+        
+        const historyPoint = {
+            ...positionData,
+            sessionId: this.driverData.sessionId,
+            unit: this.driverData.unit,
+            driver: this.driverData.name,
+            saveTimestamp: new Date().toISOString()
+        };
+        
+        // Load existing history
+        let history = this.loadCompleteHistory();
+        
+        // Add new point
+        history.push(historyPoint);
+        
+        // Maintain size limit
+        if (history.length > this.maxOfflinePoints) {
+            history = history.slice(-this.maxOfflinePoints);
+        }
+        
+        // Save back to storage
+        localStorage.setItem('gps_complete_history', JSON.stringify(history));
+        this.completeHistory = history;
+        
+        console.log(`💾 Saved to history: ${history.length} points`);
+    }
+
+    // NEW: Load history dari localStorage
+    loadCompleteHistory() {
+        try {
+            const saved = localStorage.getItem('gps_complete_history');
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.error('Error loading history:', error);
+            return [];
+        }
+    }
+
+    // NEW: Sync semua history ke Firebase
+    async syncCompleteHistory() {
+        if (!this.isOnline || !this.firebaseRef || !this.driverData) {
+            console.log('❌ Cannot sync history: offline or no driver data');
+            return;
+        }
+        
+        const history = this.loadCompleteHistory();
+        const sessionHistory = history.filter(point => 
+            point.sessionId === this.driverData.sessionId
+        );
+        
+        if (sessionHistory.length === 0) {
+            console.log('ℹ️ No history to sync');
+            return;
+        }
+        
+        try {
+            // Kirim ke Firebase under history node
+            const historyRef = database.ref('/history/' + this.driverData.unit + '/' + this.driverData.sessionId);
+            
+            // Push semua data sebagai object
+            const historyObject = {};
+            sessionHistory.forEach((point, index) => {
+                historyObject['point_' + index] = {
+                    lat: point.lat,
+                    lng: point.lng,
+                    speed: point.speed,
+                    accuracy: point.accuracy,
+                    bearing: point.bearing,
+                    timestamp: point.timestamp,
+                    isOnline: point.isOnline,
+                    driver: point.driver,
+                    unit: point.unit
+                };
+            });
+            
+            await historyRef.set(historyObject);
+            
+            console.log(`✅ History synced: ${sessionHistory.length} points`);
+            this.addLog(`📡 Sync complete: ${sessionHistory.length} data points`, 'success');
+            
+        } catch (error) {
+            console.error('History sync failed:', error);
+            this.addLog(`❌ Gagal sync history: ${error.message}`, 'error');
+        }
+    }
+
     // PERBAIKAN BESAR: Enhanced position update dengan perhitungan jarak yang akurat
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
@@ -156,6 +251,17 @@ class DTGPSLogger {
         const bearing = position.coords.heading;
         const timestamp = new Date();
         
+        // ✅ TAMBAHKAN INI: Simpan ke complete history (SELALU)
+        this.saveToCompleteHistory({
+            lat: lat,
+            lng: lng,
+            speed: speed,
+            accuracy: accuracy,
+            bearing: bearing,
+            timestamp: timestamp.toISOString(),
+            isOnline: this.isOnline
+        });
+
         // Update UI
         document.getElementById('currentLat').textContent = lat.toFixed(6);
         document.getElementById('currentLng').textContent = lng.toFixed(6);
@@ -298,10 +404,21 @@ class DTGPSLogger {
         
         if (wasOnline !== this.isOnline) {
             if (this.isOnline) {
-                this.addLog('📱 Koneksi pulih - sync data offline', 'success');
+                this.addLog('📱 Koneksi pulih - sync semua data', 'success');
+                this.updateConnectionStatus(true);
+                
+                // ✅ MODIFIKASI INI: Sync bertahap
+                // 1. Sync real-time data dulu
                 this.offlineQueue.processQueue();
+                
+                // 2. Sync complete history setelah delay
+                setTimeout(() => {
+                    this.syncCompleteHistory();
+                }, 3000);
+                
             } else {
                 this.addLog('📱 Koneksi terputus - menyimpan data lokal', 'warning');
+                this.updateConnectionStatus(false);
             }
         }
         
@@ -418,6 +535,9 @@ class DTGPSLogger {
         
         // Kirim data final ke Firebase
         this.sendToFirebase();
+        
+        // Sync complete history saat journey berakhir
+        this.syncCompleteHistory();
     }
 
     stopTracking() {
@@ -436,6 +556,9 @@ class DTGPSLogger {
 
     logout() {
         this.stopTracking();
+        
+        // Sync history terakhir sebelum logout
+        this.syncCompleteHistory();
         
         // Log session summary
         const sessionSummary = {
