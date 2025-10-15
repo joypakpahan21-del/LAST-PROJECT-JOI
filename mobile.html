@@ -183,6 +183,41 @@
                 </div>
             </div>
         </div>
+        <!-- ✅ TAMBAHKAN: Chat Interface -->
+<div id="chatContainer">
+    <!-- Chat Toggle Button -->
+    <button id="chatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
+            onclick="window.dtLogger.toggleChat()">
+        💬 Chat <span id="unreadBadge" class="badge bg-danger" style="display: none;"></span>
+    </button>
+    
+    <!-- Chat Window -->
+    <div id="chatWindow" class="chat-window">
+        <div class="chat-header">
+            <h6 class="mb-0">💬 Chat dengan Monitor</h6>
+            <button type="button" class="btn-close" onclick="window.dtLogger.toggleChat()"></button>
+        </div>
+        
+        <div id="chatMessages" class="chat-messages">
+            <div class="chat-placeholder text-center text-muted py-4">
+                <small>Mulai percakapan dengan monitor...</small>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="input-group">
+                <input type="text" id="chatInput" class="form-control" 
+                       placeholder="Ketik pesan..." 
+                       onkeypress="window.dtLogger.handleChatInput(event)">
+                <button class="btn btn-primary" type="button" 
+                        onclick="window.dtLogger.sendMessage(document.getElementById('chatInput').value); document.getElementById('chatInput').value = ''">
+                    Kirim
+                </button>
+            </div>
+            <small class="text-muted">Tekan Enter untuk mengirim</small>
+        </div>
+    </div>
+</div>
 
         <!-- Data Log -->
         <div class="card m-3">
@@ -812,3 +847,4 @@ document.addEventListener('visibilitychange', function() {
     </script>
 </body>
 </html>
+
