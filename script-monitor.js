@@ -29,7 +29,7 @@ class SAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // ✅ TAMBAHKAN: Chat System Properties untuk Monitor
+        // ✅ Chat System Properties untuk Monitor
         this.monitorChatRefs = {};
         this.monitorChatMessages = {};
         this.monitorUnreadCounts = {};
@@ -93,7 +93,7 @@ class SAGMGpsTracking {
 
         this.config = {
             center: [
-                (this.importantLocations.PKS_SAGM.lat + this.importantLocations.KANTOR_KEBUN.lng) / 2,
+                (this.importantLocations.PKS_SAGM.lat + this.importantLocations.KANTOR_KEBUN.lat) / 2,
                 (this.importantLocations.PKS_SAGM.lng + this.importantLocations.KANTOR_KEBUN.lng) / 2
             ],
             zoom: 13
@@ -114,8 +114,11 @@ class SAGMGpsTracking {
             this.setupDataLogger();
             this.testFirebaseConnection();
             
-            // ✅ TAMBAHKAN: Setup monitor chat system
+            // ✅ Setup monitor chat system
             this.setupMonitorChatSystem();
+            
+            // ✅ Debug panel
+            setTimeout(() => this.showDebugPanel(), 2000);
             
         } catch (error) {
             console.error('System initialization failed:', error);
@@ -123,11 +126,14 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Setup chat system untuk monitor
+    // ✅ METHOD BARU: Setup chat system untuk monitor - DIKOREKSI
     setupMonitorChatSystem() {
+        console.log('💬 Initializing monitor chat system...');
+        
         // Listen untuk semua unit yang aktif
         database.ref('/chat').on('child_added', (snapshot) => {
             const unitName = snapshot.key;
+            console.log(`💬 New chat unit detected: ${unitName}`);
             this.setupUnitChatListener(unitName);
         });
 
@@ -140,16 +146,6 @@ class SAGMGpsTracking {
         this.monitorChatInitialized = true;
         console.log('💬 Monitor chat system activated');
         this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
-        setupMonitorChatSystem() {
-    console.log('💬 Initializing monitor chat system...');
-    
-    // Listen untuk semua unit yang aktif
-    database.ref('/chat').on('child_added', (snapshot) => {
-        const unitName = snapshot.key;
-        console.log(`💬 New chat unit detected: ${unitName}`);
-        this.setupUnitChatListener(unitName);
-    });
-
     }
 
     // ✅ METHOD BARU: Setup listener per unit
@@ -316,7 +312,7 @@ class SAGMGpsTracking {
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ METHOD BARU: Tambahkan method ini di dalam class SAGMGpsTracking setelah constructor
+    // ✅ METHOD BARU: Setup chat event handlers
     setupChatEventHandlers() {
         // Handle unit selection change
         const unitSelect = document.getElementById('monitorChatUnitSelect');
@@ -626,126 +622,133 @@ class SAGMGpsTracking {
         }
     }
 
-    // ===== FIREBASE METHODS =====
+    // ===== FIREBASE METHODS ===== - DIKOREKSI
     connectToFirebase() {
         try {
             console.log('🟡 Connecting to Firebase...');
             
-            // Connection status monitoring
+            // 1. Check connection status
             database.ref('.info/connected').on('value', (snapshot) => {
                 const connected = snapshot.val();
+                console.log('📡 Firebase Connection Status:', connected);
                 this.updateConnectionStatus(connected);
-                
-                if (connected) {
-                    this.logData('Firebase connected', 'success');
-                } else {
-                    this.logData('Firebase disconnected', 'warning');
-                }
             });
 
-            // Real-time data listener
-            this.firebaseListener = database.ref('/units').on('value', (snapshot) => {
-                const data = snapshot.val();
-                this.processRealTimeData(data);
-            }, (error) => {
-                console.error('Firebase listener error:', error);
-                this.logData('Firebase connection error', 'error', { error: error.message });
-            });
-            
-            // Handle data removal (logout)
-            database.ref('/units').on('child_removed', (snapshot) => {
-                this.handleDataRemoval(snapshot.key);
-            });
-            
-            console.log('✅ Firebase listener active');
-            this.logData('Firebase real-time listener active', 'system');
+            // 2. Setup real-time listener dengan error handling - DIKOREKSI
+            this.firebaseListener = database.ref('/units').on('value', 
+                (snapshot) => {
+                    try {
+                        const data = snapshot.val();
+                        console.log('🔥 REAL-TIME DATA:', data);
+                        
+                        if (data) {
+                            console.log(`📊 Processing ${Object.keys(data).length} units`);
+                            this.processRealTimeData(data);
+                        } else {
+                            console.log('⚠️ No data received from Firebase');
+                            this.clearAllData();
+                        }
+                    } catch (processError) {
+                        console.error('❌ Error processing data:', processError);
+                    }
+                }, 
+                (error) => {
+                    console.error('❌ Firebase listener error:', error);
+                    this.logData('Firebase listener error', 'error', { 
+                        error: error.message,
+                        code: error.code,
+                        details: error.details
+                    });
+                    
+                    // Auto-retry setelah 3 detik
+                    setTimeout(() => {
+                        console.log('🔄 Retrying Firebase connection...');
+                        this.connectToFirebase();
+                    }, 3000);
+                }
+            );
+
+            console.log('✅ Firebase listener setup completed');
             
         } catch (error) {
-            console.error('Firebase connection failed:', error);
-            this.logData('Firebase connection failed', 'error', { error: error.message });
+            console.error('🔥 Critical Firebase error:', error);
+            this.logData('Critical Firebase error', 'error', { error: error.message });
+            
+            // Retry connection
+            setTimeout(() => this.connectToFirebase(), 5000);
         }
     }
 
     testFirebaseConnection() {
-        setTimeout(() => {
-            database.ref('/units').once('value')
-                .then((snapshot) => {
-                    const data = snapshot.val();
-                    if (data && Object.keys(data).length > 0) {
-                        this.logData('Firebase test successful - data found', 'success', {
-                            units: Object.keys(data)
-                        });
-                    } else {
-                        this.logData('Firebase test successful - no data', 'warning');
-                    }
-                })
-                .catch((error) => {
-                    this.logData('Firebase test failed', 'error', { error: error.message });
-                });
-        }, 3000);
+        console.log('🔍 Testing Firebase connection...');
+        
+        // Test 1: Check connection state
+        database.ref('.info/connected').on('value', (snapshot) => {
+            const connected = snapshot.val();
+            console.log('📡 Firebase Connected:', connected);
+        });
+
+        // Test 2: Try to read data directly
+        database.ref('/units').once('value')
+            .then((snapshot) => {
+                const data = snapshot.val();
+                console.log('📊 Raw Firebase Data:', data);
+                
+                if (data) {
+                    console.log('✅ Data found, units:', Object.keys(data));
+                    Object.entries(data).forEach(([key, value]) => {
+                        console.log(`   ${key}:`, value);
+                    });
+                } else {
+                    console.log('❌ No data found in /units path');
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Firebase read error:', error);
+            });
     }
 
+    // ===== PROCESS REAL-TIME DATA ===== - DIKOREKSI
     processRealTimeData(firebaseData) {
+        console.log('🔄 Processing real-time data:', firebaseData);
+        
         if (!firebaseData) {
-            this.logData('No real-time data from Firebase', 'warning');
+            console.log('⚠️ No data from Firebase - clearing display');
             this.clearAllData();
+            this.logData('No real-time data from Firebase', 'warning');
             return;
         }
 
         const unitCount = Object.keys(firebaseData).length;
-        this.logData(`Real-time update: ${unitCount} units`, 'info', {
-            units: unitCount,
-            timestamp: new Date().toISOString()
-        });
-
+        console.log(`📈 Processing ${unitCount} units`);
+        
         let updates = 0;
         const activeUnits = new Set();
         const currentTime = Date.now();
         
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            // Session validation for one-session-per-DT
-            if (unitData.sessionId && !this.validateSession(unitName, unitData.sessionId)) {
-                this.logData(`Invalid session for ${unitName}`, 'warning', {
-                    unit: unitName,
-                    sessionId: unitData.sessionId
-                });
+            console.log(`   🔍 Unit ${unitName}:`, unitData);
+            
+            // Validasi data penting
+            if (!unitData || unitData.lat === undefined || unitData.lng === undefined) {
+                console.log(`   ⚠️ Invalid data for ${unitName}:`, unitData);
                 return;
             }
             
             activeUnits.add(unitName);
             this.lastDataTimestamps[unitName] = currentTime;
-            this.driverOnlineStatus[unitName] = true;
             
             const existingUnit = this.units.find(u => u.name === unitName);
             
             if (existingUnit) {
                 this.refreshUnitData(existingUnit, unitData);
                 updates++;
-                
-                this.logData(`GPS update: ${unitName}`, 'gps', {
-                    unit: unitName,
-                    latitude: unitData.lat,
-                    longitude: unitData.lng,
-                    speed: unitData.speed,
-                    driver: unitData.driver
-                });
             } else {
                 const newUnit = this.createNewUnit(unitName, unitData);
                 if (newUnit) {
                     this.units.push(newUnit);
                     updates++;
-                    
-                    this.unitSessions[unitName] = {
-                        sessionId: unitData.sessionId,
-                        startTime: currentTime,
-                        lastActivity: currentTime
-                    };
-
-                    this.logData(`New unit detected: ${unitName}`, 'success', {
-                        unit: unitName,
-                        driver: unitData.driver,
-                        location: { lat: unitData.lat, lng: unitData.lng }
-                    });
+                    console.log(`   ✅ New unit created: ${unitName}`);
                 }
             }
         });
@@ -754,6 +757,7 @@ class SAGMGpsTracking {
         this.removeInactiveUnits(activeUnits);
 
         if (updates > 0) {
+            console.log(`🎯 Refreshing display with ${updates} updates`);
             this.refreshDisplay();
         }
     }
@@ -1804,6 +1808,59 @@ class SAGMGpsTracking {
         }, 5000);
     }
 
+    // ✅ METHOD BARU: Debug panel untuk monitoring
+    showDebugPanel() {
+        const debugHtml = `
+            <div class="debug-panel card position-fixed" style="bottom: 10px; right: 10px; width: 400px; z-index: 9999;">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <span>🐛 Debug Panel</span>
+                    <button class="btn btn-sm btn-outline-light" onclick="this.closest('.debug-panel').remove()">×</button>
+                </div>
+                <div class="card-body p-2">
+                    <div class="mb-2">
+                        <strong>Firebase Status:</strong> 
+                        <span id="debugFirebaseStatus">Checking...</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Units Loaded:</strong> 
+                        <span id="debugUnitsCount">${this.units.length}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Last Update:</strong> 
+                        <span id="debugLastUpdate">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <button class="btn btn-sm btn-warning w-100" onclick="window.gpsSystem.testFirebaseConnection()">
+                        Test Connection
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', debugHtml);
+        
+        // Update debug info periodically
+        setInterval(() => {
+            const statusElement = document.getElementById('debugFirebaseStatus');
+            const unitsElement = document.getElementById('debugUnitsCount');
+            const updateElement = document.getElementById('debugLastUpdate');
+            
+            if (statusElement) {
+                const connected = database.ref('.info/connected').on('value', (snapshot) => {
+                    statusElement.textContent = snapshot.val() ? '🟢 CONNECTED' : '🔴 DISCONNECTED';
+                    statusElement.className = snapshot.val() ? 'text-success' : 'text-danger';
+                });
+            }
+            
+            if (unitsElement) {
+                unitsElement.textContent = this.units.length;
+            }
+            
+            if (updateElement) {
+                updateElement.textContent = new Date().toLocaleTimeString();
+            }
+        }, 2000);
+    }
+
     cleanup() {
         if (this.firebaseListener) {
             database.ref('/units').off('value', this.firebaseListener);
@@ -1815,7 +1872,7 @@ class SAGMGpsTracking {
             clearInterval(this.dataLogger.exportInterval);
         }
         
-        // ✅ TAMBAHKAN: Cleanup chat system
+        // ✅ Cleanup chat system
         database.ref('/chat').off('child_added');
         database.ref('/chat').off('child_removed');
         Object.values(this.monitorChatRefs).forEach(ref => ref.off());
@@ -1869,7 +1926,7 @@ function clearRoutes() {
     }
 }
 
-// ✅ TAMBAHKAN: Global functions untuk chat system
+// ✅ Global functions untuk chat system
 function toggleMonitorChat() {
     if (window.gpsSystem) {
         window.gpsSystem.toggleMonitorChat();
@@ -1900,4 +1957,3 @@ window.addEventListener('beforeunload', function() {
         window.gpsSystem.cleanup();
     }
 });
-
