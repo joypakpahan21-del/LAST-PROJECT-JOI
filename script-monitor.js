@@ -140,6 +140,16 @@ class SAGMGpsTracking {
         this.monitorChatInitialized = true;
         console.log('💬 Monitor chat system activated');
         this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
+        setupMonitorChatSystem() {
+    console.log('💬 Initializing monitor chat system...');
+    
+    // Listen untuk semua unit yang aktif
+    database.ref('/chat').on('child_added', (snapshot) => {
+        const unitName = snapshot.key;
+        console.log(`💬 New chat unit detected: ${unitName}`);
+        this.setupUnitChatListener(unitName);
+    });
+
     }
 
     // ✅ METHOD BARU: Setup listener per unit
@@ -1890,3 +1900,4 @@ window.addEventListener('beforeunload', function() {
         window.gpsSystem.cleanup();
     }
 });
+
