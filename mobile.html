@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="style-mobile.css" rel="stylesheet">
     
-    <!-- FIREBASE SDK - YANG PERLU DITAMBAHKAN -->
+    <!-- FIREBASE SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
 </head>
@@ -183,41 +183,6 @@
                 </div>
             </div>
         </div>
-        <!-- ✅ TAMBAHKAN: Chat Interface -->
-<div id="chatContainer">
-    <!-- Chat Toggle Button -->
-    <button id="chatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
-            onclick="window.dtLogger.toggleChat()">
-        💬 Chat <span id="unreadBadge" class="badge bg-danger" style="display: none;"></span>
-    </button>
-    
-    <!-- Chat Window -->
-    <div id="chatWindow" class="chat-window">
-        <div class="chat-header">
-            <h6 class="mb-0">💬 Chat dengan Monitor</h6>
-            <button type="button" class="btn-close" onclick="window.dtLogger.toggleChat()"></button>
-        </div>
-        
-        <div id="chatMessages" class="chat-messages">
-            <div class="chat-placeholder text-center text-muted py-4">
-                <small>Mulai percakapan dengan monitor...</small>
-            </div>
-        </div>
-        
-        <div class="chat-input-container">
-            <div class="input-group">
-                <input type="text" id="chatInput" class="form-control" 
-                       placeholder="Ketik pesan..." 
-                       onkeypress="window.dtLogger.handleChatInput(event)">
-                <button class="btn btn-primary" type="button" 
-                        onclick="window.dtLogger.sendMessage(document.getElementById('chatInput').value); document.getElementById('chatInput').value = ''">
-                    Kirim
-                </button>
-            </div>
-            <small class="text-muted">Tekan Enter untuk mengirim</small>
-        </div>
-    </div>
-</div>
 
         <!-- Data Log -->
         <div class="card m-3">
@@ -239,8 +204,44 @@
         </div>
     </div>
 
+    <!-- ✅ CHAT INTERFACE -->
+    <div id="chatContainer">
+        <!-- Chat Toggle Button -->
+        <button id="chatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
+                onclick="toggleChat()">
+            💬 Chat <span id="unreadBadge" class="badge bg-danger" style="display: none;"></span>
+        </button>
+        
+        <!-- Chat Window -->
+        <div id="chatWindow" class="chat-window">
+            <div class="chat-header">
+                <h6 class="mb-0">💬 Chat dengan Monitor</h6>
+                <button type="button" class="btn-close" onclick="toggleChat()"></button>
+            </div>
+            
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan monitor...</small>
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div class="input-group">
+                    <input type="text" id="chatInput" class="form-control" 
+                           placeholder="Ketik pesan..." 
+                           onkeypress="handleChatInput(event)">
+                    <button class="btn btn-primary" type="button" 
+                            onclick="sendChatMessage()">
+                        Kirim
+                    </button>
+                </div>
+                <small class="text-muted">Tekan Enter untuk mengirim</small>
+            </div>
+        </div>
+    </div>
+
     <script>
-// ==== FIREBASE CONFIG (SAMA DENGAN MONITOR) ====
+// ==== FIREBASE CONFIG ====
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
     authDomain: "joi-gps-tracker.firebaseapp.com",
@@ -255,129 +256,6 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ===== OFFLINE QUEUE SYSTEM =====
-class OfflineQueueManager {
-    constructor() {
-        this.queue = [];
-        this.isOnline = navigator.onLine;
-        this.maxQueueSize = 1000;
-        this.syncInterval = null;
-        this.init();
-    }
-
-    init() {
-        this.loadQueueFromStorage();
-        this.setupOnlineOfflineListeners();
-        this.startSyncMonitor();
-    }
-
-    setupOnlineOfflineListeners() {
-        window.addEventListener('online', () => {
-            console.log('📱 Koneksi online - sync data offline');
-            this.isOnline = true;
-            this.processQueue();
-        });
-
-        window.addEventListener('offline', () => {
-            console.log('📱 Koneksi offline - menyimpan data lokal');
-            this.isOnline = false;
-        });
-    }
-
-    loadQueueFromStorage() {
-        try {
-            const saved = localStorage.getItem('gps_offline_queue');
-            if (saved) {
-                this.queue = JSON.parse(saved);
-                console.log(`📂 Loaded ${this.queue.length} queued items`);
-            }
-        } catch (error) {
-            console.error('Error loading queue:', error);
-            this.queue = [];
-        }
-    }
-
-    saveQueueToStorage() {
-        try {
-            localStorage.setItem('gps_offline_queue', JSON.stringify(this.queue));
-        } catch (error) {
-            console.error('Error saving queue:', error);
-        }
-    }
-
-    addToQueue(gpsData) {
-        if (this.queue.length >= this.maxQueueSize) {
-            this.queue.shift(); // Remove oldest item
-        }
-        
-        this.queue.push({
-            ...gpsData,
-            queueTimestamp: new Date().toISOString(),
-            offlineId: 'offline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-        });
-
-        this.saveQueueToStorage();
-        console.log(`💾 Saved to offline queue. Total: ${this.queue.length}`);
-    }
-
-    async processQueue() {
-        if (this.queue.length === 0 || !this.isOnline) return;
-
-        console.log(`🔄 Processing ${this.queue.length} queued items...`);
-        
-        const successItems = [];
-        const failedItems = [];
-
-        for (const item of this.queue) {
-            try {
-                await this.sendQueuedData(item);
-                successItems.push(item);
-            } catch (error) {
-                console.error('Failed to send queued data:', error);
-                failedItems.push(item);
-            }
-        }
-
-        // Update queue dengan yang gagal saja
-        this.queue = failedItems;
-        this.saveQueueToStorage();
-
-        console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
-        
-        if (successItems.length > 0) {
-            window.dtLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
-        }
-    }
-
-    async sendQueuedData(queuedData) {
-        if (!window.dtLogger?.firebaseRef) {
-            throw new Error('No Firebase reference');
-        }
-
-        // Remove queue-specific fields
-        const { queueTimestamp, offlineId, ...cleanData } = queuedData;
-        
-        await window.dtLogger.firebaseRef.set(cleanData);
-    }
-
-    startSyncMonitor() {
-        this.syncInterval = setInterval(() => {
-            if (this.isOnline && this.queue.length > 0) {
-                this.processQueue();
-            }
-        }, 10000); // Check every 10 seconds
-    }
-
-    getQueueSize() {
-        return this.queue.length;
-    }
-
-    clearQueue() {
-        this.queue = [];
-        this.saveQueueToStorage();
-    }
-}
-
 class DTGPSLogger {
     constructor() {
         this.driverData = null;
@@ -389,9 +267,17 @@ class DTGPSLogger {
         this.lastPosition = null;
         this.dataPoints = 0;
         this.isOnline = false;
-        this.journeyStatus = 'ready'; // ready, started, paused, ended
+        this.journeyStatus = 'ready';
         this.firebaseRef = null;
-        this.offlineQueue = new OfflineQueueManager(); // NEW: Offline queue
+        
+        // ✅ CHAT SYSTEM PROPERTIES
+        this.chatRef = null;
+        this.chatMessages = [];
+        this.unreadCount = 0;
+        this.isChatOpen = false;
+        this.chatInitialized = false;
+        
+        this.offlineQueue = new OfflineQueueManager();
         
         this.init();
     }
@@ -423,14 +309,19 @@ class DTGPSLogger {
                 sessionId: this.generateSessionId()
             };
 
-            // Setup Firebase reference untuk unit ini
             this.firebaseRef = database.ref('/units/' + unitNumber);
+            this.firebaseRef.set({
+                driver: driverName,
+                unit: unitNumber,
+                sessionId: this.driverData.sessionId,
+                journeyStatus: 'ready',
+                lastUpdate: new Date().toLocaleTimeString('id-ID')
+            });
 
             this.showDriverApp();
             this.startGPSTracking();
             this.startDataTransmission();
             
-            // Auto start journey setelah 3 detik
             setTimeout(() => {
                 this.startJourney();
             }, 3000);
@@ -466,6 +357,185 @@ class DTGPSLogger {
         
         this.sessionStartTime = new Date();
         this.updateSessionDuration();
+        
+        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
+        this.setupChatSystem();
+    }
+
+    // ✅ CHAT METHOD: Setup chat system
+    setupChatSystem() {
+        if (!this.driverData) return;
+        
+        this.chatRef = database.ref('/chat/' + this.driverData.unit);
+        
+        // Listen untuk pesan baru
+        this.chatRef.on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            this.handleNewMessage(message);
+        });
+        
+        this.chatInitialized = true;
+        console.log('💬 Chat system activated for unit:', this.driverData.unit);
+        this.addLog('Sistem chat aktif - bisa komunikasi dengan monitor', 'success');
+    }
+
+    // ✅ CHAT METHOD: Handle pesan baru
+    handleNewMessage(message) {
+        if (!message || message.sender === this.driverData.name) return;
+        
+        this.chatMessages.push(message);
+        this.unreadCount++;
+        
+        this.updateChatUI();
+        
+        if (!this.isChatOpen) {
+            this.showChatNotification(message);
+        }
+        
+        console.log('💬 New message:', message);
+    }
+
+    // ✅ CHAT METHOD: Kirim pesan
+    async sendMessage(messageText) {
+        if (!messageText.trim() || !this.chatRef || !this.driverData) return;
+        
+        const messageData = {
+            text: messageText.trim(),
+            sender: this.driverData.name,
+            unit: this.driverData.unit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            type: 'driver'
+        };
+        
+        try {
+            await this.chatRef.push(messageData);
+            this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
+            
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            this.addLog('❌ Gagal mengirim pesan', 'error');
+        }
+    }
+
+    // ✅ CHAT METHOD: Update chat UI
+    updateChatUI() {
+        const messageList = document.getElementById('chatMessages');
+        const unreadBadge = document.getElementById('unreadBadge');
+        const chatToggle = document.getElementById('chatToggle');
+        
+        if (!messageList) return;
+        
+        if (unreadBadge) {
+            unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
+            unreadBadge.style.display = this.unreadCount > 0 ? 'block' : 'none';
+        }
+        
+        if (chatToggle) {
+            chatToggle.innerHTML = this.unreadCount > 0 ? 
+                `💬 Chat <span class="badge bg-danger">${this.unreadCount}</span>` : 
+                '💬 Chat';
+        }
+        
+        messageList.innerHTML = '';
+        
+        if (this.chatMessages.length === 0) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan monitor...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        this.chatMessages.forEach(message => {
+            const messageElement = document.createElement('div');
+            messageElement.className = `chat-message ${message.sender === this.driverData.name ? 'message-sent' : 'message-received'}`;
+            
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    ${message.sender !== this.driverData.name ? 
+                      `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-time">${message.timeDisplay}</div>
+                </div>
+            `;
+            
+            messageList.appendChild(messageElement);
+        });
+        
+        messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    // ✅ CHAT METHOD: Toggle chat window
+    toggleChat() {
+        this.isChatOpen = !this.isChatOpen;
+        const chatWindow = document.getElementById('chatWindow');
+        
+        if (chatWindow) {
+            chatWindow.style.display = this.isChatOpen ? 'block' : 'none';
+            
+            if (this.isChatOpen) {
+                this.unreadCount = 0;
+                this.updateChatUI();
+                setTimeout(() => {
+                    const chatInput = document.getElementById('chatInput');
+                    if (chatInput) chatInput.focus();
+                }, 100);
+            }
+        }
+    }
+
+    // ✅ CHAT METHOD: Handle chat input
+    handleChatInput(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const input = document.getElementById('chatInput');
+            if (input && input.value.trim()) {
+                this.sendMessage(input.value);
+                input.value = '';
+            }
+        }
+    }
+
+    // ✅ CHAT METHOD: Show notification
+    showChatNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'chat-notification alert alert-info';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>💬 Pesan Baru dari ${message.sender}</strong>
+                    <div class="small">${message.text}</div>
+                </div>
+                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    // ✅ CHAT METHOD: Escape HTML untuk keamanan
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     startGPSTracking() {
@@ -482,7 +552,6 @@ class DTGPSLogger {
             maximumAge: 0
         };
 
-        // Watch position untuk real-time tracking
         this.watchId = navigator.geolocation.watchPosition(
             (position) => this.handlePositionUpdate(position),
             (error) => this.handleGPSError(error),
@@ -493,7 +562,6 @@ class DTGPSLogger {
     }
 
     startDataTransmission() {
-        // Kirim data ke Firebase setiap 2 detik
         this.sendInterval = setInterval(() => {
             if (this.lastPosition) {
                 this.sendToFirebase();
@@ -584,7 +652,7 @@ class DTGPSLogger {
             journeyStatus: this.journeyStatus,
             batteryLevel: this.getBatteryLevel(),
             sessionId: this.driverData.sessionId,
-            isOfflineData: false // Flag untuk data real-time
+            isOfflineData: false
         };
 
         try {
@@ -593,12 +661,10 @@ class DTGPSLogger {
                 this.addLog(`📡 Data terkirim: ${this.lastPosition.speed.toFixed(1)} km/h`, 'success');
                 this.updateConnectionStatus(true);
                 
-                // Process any queued data when online
                 if (this.offlineQueue.getQueueSize() > 0) {
                     this.offlineQueue.processQueue();
                 }
             } else {
-                // OFFLINE: Save to queue
                 this.offlineQueue.addToQueue(gpsData);
                 this.addLog(`💾 Data disimpan offline (${this.offlineQueue.getQueueSize()} dalam antrian)`, 'warning');
                 this.updateConnectionStatus(false);
@@ -607,7 +673,6 @@ class DTGPSLogger {
         } catch (error) {
             console.error('Error sending to Firebase:', error);
             
-            // Jika gagal kirim, simpan ke offline queue
             if (this.isOnline) {
                 this.offlineQueue.addToQueue(gpsData);
                 this.addLog(`❌ Gagal kirim, disimpan offline`, 'error');
@@ -619,7 +684,6 @@ class DTGPSLogger {
     }
 
     getBatteryLevel() {
-        // Simulasi level baterai (dalam real app, gunakan Battery Status API)
         return Math.max(20, Math.floor(Math.random() * 100));
     }
 
@@ -652,7 +716,6 @@ class DTGPSLogger {
             status.textContent = 'OFFLINE';
             status.className = 'text-danger';
             
-            // Tampilkan jumlah data dalam antrian
             const queueSize = this.offlineQueue.getQueueSize();
             if (queueSize > 0) {
                 status.textContent = `OFFLINE (${queueSize} data antrian)`;
@@ -696,7 +759,6 @@ class DTGPSLogger {
         
         logContainer.insertBefore(logEntry, logContainer.firstChild);
         
-        // Keep only last 6 logs
         if (logContainer.children.length > 6) {
             logContainer.removeChild(logContainer.lastChild);
         }
@@ -742,7 +804,6 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
         this.addLog('Perjalanan selesai', 'info');
         
-        // Kirim data final ke Firebase
         this.sendToFirebase();
     }
 
@@ -754,7 +815,6 @@ class DTGPSLogger {
             clearInterval(this.sendInterval);
         }
         if (this.firebaseRef) {
-            // Hapus data dari Firebase saat logout
             this.firebaseRef.remove();
         }
         
@@ -762,9 +822,12 @@ class DTGPSLogger {
     }
 
     logout() {
+        if (this.chatRef) {
+            this.chatRef.off();
+        }
+        
         this.stopTracking();
         
-        // Log session summary
         const sessionSummary = {
             driver: this.driverData.name,
             unit: this.driverData.unit,
@@ -779,11 +842,160 @@ class DTGPSLogger {
         
         this.driverData = null;
         this.firebaseRef = null;
+        this.chatRef = null;
+        this.chatMessages = [];
+        this.unreadCount = 0;
+        this.isChatOpen = false;
+        this.chatInitialized = false;
+        
         document.getElementById('loginScreen').style.display = 'block';
         document.getElementById('driverApp').style.display = 'none';
         document.getElementById('loginForm').reset();
         
         this.addLog('Session ended - Driver logged out', 'info');
+    }
+}
+
+// ===== OFFLINE QUEUE SYSTEM =====
+class OfflineQueueManager {
+    constructor() {
+        this.queue = [];
+        this.isOnline = navigator.onLine;
+        this.maxQueueSize = 1000;
+        this.syncInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.loadQueueFromStorage();
+        this.setupOnlineOfflineListeners();
+        this.startSyncMonitor();
+    }
+
+    setupOnlineOfflineListeners() {
+        window.addEventListener('online', () => {
+            console.log('📱 Koneksi online - sync data offline');
+            this.isOnline = true;
+            this.processQueue();
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📱 Koneksi offline - menyimpan data lokal');
+            this.isOnline = false;
+        });
+    }
+
+    loadQueueFromStorage() {
+        try {
+            const saved = localStorage.getItem('gps_offline_queue');
+            if (saved) {
+                this.queue = JSON.parse(saved);
+                console.log(`📂 Loaded ${this.queue.length} queued items`);
+            }
+        } catch (error) {
+            console.error('Error loading queue:', error);
+            this.queue = [];
+        }
+    }
+
+    saveQueueToStorage() {
+        try {
+            localStorage.setItem('gps_offline_queue', JSON.stringify(this.queue));
+        } catch (error) {
+            console.error('Error saving queue:', error);
+        }
+    }
+
+    addToQueue(gpsData) {
+        if (this.queue.length >= this.maxQueueSize) {
+            this.queue.shift();
+        }
+        
+        this.queue.push({
+            ...gpsData,
+            queueTimestamp: new Date().toISOString(),
+            offlineId: 'offline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+        });
+
+        this.saveQueueToStorage();
+        console.log(`💾 Saved to offline queue. Total: ${this.queue.length}`);
+    }
+
+    async processQueue() {
+        if (this.queue.length === 0 || !this.isOnline) return;
+
+        console.log(`🔄 Processing ${this.queue.length} queued items...`);
+        
+        const successItems = [];
+        const failedItems = [];
+
+        for (const item of this.queue) {
+            try {
+                await this.sendQueuedData(item);
+                successItems.push(item);
+            } catch (error) {
+                console.error('Failed to send queued data:', error);
+                failedItems.push(item);
+            }
+        }
+
+        this.queue = failedItems;
+        this.saveQueueToStorage();
+
+        console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
+        
+        if (successItems.length > 0) {
+            window.dtLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
+        }
+    }
+
+    async sendQueuedData(queuedData) {
+        if (!window.dtLogger?.firebaseRef) {
+            throw new Error('No Firebase reference');
+        }
+
+        const { queueTimestamp, offlineId, ...cleanData } = queuedData;
+        await window.dtLogger.firebaseRef.set(cleanData);
+    }
+
+    startSyncMonitor() {
+        this.syncInterval = setInterval(() => {
+            if (this.isOnline && this.queue.length > 0) {
+                this.processQueue();
+            }
+        }, 10000);
+    }
+
+    getQueueSize() {
+        return this.queue.length;
+    }
+
+    clearQueue() {
+        this.queue = [];
+        this.saveQueueToStorage();
+    }
+}
+
+// ✅ GLOBAL FUNCTIONS UNTUK CHAT
+function sendChatMessage() {
+    if (window.dtLogger) {
+        const input = document.getElementById('chatInput');
+        if (input && input.value.trim()) {
+            window.dtLogger.sendMessage(input.value);
+            input.value = '';
+        }
+    }
+}
+
+function toggleChat() {
+    if (window.dtLogger) {
+        window.dtLogger.toggleChat();
+    }
+}
+
+function handleChatInput(event) {
+    if (window.dtLogger) {
+        window.dtLogger.handleChatInput(event);
     }
 }
 
@@ -847,4 +1059,3 @@ document.addEventListener('visibilitychange', function() {
     </script>
 </body>
 </html>
-
