@@ -309,6 +309,48 @@
     
     <!-- External JavaScript -->
     <script src="script-monitor.js"></script>
+    <!-- ✅ CHAT INTERFACE UNTUK MONITOR -->
+<div id="monitorChatContainer">
+    <!-- Chat Toggle Button -->
+    <button id="monitorChatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
+            style="bottom: 20px; left: 20px; z-index: 1000;"
+            onclick="toggleMonitorChat()">
+        💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>
+    </button>
+    
+    <!-- Chat Window -->
+    <div id="monitorChatWindow" class="chat-window" style="bottom: 80px; left: 20px; right: auto;">
+        <div class="chat-header">
+            <h6 class="mb-0">💬 Chat dengan Driver</h6>
+            <div class="input-group input-group-sm">
+                <select id="monitorChatUnitSelect" class="form-select">
+                    <option value="">Pilih Unit...</option>
+                </select>
+                <button type="button" class="btn-close" onclick="toggleMonitorChat()"></button>
+            </div>
+        </div>
+        
+        <div id="monitorChatMessages" class="chat-messages">
+            <div class="chat-placeholder text-center text-muted py-4">
+                <small>Pilih unit untuk memulai percakapan...</small>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="input-group">
+                <input type="text" id="monitorChatInput" class="form-control" 
+                       placeholder="Ketik pesan..." disabled
+                       onkeypress="handleMonitorChatInput(event)">
+                <button class="btn btn-primary" type="button" 
+                        onclick="sendMonitorMessage()" disabled id="monitorSendBtn">
+                    Kirim
+                </button>
+            </div>
+            <small class="text-muted">Tekan Enter untuk mengirim</small>
+        </div>
+    </div>
+</div>
 </body>
 
 </html>
+
