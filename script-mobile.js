@@ -28,19 +28,19 @@ class DTGPSLogger {
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
         
-        // NEW: Enhanced distance calculation
+        // Enhanced distance calculation
         this.lastUpdateTime = null;
         this.currentSpeed = 0;
         this.movingStartTime = null;
         this.isCurrentlyMoving = false;
         
-        // NEW: Complete history tracking
+        // Complete history tracking
         this.offlineHistory = [];
         this.maxOfflinePoints = 1000;
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory();
         
-        // ✅ CHAT SYSTEM PROPERTIES
+        // ✅ CHAT SYSTEM PROPERTIES - SESUAI DENGAN HTML BARU
         this.chatRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
@@ -129,11 +129,11 @@ class DTGPSLogger {
         this.lastUpdateTime = new Date();
         this.updateSessionDuration();
         
-        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
+        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN - SESUAI DENGAN HTML BARU
         this.setupChatSystem();
     }
 
-    // ✅ CHAT METHOD: Setup chat system
+    // ✅ CHAT METHOD: Setup chat system - SESUAI DENGAN HTML BARU
     setupChatSystem() {
         if (!this.driverData) return;
         
@@ -189,7 +189,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ CHAT METHOD: Update chat UI
+    // ✅ CHAT METHOD: Update chat UI - SESUAI DENGAN HTML BARU
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -197,17 +197,20 @@ class DTGPSLogger {
         
         if (!messageList) return;
         
+        // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
             unreadBadge.style.display = this.unreadCount > 0 ? 'block' : 'none';
         }
         
+        // Update chat toggle button
         if (chatToggle) {
             chatToggle.innerHTML = this.unreadCount > 0 ? 
                 `💬 Chat <span class="badge bg-danger">${this.unreadCount}</span>` : 
                 '💬 Chat';
         }
         
+        // Render messages
         messageList.innerHTML = '';
         
         if (this.chatMessages.length === 0) {
@@ -235,10 +238,11 @@ class DTGPSLogger {
             messageList.appendChild(messageElement);
         });
         
+        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ CHAT METHOD: Toggle chat window
+    // ✅ CHAT METHOD: Toggle chat window - SESUAI DENGAN HTML BARU
     toggleChat() {
         this.isChatOpen = !this.isChatOpen;
         const chatWindow = document.getElementById('chatWindow');
@@ -249,6 +253,7 @@ class DTGPSLogger {
             if (this.isChatOpen) {
                 this.unreadCount = 0;
                 this.updateChatUI();
+                // Focus input field
                 setTimeout(() => {
                     const chatInput = document.getElementById('chatInput');
                     if (chatInput) chatInput.focus();
@@ -257,7 +262,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ CHAT METHOD: Handle chat input
+    // ✅ CHAT METHOD: Handle chat input - SESUAI DENGAN HTML BARU
     handleChatInput(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -271,6 +276,7 @@ class DTGPSLogger {
 
     // ✅ CHAT METHOD: Show notification
     showChatNotification(message) {
+        // Buat notification element
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-info';
         notification.innerHTML = `
@@ -295,6 +301,7 @@ class DTGPSLogger {
         
         document.body.appendChild(notification);
         
+        // Auto remove setelah 5 detik
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -340,7 +347,7 @@ class DTGPSLogger {
         }, 2000);
     }
 
-    // NEW: Simpan semua titik ke localStorage
+    // Simpan semua titik ke localStorage
     saveToCompleteHistory(positionData) {
         if (!this.driverData) return;
         
@@ -370,7 +377,7 @@ class DTGPSLogger {
         console.log(`💾 Saved to history: ${history.length} points`);
     }
 
-    // NEW: Load history dari localStorage
+    // Load history dari localStorage
     loadCompleteHistory() {
         try {
             const saved = localStorage.getItem('gps_complete_history');
@@ -381,7 +388,7 @@ class DTGPSLogger {
         }
     }
 
-    // NEW: Sync semua history ke Firebase
+    // Sync semua history ke Firebase
     async syncCompleteHistory() {
         if (!this.isOnline || !this.firebaseRef || !this.driverData) {
             console.log('❌ Cannot sync history: offline or no driver data');
@@ -429,16 +436,16 @@ class DTGPSLogger {
         }
     }
 
-    // PERBAIKAN BESAR: Enhanced position update dengan perhitungan jarak yang akurat
+    // Enhanced position update dengan perhitungan jarak yang akurat
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        const speed = position.coords.speed !== null ? position.coords.speed * 3.6 : 0; // Convert m/s to km/h
+        const speed = position.coords.speed !== null ? position.coords.speed * 3.6 : 0;
         const accuracy = position.coords.accuracy;
         const bearing = position.coords.heading;
         const timestamp = new Date();
         
-        // ✅ TAMBAHKAN INI: Simpan ke complete history (SELALU)
+        // Simpan ke complete history (SELALU)
         this.saveToCompleteHistory({
             lat: lat,
             lng: lng,
@@ -456,7 +463,7 @@ class DTGPSLogger {
         document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
 
-        // PERBAIKAN: Hitung jarak berdasarkan kecepatan dan waktu
+        // Hitung jarak berdasarkan kecepatan dan waktu
         this.calculateDistanceWithSpeed(speed, timestamp);
 
         // Simpan data terbaru
@@ -477,7 +484,7 @@ class DTGPSLogger {
         this.updateAverageSpeed();
     }
 
-    // NEW: Enhanced distance calculation menggunakan rumus S = V × t
+    // Enhanced distance calculation menggunakan rumus S = V × t
     calculateDistanceWithSpeed(currentSpeed, currentTime) {
         if (!this.lastUpdateTime) {
             this.lastUpdateTime = currentTime;
@@ -485,7 +492,7 @@ class DTGPSLogger {
         }
 
         // Hitung selisih waktu dalam jam
-        const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600; // dalam jam
+        const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600;
         
         // Hanya hitung jika ada pergerakan (speed > 2 km/h untuk menghindari drift GPS)
         if (currentSpeed > 2 && this.journeyStatus === 'started') {
@@ -493,7 +500,7 @@ class DTGPSLogger {
             const distanceIncrement = currentSpeed * timeDiff;
             
             // Hanya tambahkan jika perhitungan valid
-            if (distanceIncrement > 0 && distanceIncrement < 1) { // Batasi maksimal 1km per interval
+            if (distanceIncrement > 0 && distanceIncrement < 1) {
                 this.totalDistance += distanceIncrement;
                 document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
                 
@@ -511,9 +518,9 @@ class DTGPSLogger {
         this.currentSpeed = currentSpeed;
     }
 
-    // Alternatif: Perhitungan jarak menggunakan koordinat GPS (lebih akurat untuk perpindahan kecil)
+    // Alternatif: Perhitungan jarak menggunakan koordinat GPS
     calculateDistanceWithCoordinates(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Earth radius in km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = 
@@ -526,7 +533,7 @@ class DTGPSLogger {
 
     updateAverageSpeed() {
         if (this.dataPoints > 0 && this.sessionStartTime) {
-            const duration = (new Date() - this.sessionStartTime) / 3600000; // hours
+            const duration = (new Date() - this.sessionStartTime) / 3600000;
             const avgSpeed = duration > 0 ? this.totalDistance / duration : 0;
             document.getElementById('avgSpeed').textContent = avgSpeed.toFixed(1);
         }
@@ -581,7 +588,6 @@ class DTGPSLogger {
     }
 
     getBatteryLevel() {
-        // Simulasi level baterai
         return Math.max(20, Math.floor(Math.random() * 100));
     }
 
@@ -594,11 +600,9 @@ class DTGPSLogger {
                 this.addLog('📱 Koneksi pulih - sync semua data', 'success');
                 this.updateConnectionStatus(true);
                 
-                // ✅ MODIFIKASI INI: Sync bertahap
-                // 1. Sync real-time data dulu
+                // Sync bertahap
                 this.offlineQueue.processQueue();
                 
-                // 2. Sync complete history setelah delay
                 setTimeout(() => {
                     this.syncCompleteHistory();
                 }, 3000);
@@ -695,12 +699,11 @@ class DTGPSLogger {
 
     startJourney() {
         this.journeyStatus = 'started';
-        this.lastUpdateTime = new Date(); // Reset timer untuk perhitungan jarak
+        this.lastUpdateTime = new Date();
         document.getElementById('vehicleStatus').textContent = 'ON TRIP';
         document.getElementById('vehicleStatus').className = 'bg-success text-white rounded px-2 py-1';
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
         
-        // Kirim status awal ke Firebase
         this.sendToFirebase();
     }
 
@@ -710,7 +713,6 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').className = 'bg-warning text-dark rounded px-2 py-1';
         this.addLog('Perjalanan dijeda', 'warning');
         
-        // Kirim status pause ke Firebase
         this.sendToFirebase();
     }
 
@@ -720,10 +722,7 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
         this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
         
-        // Kirim data final ke Firebase
         this.sendToFirebase();
-        
-        // Sync complete history saat journey berakhir
         this.syncCompleteHistory();
     }
 
@@ -741,17 +740,49 @@ class DTGPSLogger {
         this.isTracking = false;
     }
 
-     logout() {
+    logout() {
+        // Cleanup chat listener
         if (this.chatRef) {
             this.chatRef.off();
         }
         
         this.stopTracking();
-        // ... rest of logout code
+        this.syncCompleteHistory();
+        
+        const sessionSummary = {
+            driver: this.driverData.name,
+            unit: this.driverData.unit,
+            duration: document.getElementById('sessionDuration').textContent,
+            totalDistance: this.totalDistance.toFixed(3),
+            dataPoints: this.dataPoints,
+            avgSpeed: document.getElementById('avgSpeed').textContent,
+            sessionId: this.driverData.sessionId
+        };
+        
+        console.log('Session Summary:', sessionSummary);
+        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
+        
+        this.driverData = null;
+        this.firebaseRef = null;
+        this.chatRef = null;
+        this.chatMessages = [];
+        this.unreadCount = 0;
+        this.isChatOpen = false;
+        this.chatInitialized = false;
+        
+        document.getElementById('loginScreen').style.display = 'block';
+        document.getElementById('driverApp').style.display = 'none';
+        document.getElementById('loginForm').reset();
+        
+        // Reset semua data
+        this.totalDistance = 0;
+        this.dataPoints = 0;
+        this.lastPosition = null;
+        this.lastUpdateTime = null;
     }
 }
 
-// Offline Queue Manager (sama seperti sebelumnya)
+// Offline Queue Manager
 class OfflineQueueManager {
     constructor() {
         this.queue = [];
@@ -871,7 +902,7 @@ class OfflineQueueManager {
     }
 }
 
-// Global functions untuk chat
+// ✅ GLOBAL FUNCTIONS UNTUK CHAT - SESUAI DENGAN HTML BARU
 function sendChatMessage() {
     if (window.dtLogger) {
         const input = document.getElementById('chatInput');
@@ -894,7 +925,7 @@ function handleChatInput(event) {
     }
 }
 
-// Global functions yang sudah ada
+// Global functions untuk button controls
 function startJourney() {
     if (window.dtLogger) {
         window.dtLogger.startJourney();
