@@ -39,6 +39,13 @@ class DTGPSLogger {
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory(); // Load existing history
         
+        // ✅ TAMBAHKAN: Chat System Properties
+        this.chatRef = null;
+        this.chatMessages = [];
+        this.unreadCount = 0;
+        this.isChatOpen = false;
+        this.chatInitialized = false;
+        
         this.offlineQueue = new OfflineQueueManager();
         
         this.init();
@@ -120,6 +127,222 @@ class DTGPSLogger {
         this.sessionStartTime = new Date();
         this.lastUpdateTime = new Date();
         this.updateSessionDuration();
+        
+        // ✅ TAMBAHKAN: Setup chat system setelah login
+        this.setupChatSystem();
+    }
+
+    // ✅ METHOD BARU: Setup chat system
+    setupChatSystem() {
+        if (!this.driverData) return;
+        
+        // Firebase reference untuk chat
+        this.chatRef = database.ref('/chat/' + this.driverData.unit);
+        
+        // Listen untuk pesan baru
+        this.chatRef.on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            this.handleNewMessage(message);
+        });
+        
+        // Load existing messages
+        this.loadChatHistory();
+        
+        this.chatInitialized = true;
+        console.log('💬 Chat system activated for unit:', this.driverData.unit);
+        this.addLog('Sistem chat aktif - bisa komunikasi dengan monitor', 'success');
+    }
+
+    // ✅ METHOD BARU: Load chat history
+    async loadChatHistory() {
+        if (!this.chatRef) return;
+        
+        try {
+            const snapshot = await this.chatRef.once('value');
+            const messagesData = snapshot.val();
+            
+            if (messagesData) {
+                this.chatMessages = Object.values(messagesData)
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                this.updateChatUI();
+            }
+        } catch (error) {
+            console.error('Error loading chat history:', error);
+        }
+    }
+
+    // ✅ METHOD BARU: Handle pesan baru
+    handleNewMessage(message) {
+        if (!message || message.sender === this.driverData.name) return;
+        
+        // Cek apakah message sudah ada (prevent duplicates)
+        const messageExists = this.chatMessages.some(msg => 
+            msg.timestamp === message.timestamp && msg.sender === message.sender
+        );
+        
+        if (!messageExists) {
+            this.chatMessages.push(message);
+            this.unreadCount++;
+            
+            // Update UI
+            this.updateChatUI();
+            
+            // Show notification untuk pesan baru
+            if (!this.isChatOpen) {
+                this.showChatNotification(message);
+            }
+            
+            console.log('💬 New message received:', message);
+        }
+    }
+
+    // ✅ METHOD BARU: Kirim pesan
+    async sendMessage(messageText) {
+        if (!messageText.trim() || !this.chatRef || !this.driverData) return;
+        
+        const messageData = {
+            text: messageText.trim(),
+            sender: this.driverData.name,
+            unit: this.driverData.unit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            type: 'driver'
+        };
+        
+        try {
+            await this.chatRef.push(messageData);
+            this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
+            
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            this.addLog('❌ Gagal mengirim pesan', 'error');
+        }
+    }
+
+    // ✅ METHOD BARU: Update chat UI
+    updateChatUI() {
+        const messageList = document.getElementById('chatMessages');
+        const unreadBadge = document.getElementById('unreadBadge');
+        const chatToggle = document.getElementById('chatToggle');
+        
+        if (!messageList) return;
+        
+        // Update unread badge
+        if (unreadBadge) {
+            unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
+            unreadBadge.style.display = this.unreadCount > 0 ? 'block' : 'none';
+        }
+        
+        if (chatToggle) {
+            chatToggle.innerHTML = this.unreadCount > 0 ? 
+                `💬 Chat <span class="badge bg-danger">${this.unreadCount}</span>` : 
+                '💬 Chat';
+        }
+        
+        // Render messages
+        messageList.innerHTML = '';
+        
+        if (this.chatMessages.length === 0) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan monitor...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        this.chatMessages.forEach(message => {
+            const messageElement = document.createElement('div');
+            messageElement.className = `chat-message ${message.sender === this.driverData.name ? 'message-sent' : 'message-received'}`;
+            
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    ${message.sender !== this.driverData.name ? 
+                      `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-time">${message.timeDisplay}</div>
+                </div>
+            `;
+            
+            messageList.appendChild(messageElement);
+        });
+        
+        // Auto scroll to bottom
+        messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    // ✅ METHOD BARU: Toggle chat window
+    toggleChat() {
+        this.isChatOpen = !this.isChatOpen;
+        const chatWindow = document.getElementById('chatWindow');
+        
+        if (chatWindow) {
+            chatWindow.style.display = this.isChatOpen ? 'block' : 'none';
+            
+            if (this.isChatOpen) {
+                this.unreadCount = 0;
+                this.updateChatUI();
+                // Focus input field
+                setTimeout(() => {
+                    const chatInput = document.getElementById('chatInput');
+                    if (chatInput) chatInput.focus();
+                }, 100);
+            }
+        }
+    }
+
+    // ✅ METHOD BARU: Handle chat input
+    handleChatInput(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const input = document.getElementById('chatInput');
+            if (input && input.value.trim()) {
+                this.sendMessage(input.value);
+                input.value = '';
+            }
+        }
+    }
+
+    // ✅ METHOD BARU: Show chat notification
+    showChatNotification(message) {
+        // Buat notification element
+        const notification = document.createElement('div');
+        notification.className = 'chat-notification alert alert-info';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>💬 Pesan Baru dari ${message.sender}</strong>
+                    <div class="small">${message.text}</div>
+                </div>
+                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto remove setelah 5 detik
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    // ✅ METHOD BARU: Escape HTML untuk keamanan
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     startGPSTracking() {
@@ -555,9 +778,12 @@ class DTGPSLogger {
     }
 
     logout() {
-        this.stopTracking();
+        // Cleanup chat listener
+        if (this.chatRef) {
+            this.chatRef.off();
+        }
         
-        // Sync history terakhir sebelum logout
+        this.stopTracking();
         this.syncCompleteHistory();
         
         // Log session summary
@@ -576,6 +802,12 @@ class DTGPSLogger {
         
         this.driverData = null;
         this.firebaseRef = null;
+        this.chatRef = null;
+        this.chatMessages = [];
+        this.unreadCount = 0;
+        this.isChatOpen = false;
+        this.chatInitialized = false;
+        
         document.getElementById('loginScreen').style.display = 'block';
         document.getElementById('driverApp').style.display = 'none';
         document.getElementById('loginForm').reset();
@@ -708,7 +940,30 @@ class OfflineQueueManager {
     }
 }
 
-// Global functions
+// ✅ TAMBAHKAN: Global functions untuk chat
+function sendChatMessage() {
+    if (window.dtLogger) {
+        const input = document.getElementById('chatInput');
+        if (input && input.value.trim()) {
+            window.dtLogger.sendMessage(input.value);
+            input.value = '';
+        }
+    }
+}
+
+function toggleChat() {
+    if (window.dtLogger) {
+        window.dtLogger.toggleChat();
+    }
+}
+
+function handleChatInput(event) {
+    if (window.dtLogger) {
+        window.dtLogger.handleChatInput(event);
+    }
+}
+
+// Global functions yang sudah ada
 function startJourney() {
     if (window.dtLogger) {
         window.dtLogger.startJourney();
