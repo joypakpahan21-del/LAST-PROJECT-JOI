@@ -306,12 +306,23 @@ class SAGMGpsTracking {
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ METHOD BARU: Update unit dropdown
+    // ✅ METHOD BARU: Tambahkan method ini di dalam class SAGMGpsTracking setelah constructor
+    setupChatEventHandlers() {
+        // Handle unit selection change
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        if (unitSelect) {
+            unitSelect.addEventListener('change', (e) => {
+                this.selectChatUnit(e.target.value);
+            });
+        }
+    }
+
+    // ✅ METHOD BARU: Update method updateMonitorChatUnitSelect untuk include event handler
     updateMonitorChatUnitSelect() {
         const unitSelect = document.getElementById('monitorChatUnitSelect');
         if (!unitSelect) return;
         
-        // Simpan selected value
+        // Simpan selected value dan event listeners
         const currentValue = unitSelect.value;
         
         // Clear existing options (keep first option)
@@ -331,6 +342,9 @@ class SAGMGpsTracking {
         if (currentValue && this.monitorChatRefs[currentValue]) {
             unitSelect.value = currentValue;
         }
+        
+        // Setup event handler jika belum ada
+        this.setupChatEventHandlers();
     }
 
     // ✅ METHOD BARU: Pilih unit untuk chat
@@ -412,6 +426,7 @@ class SAGMGpsTracking {
         return div.innerHTML;
     }
 
+    // ===== MAP METHODS =====
     setupMap() {
         try {
             this.map = L.map('map').setView(this.config.center, this.config.zoom);
@@ -1800,21 +1815,30 @@ class SAGMGpsTracking {
 // Initialize the system
 let gpsSystem;
 
+// ✅ Event listener untuk memastikan chat system terinisialisasi
 document.addEventListener('DOMContentLoaded', function() {
+    // Inisialisasi system
     gpsSystem = new SAGMGpsTracking();
     window.gpsSystem = gpsSystem;
+    
+    // Setup chat event handlers setelah DOM siap
+    setTimeout(() => {
+        if (gpsSystem.setupChatEventHandlers) {
+            gpsSystem.setupChatEventHandlers();
+        }
+    }, 1000);
 });
 
 // Global functions
 function refreshData() {
-    if (gpsSystem) {
-        gpsSystem.loadUnitData();
+    if (window.gpsSystem) {
+        window.gpsSystem.loadUnitData();
     }
 }
 
 function exportData() {
-    if (gpsSystem) {
-        gpsSystem.downloadRouteData();
+    if (window.gpsSystem) {
+        window.gpsSystem.downloadRouteData();
     }
 }
 
@@ -1824,45 +1848,45 @@ function toggleSidebar() {
 }
 
 function toggleRoutes() {
-    if (gpsSystem) {
-        gpsSystem.toggleRouteDisplay();
+    if (window.gpsSystem) {
+        window.gpsSystem.toggleRouteDisplay();
     }
 }
 
 function clearRoutes() {
-    if (gpsSystem) {
-        gpsSystem.removeAllRoutes();
+    if (window.gpsSystem) {
+        window.gpsSystem.removeAllRoutes();
     }
 }
 
 // ✅ TAMBAHKAN: Global functions untuk chat system
 function toggleMonitorChat() {
-    if (gpsSystem) {
-        gpsSystem.toggleMonitorChat();
+    if (window.gpsSystem) {
+        window.gpsSystem.toggleMonitorChat();
     }
 }
 
 function selectChatUnit(unitName) {
-    if (gpsSystem) {
-        gpsSystem.selectChatUnit(unitName);
+    if (window.gpsSystem) {
+        window.gpsSystem.selectChatUnit(unitName);
     }
 }
 
 function sendMonitorMessage() {
-    if (gpsSystem) {
-        gpsSystem.sendMonitorMessage();
+    if (window.gpsSystem) {
+        window.gpsSystem.sendMonitorMessage();
     }
 }
 
 function handleMonitorChatInput(event) {
-    if (gpsSystem) {
-        gpsSystem.handleMonitorChatInput(event);
+    if (window.gpsSystem) {
+        window.gpsSystem.handleMonitorChatInput(event);
     }
 }
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
-    if (gpsSystem) {
-        gpsSystem.cleanup();
+    if (window.gpsSystem) {
+        window.gpsSystem.cleanup();
     }
 });
