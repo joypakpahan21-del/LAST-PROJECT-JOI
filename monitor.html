@@ -502,42 +502,30 @@
     <!-- External JavaScript -->
     <script src="script-monitor.js"></script>
     
-    <!-- Enhanced Chat Interface JavaScript -->
+    <!-- ✅ ENHANCED GLOBAL FUNCTIONS - IMPROVED CHAT INTERFACE -->
     <script>
-        // Enhanced Chat Interface Functions
+        // ✅ ENHANCED CHAT TOGGLE FUNCTION - Delegated to gpsSystem
         function toggleMonitorChat() {
-            const chatWindow = document.getElementById('monitorChatWindow');
-            const toggleBtn = document.getElementById('monitorChatToggle');
-            
-            if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
-                chatWindow.style.display = 'flex';
-                toggleBtn.innerHTML = '💬 Tutup Chat <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
-                toggleBtn.classList.add('btn-secondary');
-                toggleBtn.classList.remove('btn-primary');
-            } else {
-                chatWindow.style.display = 'none';
-                toggleBtn.innerHTML = '💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
-                toggleBtn.classList.add('btn-primary');
-                toggleBtn.classList.remove('btn-secondary');
+            if (window.gpsSystem) {
+                window.gpsSystem.toggleMonitorChat();
             }
         }
 
+        // ✅ ENHANCED CHAT INPUT HANDLER - Delegated to gpsSystem
         function handleMonitorChatInput(event) {
-            if (event.key === 'Enter') {
-                sendMonitorMessage();
+            if (window.gpsSystem) {
+                window.gpsSystem.handleMonitorChatInput(event);
             }
         }
 
+        // ✅ ENHANCED SEND MESSAGE FUNCTION - Delegated to gpsSystem
         function sendMonitorMessage() {
-            const input = document.getElementById('monitorChatInput');
-            const message = input.value.trim();
-            
-            if (message && window.gpsSystem) {
+            if (window.gpsSystem) {
                 window.gpsSystem.sendMonitorMessage();
-                input.value = '';
             }
         }
 
+        // ✅ ENHANCED UNIT SELECTION FUNCTION
         function selectChatUnit(unitName) {
             if (window.gpsSystem) {
                 window.gpsSystem.selectChatUnit(unitName);
@@ -551,7 +539,7 @@
             }
         }
 
-        // Initialize real-time clock
+        // ✅ ENHANCED REAL-TIME CLOCK
         function updateClock() {
             const now = new Date();
             document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
@@ -559,7 +547,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Force cleanup function
+        // ✅ ENHANCED FORCE CLEANUP FUNCTION
         function forceCleanup() {
             if (window.gpsSystem) {
                 window.gpsSystem.forceCleanupAllData();
@@ -567,21 +555,21 @@
             }
         }
 
-        // Global refresh function
+        // ✅ ENHANCED REFRESH FUNCTION
         function refreshData() {
             if (window.gpsSystem) {
                 window.gpsSystem.refreshData();
             }
         }
 
-        // Global export function
+        // ✅ ENHANCED EXPORT FUNCTION
         function exportData() {
             if (window.gpsSystem) {
                 window.gpsSystem.downloadRouteData();
             }
         }
 
-        // Toggle sidebar for mobile
+        // ✅ ENHANCED SIDEBAR TOGGLE FUNCTION
         function toggleSidebar() {
             const sidebar = document.querySelector('.sidebar');
             const body = document.body;
@@ -592,7 +580,7 @@
             }
         }
 
-        // Close chat when clicking outside
+        // ✅ ENHANCED CLICK OUTSIDE HANDLER FOR CHAT
         document.addEventListener('click', function(event) {
             const chatContainer = document.getElementById('monitorChatContainer');
             const chatWindow = document.getElementById('monitorChatWindow');
@@ -603,6 +591,25 @@
                 event.target !== toggleBtn) {
                 toggleMonitorChat();
             }
+        });
+
+        // ✅ ENHANCED ERROR HANDLING FOR MISSING GPS SYSTEM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if gpsSystem is available after a short delay
+            setTimeout(() => {
+                if (!window.gpsSystem) {
+                    console.warn('GPS System not initialized yet - functions will be delegated');
+                    
+                    // Show loading state for chat
+                    const chatInput = document.getElementById('monitorChatInput');
+                    const sendBtn = document.getElementById('monitorSendBtn');
+                    if (chatInput && sendBtn) {
+                        chatInput.placeholder = 'Sistem sedang dimuat...';
+                        chatInput.disabled = true;
+                        sendBtn.disabled = true;
+                    }
+                }
+            }, 2000);
         });
     </script>
 </body>
