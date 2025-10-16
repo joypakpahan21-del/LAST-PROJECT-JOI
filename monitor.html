@@ -22,100 +22,9 @@
     
     <!-- External CSS -->
     <link href="style-monitor.css" rel="stylesheet">
-    
-    <!-- Chat Interface CSS -->
-    <style>
-        /* Chat Interface Styles */
-        .chat-toggle-btn {
-            border-radius: 25px;
-            padding: 10px 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: all 0.3s ease;
-        }
-        
-        .chat-toggle-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-        }
-        
-        .chat-window {
-            position: fixed;
-            width: 350px;
-            height: 500px;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-            z-index: 999;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .chat-header {
-            background: linear-gradient(135deg, #198754, #20c997);
-            color: white;
-            padding: 15px;
-            border-radius: 15px 15px 0 0;
-        }
-        
-        .chat-header h6 {
-            font-weight: 600;
-        }
-        
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            background: #f8f9fa;
-        }
-        
-        .chat-input-container {
-            padding: 15px;
-            background: white;
-            border-top: 1px solid #dee2e6;
-        }
-        
-        .message {
-            margin-bottom: 10px;
-            padding: 8px 12px;
-            border-radius: 12px;
-            max-width: 80%;
-            word-wrap: break-word;
-        }
-        
-        .message.sent {
-            background: #007bff;
-            color: white;
-            margin-left: auto;
-            border-bottom-right-radius: 4px;
-        }
-        
-        .message.received {
-            background: #e9ecef;
-            color: #333;
-            margin-right: auto;
-            border-bottom-left-radius: 4px;
-        }
-        
-        .message-time {
-            font-size: 0.7em;
-            opacity: 0.7;
-            margin-top: 4px;
-        }
-        
-        .chat-placeholder {
-            opacity: 0.6;
-        }
-        
-        #monitorUnreadBadge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-        }
-    </style>
 </head>
 <body>
-    <!-- ENHANCED: Navigation Bar with Connection Status -->
+    <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
         <div class="container">
             <a class="navbar-brand" href="#">
@@ -142,10 +51,10 @@
 
     <div class="container-fluid">
         <div class="row">
-            <!-- ENHANCED: Sidebar - Unit List -->
+            <!-- Sidebar - Unit List -->
             <div class="col-md-3 bg-light sidebar">
                 <div class="p-3">
-                    <!-- NEW: System Status Bar -->
+                    <!-- System Status Bar -->
                     <div class="system-status-bar">
                         <div class="status-item">
                             <i>🕒</i> <span id="currentTime">--:--:--</span>
@@ -196,7 +105,6 @@
                     </div>
 
                     <div id="unitList" class="unit-list">
-                        <!-- Unit list akan diisi oleh JavaScript dengan data real-time -->
                         <div class="text-center text-muted py-4">
                             <div class="spinner-border spinner-border-sm text-success me-2"></div>
                             Memuat data real-time...
@@ -205,9 +113,9 @@
                 </div>
             </div>
 
-            <!-- ENHANCED: Main Content - Map -->
+            <!-- Main Content - Map -->
             <div class="col-md-9">
-                <!-- ENHANCED: Statistics Cards -->
+                <!-- Statistics Cards -->
                 <div class="row mt-3">
                     <div class="col-xl-3 col-md-6">
                         <div class="card text-white bg-primary mb-3 stat-card">
@@ -259,7 +167,7 @@
                     </div>
                 </div>
 
-                <!-- ENHANCED: Map Container -->
+                <!-- Map Container -->
                 <div class="card">
                     <div class="card-header bg-light d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0 text-success">
@@ -280,7 +188,7 @@
                     </div>
                     <div class="card-body p-0 position-relative">
                         <div id="map"></div>
-                        <!-- NEW: Map Overlay Info -->
+                        <!-- Map Overlay Info -->
                         <div class="position-absolute top-0 end-0 m-3">
                             <div class="bg-light rounded p-2 shadow-sm">
                                 <small class="text-muted">
@@ -291,7 +199,7 @@
                     </div>
                 </div>
 
-                <!-- ENHANCED: Legenda -->
+                <!-- Legenda -->
                 <div class="card mt-3">
                     <div class="card-header bg-light">
                         <h5 class="card-title mb-0 text-success">
@@ -362,7 +270,7 @@
                     </div>
                 </div>
 
-                <!-- NEW: Data Logger Section -->
+                <!-- Data Logger Section -->
                 <div class="card mt-3">
                     <div class="card-header bg-light">
                         <h5 class="card-title mb-0 text-success">
@@ -371,7 +279,6 @@
                     </div>
                     <div class="card-body p-0">
                         <div id="dataLoggerContainer">
-                            <!-- Data logger akan di-render oleh JavaScript -->
                             <div class="text-center text-muted py-4">
                                 <div class="spinner-border spinner-border-sm text-success me-2"></div>
                                 Memuat data logger...
@@ -383,7 +290,7 @@
         </div>
     </div>
 
-    <!-- ✅ CHAT INTERFACE UNTUK MONITOR - TERINTEGRASI -->
+    <!-- ✅ CHAT INTERFACE UNTUK MONITOR - SUDAH DIPERBAIKI -->
     <div id="monitorChatContainer">
         <!-- Chat Toggle Button -->
         <button id="monitorChatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
@@ -425,7 +332,7 @@
         </div>
     </div>
 
-    <!-- ENHANCED: Loading Spinner -->
+    <!-- Loading Spinner -->
     <div id="loadingSpinner" class="d-none position-fixed top-50 start-50 translate-middle">
         <div class="text-center bg-light rounded p-4 shadow">
             <div class="spinner-border text-success mb-3" role="status" style="width: 3rem; height: 3rem;">
@@ -435,7 +342,7 @@
         </div>
     </div>
 
-    <!-- NEW: Notification Container -->
+    <!-- Notification Container -->
     <div id="notificationContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
 
     <!-- JavaScript Libraries -->
@@ -445,22 +352,17 @@
     <!-- External JavaScript -->
     <script src="script-monitor.js"></script>
     
-    <!-- Chat Interface JavaScript -->
+    <!-- Chat Interface JavaScript - SUDAH DIPERBAIKI -->
     <script>
-        // Chat Interface Functions
-        let currentChatUnit = null;
-        let unreadMessages = 0;
-
+        // Chat Interface Functions - FIXED
         function toggleMonitorChat() {
             const chatWindow = document.getElementById('monitorChatWindow');
             const isVisible = chatWindow.style.display === 'block';
             
             chatWindow.style.display = isVisible ? 'none' : 'block';
             
-            if (!isVisible) {
-                // Reset unread badge when opening chat
-                unreadMessages = 0;
-                updateUnreadBadge();
+            if (!isVisible && window.gpsSystem) {
+                window.gpsSystem.updateMonitorChatUI();
             }
         }
 
@@ -471,105 +373,24 @@
         }
 
         function sendMonitorMessage() {
-            const input = document.getElementById('monitorChatInput');
-            const message = input.value.trim();
-            
-            if (!message || !currentChatUnit) return;
-            
-            // Add message to chat
-            addMessageToChat(message, 'sent');
-            
-            // TODO: Implement Firebase message sending
-            console.log(`Mengirim pesan ke ${currentChatUnit}: ${message}`);
-            
-            // Clear input
-            input.value = '';
-        }
-
-        function addMessageToChat(message, type) {
-            const messagesContainer = document.getElementById('monitorChatMessages');
-            const placeholder = messagesContainer.querySelector('.chat-placeholder');
-            
-            if (placeholder) {
-                placeholder.remove();
-            }
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type}`;
-            messageDiv.innerHTML = `
-                <div>${message}</div>
-                <div class="message-time">${new Date().toLocaleTimeString()}</div>
-            `;
-            
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            // If chat is closed and message is received, increment unread count
-            if (type === 'received' && document.getElementById('monitorChatWindow').style.display === 'none') {
-                unreadMessages++;
-                updateUnreadBadge();
+            if (window.gpsSystem) {
+                window.gpsSystem.sendMonitorMessage();
             }
         }
 
-        function updateUnreadBadge() {
-            const badge = document.getElementById('monitorUnreadBadge');
-            if (unreadMessages > 0) {
-                badge.textContent = unreadMessages;
-                badge.style.display = 'inline';
-            } else {
-                badge.style.display = 'none';
+        function selectChatUnit(unitName) {
+            if (window.gpsSystem) {
+                window.gpsSystem.selectChatUnit(unitName);
             }
         }
 
-        function populateChatUnitSelect(units) {
-            const select = document.getElementById('monitorChatUnitSelect');
-            select.innerHTML = '<option value="">Pilih Unit...</option>';
-            
-            units.forEach(unit => {
-                const option = document.createElement('option');
-                option.value = unit.id;
-                option.textContent = `${unit.name} - ${unit.driver}`;
-                select.appendChild(option);
-            });
-            
-            select.onchange = function() {
-                currentChatUnit = this.value;
-                const input = document.getElementById('monitorChatInput');
-                const sendBtn = document.getElementById('monitorSendBtn');
-                
-                if (currentChatUnit) {
-                    input.disabled = false;
-                    sendBtn.disabled = false;
-                    // TODO: Load chat history for selected unit
-                    loadChatHistory(currentChatUnit);
-                } else {
-                    input.disabled = true;
-                    sendBtn.disabled = true;
-                }
-            };
+        // Initialize real-time clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
         }
-
-        function loadChatHistory(unitId) {
-            // TODO: Implement Firebase chat history loading
-            const messagesContainer = document.getElementById('monitorChatMessages');
-            messagesContainer.innerHTML = '<div class="chat-placeholder text-center text-muted py-4"><small>Memuat riwayat percakapan...</small></div>';
-            
-            // Simulate loading chat history
-            setTimeout(() => {
-                messagesContainer.innerHTML = '<div class="chat-placeholder text-center text-muted py-4"><small>Belum ada pesan. Mulai percakapan!</small></div>';
-            }, 1000);
-        }
-
-        // Initialize chat when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // TODO: Populate with actual units from Firebase
-            const sampleUnits = [
-                { id: 'unit1', name: 'CANTER001', driver: 'Budi Santoso' },
-                { id: 'unit2', name: 'CANTER002', driver: 'Surya Wijaya' },
-                { id: 'unit3', name: 'CANTER003', driver: 'Ahmad Fauzi' }
-            ];
-            populateChatUnitSelect(sampleUnits);
-        });
+        setInterval(updateClock, 1000);
+        updateClock();
     </script>
 </body>
 </html>
