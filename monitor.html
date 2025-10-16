@@ -22,6 +22,155 @@
     
     <!-- External CSS -->
     <link href="style-monitor.css" rel="stylesheet">
+    
+    <!-- Enhanced Chat CSS -->
+    <style>
+        /* CHAT WINDOW POSITION FIX */
+        #monitorChatContainer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            z-index: 1000;
+        }
+        
+        .chat-toggle-btn {
+            position: fixed !important;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1002;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border-radius: 25px;
+            padding: 10px 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        .chat-window {
+            position: fixed;
+            bottom: 70px;
+            left: 20px;
+            width: 380px;
+            max-width: 90vw;
+            height: 500px;
+            max-height: 70vh;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #198754, #20c997);
+            color: white;
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .chat-header h6 {
+            font-weight: 600;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .chat-input-container {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            background: white;
+        }
+        
+        /* Responsive Design for Mobile */
+        @media (max-width: 768px) {
+            .chat-toggle-btn {
+                left: 10px !important;
+                right: auto !important;
+                bottom: 15px;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            
+            .chat-window {
+                left: 10px !important;
+                right: 10px !important;
+                bottom: 60px;
+                width: auto;
+                max-width: none;
+                height: 60vh;
+            }
+        }
+        
+        /* Untuk layar sangat kecil */
+        @media (max-width: 480px) {
+            .chat-window {
+                left: 5px !important;
+                right: 5px !important;
+                bottom: 55px;
+                height: 55vh;
+            }
+            
+            .chat-toggle-btn {
+                left: 5px !important;
+                bottom: 10px;
+                font-size: 13px;
+                padding: 6px 12px;
+            }
+        }
+        
+        /* Pastikan tidak overlap dengan sidebar */
+        @media (min-width: 769px) {
+            .sidebar-open .chat-window {
+                left: calc(25% + 20px) !important;
+            }
+        }
+        
+        /* Chat Message Styles */
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .message.sent {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.received {
+            background: #e9ecef;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+        
+        .chat-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -293,17 +442,15 @@
         </div>
     </div>
 
-    <!-- ✅ ENHANCED CHAT INTERFACE UNTUK MONITOR -->
+    <!-- ✅ ENHANCED CHAT INTERFACE - POSITION FIXED & RESPONSIVE -->
     <div id="monitorChatContainer">
         <!-- Chat Toggle Button -->
-        <button id="monitorChatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
-                style="bottom: 20px; left: 20px; z-index: 1000;"
-                onclick="toggleMonitorChat()">
+        <button id="monitorChatToggle" class="btn btn-primary chat-toggle-btn">
             💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>
         </button>
         
-        <!-- Chat Window -->
-        <div id="monitorChatWindow" class="chat-window" style="display: none;">
+        <!-- Chat Window - FIXED POSITION & RESPONSIVE -->
+        <div id="monitorChatWindow" class="chat-window">
             <div class="chat-header">
                 <h6 class="mb-0">💬 Chat dengan Driver</h6>
                 <div class="input-group input-group-sm">
@@ -359,26 +506,48 @@
     <script>
         // Enhanced Chat Interface Functions
         function toggleMonitorChat() {
-            if (window.gpsSystem) {
-                window.gpsSystem.toggleMonitorChat();
+            const chatWindow = document.getElementById('monitorChatWindow');
+            const toggleBtn = document.getElementById('monitorChatToggle');
+            
+            if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
+                chatWindow.style.display = 'flex';
+                toggleBtn.innerHTML = '💬 Tutup Chat <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
+                toggleBtn.classList.add('btn-secondary');
+                toggleBtn.classList.remove('btn-primary');
+            } else {
+                chatWindow.style.display = 'none';
+                toggleBtn.innerHTML = '💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
+                toggleBtn.classList.add('btn-primary');
+                toggleBtn.classList.remove('btn-secondary');
             }
         }
 
         function handleMonitorChatInput(event) {
-            if (window.gpsSystem) {
-                window.gpsSystem.handleMonitorChatInput(event);
+            if (event.key === 'Enter') {
+                sendMonitorMessage();
             }
         }
 
         function sendMonitorMessage() {
-            if (window.gpsSystem) {
+            const input = document.getElementById('monitorChatInput');
+            const message = input.value.trim();
+            
+            if (message && window.gpsSystem) {
                 window.gpsSystem.sendMonitorMessage();
+                input.value = '';
             }
         }
 
         function selectChatUnit(unitName) {
             if (window.gpsSystem) {
                 window.gpsSystem.selectChatUnit(unitName);
+                
+                // Enable input when unit is selected
+                const input = document.getElementById('monitorChatInput');
+                const sendBtn = document.getElementById('monitorSendBtn');
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
             }
         }
 
@@ -415,10 +584,26 @@
         // Toggle sidebar for mobile
         function toggleSidebar() {
             const sidebar = document.querySelector('.sidebar');
+            const body = document.body;
+            
             if (sidebar) {
                 sidebar.classList.toggle('show');
+                body.classList.toggle('sidebar-open');
             }
         }
+
+        // Close chat when clicking outside
+        document.addEventListener('click', function(event) {
+            const chatContainer = document.getElementById('monitorChatContainer');
+            const chatWindow = document.getElementById('monitorChatWindow');
+            const toggleBtn = document.getElementById('monitorChatToggle');
+            
+            if (chatWindow.style.display === 'flex' && 
+                !chatContainer.contains(event.target) && 
+                event.target !== toggleBtn) {
+                toggleMonitorChat();
+            }
+        });
     </script>
 </body>
 </html>
