@@ -293,7 +293,7 @@
         </div>
     </div>
 
-    <!-- ✅ CHAT INTERFACE UNTUK MONITOR - SUDAH DIPERBAIKI -->
+    <!-- ✅ ENHANCED CHAT INTERFACE UNTUK MONITOR -->
     <div id="monitorChatContainer">
         <!-- Chat Toggle Button -->
         <button id="monitorChatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
@@ -355,23 +355,18 @@
     <!-- External JavaScript -->
     <script src="script-monitor.js"></script>
     
-    <!-- Chat Interface JavaScript - SUDAH DIPERBAIKI -->
+    <!-- Enhanced Chat Interface JavaScript -->
     <script>
-        // Chat Interface Functions - FIXED
+        // Enhanced Chat Interface Functions
         function toggleMonitorChat() {
-            const chatWindow = document.getElementById('monitorChatWindow');
-            const isVisible = chatWindow.style.display === 'block';
-            
-            chatWindow.style.display = isVisible ? 'none' : 'block';
-            
-            if (!isVisible && window.gpsSystem) {
-                window.gpsSystem.updateMonitorChatUI();
+            if (window.gpsSystem) {
+                window.gpsSystem.toggleMonitorChat();
             }
         }
 
         function handleMonitorChatInput(event) {
-            if (event.key === 'Enter') {
-                sendMonitorMessage();
+            if (window.gpsSystem) {
+                window.gpsSystem.handleMonitorChatInput(event);
             }
         }
 
@@ -400,6 +395,28 @@
             if (window.gpsSystem) {
                 window.gpsSystem.forceCleanupAllData();
                 alert('Force cleanup executed! All sticky data removed.');
+            }
+        }
+
+        // Global refresh function
+        function refreshData() {
+            if (window.gpsSystem) {
+                window.gpsSystem.refreshData();
+            }
+        }
+
+        // Global export function
+        function exportData() {
+            if (window.gpsSystem) {
+                window.gpsSystem.downloadRouteData();
+            }
+        }
+
+        // Toggle sidebar for mobile
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.toggle('show');
             }
         }
     </script>
