@@ -204,7 +204,7 @@
         </div>
     </div>
 
-    <!-- ✅ CHAT INTERFACE -->
+    <!-- ✅ ENHANCED CHAT INTERFACE -->
     <div id="chatContainer">
         <!-- Chat Toggle Button -->
         <button id="chatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
@@ -270,12 +270,15 @@ class DTGPSLogger {
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
         
-        // ✅ CHAT SYSTEM PROPERTIES
+        // ✅ ENHANCED CHAT SYSTEM PROPERTIES
         this.chatRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
         this.isChatOpen = false;
         this.chatInitialized = false;
+        this.lastMessageId = null;
+        this.isTyping = false;
+        this.typingTimeout = null;
         
         this.offlineQueue = new OfflineQueueManager();
         
@@ -358,67 +361,168 @@ class DTGPSLogger {
         this.sessionStartTime = new Date();
         this.updateSessionDuration();
         
-        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
+        // ✅ SETUP ENHANCED CHAT SYSTEM SETELAH LOGIN
         this.setupChatSystem();
     }
 
-    // ✅ CHAT METHOD: Setup chat system
+    // ✅ ENHANCED CHAT METHOD: Setup chat system
     setupChatSystem() {
         if (!this.driverData) return;
         
+        console.log('💬 Setting up enhanced chat system for unit:', this.driverData.unit);
+        
         this.chatRef = database.ref('/chat/' + this.driverData.unit);
+        
+        // Clear previous listeners
+        this.chatRef.off();
         
         // Listen untuk pesan baru
         this.chatRef.on('child_added', (snapshot) => {
             const message = snapshot.val();
-            this.handleNewMessage(message);
+            if (message && message.id !== this.lastMessageId) {
+                this.handleNewMessage(message);
+            }
+        });
+        
+        // Listen untuk typing indicators
+        const typingRef = database.ref('/typing/' + this.driverData.unit);
+        typingRef.on('value', (snapshot) => {
+            const typingData = snapshot.val();
+            this.handleTypingIndicator(typingData);
         });
         
         this.chatInitialized = true;
-        console.log('💬 Chat system activated for unit:', this.driverData.unit);
-        this.addLog('Sistem chat aktif - bisa komunikasi dengan monitor', 'success');
+        this.setupChatInputHandlers();
+        console.log('💬 Enhanced chat system activated for unit:', this.driverData.unit);
+        this.addLog('Sistem chat aktif - bisa komunikasi real-time dengan monitor', 'success');
     }
 
-    // ✅ CHAT METHOD: Handle pesan baru
+    // ✅ ENHANCED CHAT METHOD: Handle pesan baru
     handleNewMessage(message) {
         if (!message || message.sender === this.driverData.name) return;
         
+        // Prevent duplicates
+        const messageExists = this.chatMessages.some(msg => 
+            msg.id === message.id || 
+            (msg.timestamp === message.timestamp && msg.sender === message.sender)
+        );
+        
+        if (messageExists) return;
+        
         this.chatMessages.push(message);
-        this.unreadCount++;
+        
+        // Update unread count hanya jika chat tertutup atau message dari monitor
+        if (!this.isChatOpen || message.sender !== this.driverData.name) {
+            this.unreadCount++;
+        }
         
         this.updateChatUI();
         
-        if (!this.isChatOpen) {
+        if (!this.isChatOpen && message.sender !== this.driverData.name) {
             this.showChatNotification(message);
         }
         
-        console.log('💬 New message:', message);
+        // Play notification sound
+        this.playNotificationSound();
+        
+        console.log('💬 New message received:', message);
     }
 
-    // ✅ CHAT METHOD: Kirim pesan
+    // ✅ ENHANCED CHAT METHOD: Kirim pesan
     async sendMessage(messageText) {
         if (!messageText.trim() || !this.chatRef || !this.driverData) return;
         
+        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
         const messageData = {
+            id: messageId,
             text: messageText.trim(),
             sender: this.driverData.name,
             unit: this.driverData.unit,
             timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            type: 'driver'
+            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }),
+            type: 'driver',
+            status: 'sent'
         };
         
         try {
             await this.chatRef.push(messageData);
+            this.lastMessageId = messageId;
+            
+            // Add to local messages immediately for instant feedback
+            this.chatMessages.push(messageData);
+            this.updateChatUI();
+            
             this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
+            
+            // Clear typing indicator
+            this.stopTyping();
             
         } catch (error) {
             console.error('Failed to send message:', error);
             this.addLog('❌ Gagal mengirim pesan', 'error');
+            
+            // Mark message as failed
+            messageData.status = 'failed';
+            this.chatMessages.push(messageData);
+            this.updateChatUI();
         }
     }
 
-    // ✅ CHAT METHOD: Update chat UI
+    // ✅ TYPING INDICATOR METHODS
+    startTyping() {
+        if (!this.driverData) return;
+        
+        const typingRef = database.ref('/typing/' + this.driverData.unit + '/driver');
+        typingRef.set({
+            isTyping: true,
+            name: this.driverData.name,
+            timestamp: Date.now()
+        });
+        
+        this.isTyping = true;
+    }
+
+    stopTyping() {
+        if (!this.driverData || !this.isTyping) return;
+        
+        const typingRef = database.ref('/typing/' + this.driverData.unit + '/driver');
+        typingRef.set({
+            isTyping: false,
+            name: this.driverData.name,
+            timestamp: Date.now()
+        });
+        
+        this.isTyping = false;
+    }
+
+    handleTypingIndicator(typingData) {
+        if (!typingData) return;
+        
+        const monitorTyping = typingData.monitor;
+        const typingIndicator = document.getElementById('typingIndicator');
+        
+        if (typingIndicator && monitorTyping && monitorTyping.isTyping) {
+            typingIndicator.style.display = 'block';
+            typingIndicator.innerHTML = `
+                <div class="typing-indicator">
+                    <span>Monitor sedang mengetik</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+        } else if (typingIndicator) {
+            typingIndicator.style.display = 'none';
+        }
+    }
+
+    // ✅ ENHANCED CHAT METHOD: Update chat UI
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -426,17 +530,20 @@ class DTGPSLogger {
         
         if (!messageList) return;
         
+        // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
-            unreadBadge.style.display = this.unreadCount > 0 ? 'block' : 'none';
+            unreadBadge.style.display = this.unreadCount > 0 ? 'inline' : 'none';
         }
         
+        // Update chat toggle button
         if (chatToggle) {
             chatToggle.innerHTML = this.unreadCount > 0 ? 
                 `💬 Chat <span class="badge bg-danger">${this.unreadCount}</span>` : 
                 '💬 Chat';
         }
         
+        // Render messages
         messageList.innerHTML = '';
         
         if (this.chatMessages.length === 0) {
@@ -448,23 +555,141 @@ class DTGPSLogger {
             return;
         }
         
-        this.chatMessages.forEach(message => {
-            const messageElement = document.createElement('div');
-            messageElement.className = `chat-message ${message.sender === this.driverData.name ? 'message-sent' : 'message-received'}`;
+        // Group messages by date
+        const groupedMessages = this.groupMessagesByDate(this.chatMessages);
+        
+        Object.keys(groupedMessages).forEach(date => {
+            // Add date separator
+            if (Object.keys(groupedMessages).length > 1) {
+                const dateElement = document.createElement('div');
+                dateElement.className = 'chat-date-separator';
+                dateElement.innerHTML = `<span>${date}</span>`;
+                messageList.appendChild(dateElement);
+            }
             
-            messageElement.innerHTML = `
-                <div class="message-content">
-                    ${message.sender !== this.driverData.name ? 
-                      `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
-                    <div class="message-text">${this.escapeHtml(message.text)}</div>
-                    <div class="message-time">${message.timeDisplay}</div>
-                </div>
-            `;
-            
-            messageList.appendChild(messageElement);
+            // Add messages for this date
+            groupedMessages[date].forEach(message => {
+                const messageElement = this.createMessageElement(message);
+                messageList.appendChild(messageElement);
+            });
         });
         
+        // Add typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.id = 'typingIndicator';
+        typingIndicator.style.display = 'none';
+        messageList.appendChild(typingIndicator);
+        
+        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    // ✅ GROUP MESSAGES BY DATE
+    groupMessagesByDate(messages) {
+        const grouped = {};
+        
+        messages.forEach(message => {
+            const messageDate = new Date(message.timestamp);
+            const dateKey = messageDate.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = [];
+            }
+            
+            grouped[dateKey].push(message);
+        });
+        
+        // Sort messages within each date by timestamp
+        Object.keys(grouped).forEach(date => {
+            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        });
+        
+        return grouped;
+    }
+
+    // ✅ CREATE MESSAGE ELEMENT
+    createMessageElement(message) {
+        const messageElement = document.createElement('div');
+        const isSentMessage = message.sender === this.driverData.name;
+        
+        messageElement.className = `chat-message ${isSentMessage ? 'message-sent' : 'message-received'}`;
+        
+        messageElement.innerHTML = `
+            <div class="message-content ${message.status === 'failed' ? 'message-failed' : ''}">
+                ${!isSentMessage ? 
+                    `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                <div class="message-text">${this.escapeHtml(message.text)}</div>
+                <div class="message-footer">
+                    <span class="message-time">${message.timeDisplay}</span>
+                    ${isSentMessage ? 
+                        `<span class="message-status">${message.status === 'failed' ? '❌' : '✓'}</span>` : ''}
+                </div>
+            </div>
+        `;
+        
+        return messageElement;
+    }
+
+    // ✅ NOTIFICATION SOUND
+    playNotificationSound() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (error) {
+            console.log('Notification sound not supported');
+        }
+    }
+
+    // ✅ ENHANCED CHAT INPUT HANDLING
+    setupChatInputHandlers() {
+        const chatInput = document.getElementById('chatInput');
+        if (!chatInput) return;
+        
+        let typingTimer;
+        
+        chatInput.addEventListener('input', () => {
+            // Start typing indicator
+            this.startTyping();
+            
+            // Clear previous timer
+            clearTimeout(typingTimer);
+            
+            // Set timer to stop typing indicator after 2 seconds of inactivity
+            typingTimer = setTimeout(() => {
+                this.stopTyping();
+            }, 2000);
+        });
+        
+        chatInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                this.sendMessage(chatInput.value);
+                chatInput.value = '';
+                this.stopTyping();
+            }
+        });
+        
+        chatInput.addEventListener('blur', () => {
+            this.stopTyping();
+        });
     }
 
     // ✅ CHAT METHOD: Toggle chat window
@@ -478,6 +703,7 @@ class DTGPSLogger {
             if (this.isChatOpen) {
                 this.unreadCount = 0;
                 this.updateChatUI();
+                // Focus input field
                 setTimeout(() => {
                     const chatInput = document.getElementById('chatInput');
                     if (chatInput) chatInput.focus();
@@ -822,9 +1048,13 @@ class DTGPSLogger {
     }
 
     logout() {
+        // Cleanup chat listener
         if (this.chatRef) {
             this.chatRef.off();
         }
+        
+        // Stop typing indicator
+        this.stopTyping();
         
         this.stopTracking();
         
