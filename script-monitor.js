@@ -262,6 +262,7 @@ class OptimizedSAGMGpsTracking {
         });
 
         this.gradualCleanupInactiveUnits(activeUnits);
+        this.updateStatistics(); // ✅ UPDATE STATISTICS
         this.scheduleRender();
     }
 
@@ -353,6 +354,82 @@ class OptimizedSAGMGpsTracking {
         }
 
         return true;
+    }
+
+    // ===== STATISTICS METHODS =====
+    updateStatistics() {
+        let activeUnits = 0;
+        let totalDistance = 0;
+        let totalSpeed = 0;
+        let totalFuel = 0;
+        let unitCount = 0;
+        let offlineQueueSize = 0;
+
+        this.units.forEach(unit => {
+            if (unit.isOnline) {
+                unitCount++;
+                if (unit.status === 'active' || unit.status === 'moving') {
+                    activeUnits++;
+                }
+                totalDistance += unit.distance || 0;
+                totalSpeed += unit.speed || 0;
+                totalFuel += unit.fuelUsed || 0;
+            }
+        });
+
+        // Hitung total offline data dari semua units
+        this.units.forEach(unit => {
+            const unitHistory = this.unitHistory.get(unit.name);
+            if (unitHistory) {
+                const offlineData = unitHistory.filter(point => point.isOnline === false);
+                offlineQueueSize += offlineData.length;
+            }
+        });
+
+        const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
+
+        this.activeUnits = activeUnits;
+        this.totalDistance = totalDistance;
+        this.avgSpeed = avgSpeed;
+        this.totalFuelConsumption = totalFuel;
+
+        const updateElement = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+
+        updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
+        updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
+        updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
+        updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
+        
+        // ✅ NEW: Update offline queue size
+        const offlineQueueElement = document.getElementById('offlineQueueSize');
+        if (offlineQueueElement) {
+            offlineQueueElement.textContent = offlineQueueSize;
+        }
+
+        const activeDetail = document.getElementById('activeUnitsDetail');
+        if (activeDetail) {
+            activeDetail.textContent = `${unitCount} units terdeteksi`;
+        }
+
+        const distanceDetail = document.getElementById('distanceDetail');
+        if (distanceDetail) {
+            distanceDetail.textContent = `${this.units.size} units`;
+        }
+
+        const dataCount = document.getElementById('dataCount');
+        if (dataCount) {
+            dataCount.textContent = this.unitHistory.size;
+        }
+        
+        // ✅ NEW: Update offline queue detail
+        const offlineDetail = document.getElementById('offlineQueueDetail');
+        if (offlineDetail) {
+            offlineDetail.textContent = offlineQueueSize > 0 ? 
+                `${offlineQueueSize} data pending sync` : 'All data synced';
+        }
     }
 
     // ===== ENHANCED CLEANUP SYSTEM =====
@@ -989,61 +1066,9 @@ class OptimizedSAGMGpsTracking {
 
     refreshDisplay() {
         this.cleanupOrphanedMarkers();
-        this.updateStatistics();
+        this.updateStatistics(); // ✅ UPDATE STATISTICS
         this.renderUnitList();
         this.updateMapMarkers();
-    }
-
-    updateStatistics() {
-        let activeUnits = 0;
-        let totalDistance = 0;
-        let totalSpeed = 0;
-        let totalFuel = 0;
-        let unitCount = 0;
-
-        this.units.forEach(unit => {
-            if (unit.isOnline) {
-                unitCount++;
-                if (unit.status === 'active' || unit.status === 'moving') {
-                    activeUnits++;
-                }
-                totalDistance += unit.distance || 0;
-                totalSpeed += unit.speed || 0;
-                totalFuel += unit.fuelUsed || 0;
-            }
-        });
-
-        const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
-
-        this.activeUnits = activeUnits;
-        this.totalDistance = totalDistance;
-        this.avgSpeed = avgSpeed;
-        this.totalFuelConsumption = totalFuel;
-
-        const updateElement = (id, value) => {
-            const element = document.getElementById(id);
-            if (element) element.textContent = value;
-        };
-
-        updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
-        updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
-        updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
-        updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
-
-        const activeDetail = document.getElementById('activeUnitsDetail');
-        if (activeDetail) {
-            activeDetail.textContent = `${unitCount} units terdeteksi`;
-        }
-
-        const distanceDetail = document.getElementById('distanceDetail');
-        if (distanceDetail) {
-            distanceDetail.textContent = `${this.units.size} units`;
-        }
-
-        const dataCount = document.getElementById('dataCount');
-        if (dataCount) {
-            dataCount.textContent = this.unitHistory.size;
-        }
     }
 
     renderUnitList() {
