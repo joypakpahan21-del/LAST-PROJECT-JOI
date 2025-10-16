@@ -13,12 +13,12 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// OPTIMIZED SAGM GPS TRACKING SYSTEM
+// OPTIMIZED SAGM GPS TRACKING SYSTEM WITH ENHANCED CLEANUP
 class OptimizedSAGMGpsTracking {
     constructor() {
         console.log('🚀 Initializing Optimized GPS Tracking System...');
         
-        // 🔄 FIX DUPLICATE DATA: Gunakan Map untuk prevent duplicates
+        // 🔄 ENHANCED MEMORY MANAGEMENT
         this.units = new Map();
         this.markers = new Map();
         this.unitPolylines = new Map();
@@ -27,12 +27,15 @@ class OptimizedSAGMGpsTracking {
         this.driverOnlineStatus = new Map();
         this.lastDataTimestamps = new Map();
         
-        // 🧹 MEMORY MANAGEMENT: Tracking semua resources untuk cleanup
+        // 🧹 ENHANCED CLEANUP SYSTEM
         this.cleanupCallbacks = [];
         this.intervals = new Set();
         this.firebaseListeners = new Map();
+        this.cleanupInterval = null;
+        this.lastCleanupTime = null;
+        this.inactiveUnitTracker = new Map();
         
-        // ⚡ PERFORMANCE: Debouncing untuk updates
+        // ⚡ PERFORMANCE OPTIMIZATION
         this.updateDebounce = null;
         this.lastRenderTime = 0;
         this.renderThrottleMs = 500;
@@ -48,7 +51,7 @@ class OptimizedSAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // Chat System - Optimized dengan Map
+        // Chat System - Optimized
         this.monitorChatRefs = new Map();
         this.monitorChatMessages = new Map();
         this.monitorUnreadCounts = new Map();
@@ -61,11 +64,6 @@ class OptimizedSAGMGpsTracking {
         this.routeColors = new Map();
         this.routeControls = null;
         this.maxRoutePoints = 200;
-        
-        // Enhanced tracking
-        this.driverOnlineStatus = new Map();
-        this.lastDataTimestamps = new Map();
-        this.unitSessions = new Map();
         
         // Data Logger System
         this.dataLogger = {
@@ -83,7 +81,7 @@ class OptimizedSAGMGpsTracking {
             exportInterval: null
         };
         
-        // Vehicle configuration dengan perhitungan akurat
+        // Vehicle configuration
         this.vehicleConfig = {
             fuelEfficiency: 4.5,
             maxSpeed: 80,
@@ -131,10 +129,8 @@ class OptimizedSAGMGpsTracking {
             this.setupDataLogger();
             this.testFirebaseConnection();
             
-            // Setup monitor chat system
             this.setupMonitorChatSystem();
             
-            // Debug panel
             setTimeout(() => this.showDebugPanel(), 2000);
             
         } catch (error) {
@@ -143,30 +139,27 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ===== FIREBASE METHODS - OPTIMIZED =====
+    // ===== ENHANCED FIREBASE METHODS =====
     connectToFirebase() {
         try {
             console.log('🟡 Connecting to Firebase...');
             
-            // 🧹 CLEANUP: Hapus listener lama jika ada
             this.cleanupFirebaseListeners();
 
-            // Connection status monitoring
             const connectionListener = database.ref('.info/connected').on('value', (snapshot) => {
                 const connected = snapshot.val();
                 this.updateConnectionStatus(connected);
                 
                 if (connected) {
                     this.logData('Firebase connected', 'success');
-                    this.loadInitialData();
+                    setTimeout(() => this.forceCleanupInactiveUnits(), 2000);
                 } else {
                     this.logData('Firebase disconnected', 'warning');
-                    setTimeout(() => this.connectToFirebase(), 5000);
+                    this.markAllUnitsOffline();
                 }
             });
             this.firebaseListeners.set('connection', connectionListener);
 
-            // 🔄 Setup real-time listener dengan debouncing
             const unitsListener = database.ref('/units').on('value', 
                 (snapshot) => {
                     try {
@@ -175,7 +168,7 @@ class OptimizedSAGMGpsTracking {
                             this.debouncedProcessRealTimeData(data);
                         } else {
                             console.log('⚠️ No data received from Firebase');
-                            this.clearAllData();
+                            this.forceCleanupInactiveUnits();
                         }
                     } catch (processError) {
                         console.error('❌ Error processing data:', processError);
@@ -197,7 +190,6 @@ class OptimizedSAGMGpsTracking {
             );
             this.firebaseListeners.set('units', unitsListener);
 
-            // Handle data removal (logout)
             const removalListener = database.ref('/units').on('child_removed', (snapshot) => {
                 this.handleDataRemoval(snapshot.key);
             });
@@ -212,7 +204,6 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // 🔄 DEBOUNCED METHOD: Prevent multiple rapid updates
     debouncedProcessRealTimeData(data) {
         if (this.updateDebounce) {
             clearTimeout(this.updateDebounce);
@@ -222,7 +213,172 @@ class OptimizedSAGMGpsTracking {
         }, 300);
     }
 
-    // 🧹 MEMORY MANAGEMENT: Cleanup Firebase listeners
+    // ===== ENHANCED PROCESS REAL-TIME DATA =====
+    processRealTimeData(firebaseData) {
+        if (!firebaseData) {
+            this.logData('No real-time data from Firebase', 'warning');
+            this.forceCleanupInactiveUnits();
+            return;
+        }
+
+        const unitCount = Object.keys(firebaseData).length;
+        console.log(`🔄 Real-time update: ${unitCount} active units`);
+
+        const activeUnits = new Set();
+        const currentTime = Date.now();
+        
+        Object.keys(firebaseData).forEach(unitName => {
+            this.inactiveUnitTracker.set(unitName, 0);
+        });
+
+        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+            if (!this.validateUnitData(unitName, unitData)) {
+                return;
+            }
+
+            activeUnits.add(unitName);
+            this.lastDataTimestamps.set(unitName, currentTime);
+            this.driverOnlineStatus.set(unitName, true);
+
+            const existingUnit = this.units.get(unitName);
+            
+            if (existingUnit) {
+                this.refreshUnitData(existingUnit, unitData);
+            } else {
+                const newUnit = this.createNewUnit(unitName, unitData);
+                if (newUnit) {
+                    this.units.set(unitName, newUnit);
+                    this.unitSessions.set(unitName, {
+                        sessionId: unitData.sessionId,
+                        startTime: currentTime,
+                        lastActivity: currentTime
+                    });
+                }
+            }
+        });
+
+        this.gradualCleanupInactiveUnits(activeUnits);
+        this.scheduleRender();
+    }
+
+    validateUnitData(unitName, unitData) {
+        if (!unitData) {
+            console.warn(`❌ Invalid unit data for ${unitName}: null data`);
+            return false;
+        }
+
+        if (unitData.lat === undefined || unitData.lng === undefined) {
+            console.warn(`❌ Invalid coordinates for ${unitName}:`, unitData);
+            return false;
+        }
+
+        if (isNaN(parseFloat(unitData.lat)) || isNaN(parseFloat(unitData.lng))) {
+            console.warn(`❌ Invalid numeric coordinates for ${unitName}:`, unitData);
+            return false;
+        }
+
+        const lat = parseFloat(unitData.lat);
+        const lng = parseFloat(unitData.lng);
+        
+        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
+            console.warn(`❌ Suspicious coordinates for ${unitName}: ${lat}, ${lng}`);
+            return false;
+        }
+
+        return true;
+    }
+
+    // ===== ENHANCED CLEANUP SYSTEM =====
+    gradualCleanupInactiveUnits(activeUnits) {
+        const now = Date.now();
+        const inactiveThreshold = 30000;
+        const removalThreshold = 60000;
+
+        this.units.forEach((unit, unitName) => {
+            if (!activeUnits.has(unitName)) {
+                const currentCount = this.inactiveUnitTracker.get(unitName) || 0;
+                this.inactiveUnitTracker.set(unitName, currentCount + 1);
+                
+                const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
+                
+                if (timeSinceLastUpdate > inactiveThreshold && unit.isOnline) {
+                    unit.isOnline = false;
+                    this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                        unit: unitName,
+                        lastUpdate: timeSinceLastUpdate
+                    });
+                }
+                
+                if (timeSinceLastUpdate > removalThreshold) {
+                    this.logData(`Removing inactive unit: ${unitName}`, 'info', {
+                        unit: unitName,
+                        inactiveTime: timeSinceLastUpdate
+                    });
+                    this.removeUnitCompletely(unitName);
+                }
+            } else {
+                this.inactiveUnitTracker.set(unitName, 0);
+            }
+        });
+    }
+
+    forceCleanupInactiveUnits() {
+        console.log('🧹 FORCE CLEANUP: Removing all inactive units');
+        
+        const now = Date.now();
+        const unitsToRemove = [];
+        
+        this.units.forEach((unit, unitName) => {
+            const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
+            
+            if (timeSinceLastUpdate > 15000) {
+                unitsToRemove.push(unitName);
+            }
+        });
+
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Force removing: ${unitName}`, 'warning', {
+                unit: unitName,
+                inactiveTime: now - (this.lastDataTimestamps.get(unitName) || 0)
+            });
+            this.removeUnitCompletely(unitName);
+        });
+    }
+
+    removeUnitCompletely(unitName) {
+        console.log(`🗑️ Removing unit completely: ${unitName}`);
+        
+        this.units.delete(unitName);
+        
+        const marker = this.markers.get(unitName);
+        if (marker && this.map) {
+            this.map.removeLayer(marker);
+            this.markers.delete(unitName);
+        }
+        
+        const polyline = this.unitPolylines.get(unitName);
+        if (polyline && this.map) {
+            this.map.removeLayer(polyline);
+            this.unitPolylines.delete(unitName);
+        }
+        
+        this.driverOnlineStatus.delete(unitName);
+        this.lastDataTimestamps.delete(unitName);
+        this.unitSessions.delete(unitName);
+        this.inactiveUnitTracker.delete(unitName);
+        this.unitHistory.delete(unitName);
+        this.routeColors.delete(unitName);
+        
+        this.scheduleRender();
+    }
+
+    markAllUnitsOffline() {
+        this.units.forEach(unit => {
+            unit.isOnline = false;
+        });
+        this.scheduleRender();
+    }
+
     cleanupFirebaseListeners() {
         this.firebaseListeners.forEach((listener, key) => {
             try {
@@ -240,7 +396,112 @@ class OptimizedSAGMGpsTracking {
         this.firebaseListeners.clear();
     }
 
-    // 🔄 METHOD: Load initial data yang lebih clean
+    cleanupOrphanedMarkers() {
+        this.markers.forEach((marker, unitName) => {
+            if (!this.units.has(unitName)) {
+                console.log(`🧹 Removing orphaned marker: ${unitName}`);
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+                this.markers.delete(unitName);
+            }
+        });
+    }
+
+    // ===== ENHANCED PERIODIC TASKS =====
+    startPeriodicTasks() {
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
+
+        const cleanupInterval = setInterval(() => {
+            this.forceCleanupInactiveUnits();
+            this.cleanupOrphanedMarkers();
+            this.lastCleanupTime = new Date();
+        }, 30000);
+        this.intervals.add(cleanupInterval);
+
+        const healthInterval = setInterval(() => {
+            this.logData('System health check', 'info', {
+                activeUnits: this.units.size,
+                markers: this.markers.size,
+                polylines: this.unitPolylines.size,
+                memory: this.getMemoryUsage()
+            });
+        }, 60000);
+        this.intervals.add(healthInterval);
+
+        const statusInterval = setInterval(() => {
+            const now = Date.now();
+            this.lastDataTimestamps.forEach((lastUpdate, unitName) => {
+                const timeDiff = now - lastUpdate;
+                if (timeDiff > 15000) {
+                    this.markUnitOffline(unitName);
+                }
+            });
+        }, 5000);
+        this.intervals.add(statusInterval);
+    }
+
+    // ===== ENHANCED CLEANUP METHOD =====
+    cleanup() {
+        console.log('🧹 Comprehensive system cleanup...');
+        
+        this.cleanupFirebaseListeners();
+        
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
+        
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
+        }
+        
+        database.ref('/chat').off('child_added');
+        database.ref('/chat').off('child_removed');
+        this.monitorChatRefs.forEach(ref => ref.off());
+        this.monitorChatRefs.clear();
+        
+        this.clearAllData();
+        
+        if (this.map) {
+            this.map.remove();
+            this.map = null;
+        }
+        
+        if (this.dataLogger.exportInterval) {
+            clearInterval(this.dataLogger.exportInterval);
+        }
+        
+        console.log('✅ System cleanup completed');
+    }
+
+    clearAllData() {
+        console.log('🧹 Clearing ALL system data...');
+        
+        this.units.clear();
+        this.markers.clear();
+        this.unitPolylines.clear();
+        this.unitHistory.clear();
+        this.unitSessions.clear();
+        this.driverOnlineStatus.clear();
+        this.lastDataTimestamps.clear();
+        this.inactiveUnitTracker.clear();
+        this.routeColors.clear();
+        this.monitorChatRefs.clear();
+        this.monitorChatMessages.clear();
+        this.monitorUnreadCounts.clear();
+        
+        this.importantMarkers = [];
+        this.dataLogger.logs = [];
+        
+        this.activeUnits = 0;
+        this.totalDistance = 0;
+        this.avgSpeed = 0;
+        this.totalFuelConsumption = 0;
+        
+        console.log('✅ All data cleared');
+    }
+
+    // ===== UNIT MANAGEMENT METHODS =====
     async loadInitialData() {
         this.showLoadingIndicator(true);
         
@@ -248,7 +509,6 @@ class OptimizedSAGMGpsTracking {
             const snapshot = await database.ref('/units').once('value');
             const firebaseData = snapshot.val();
             
-            // 🧹 CLEAR data lama sebelum load baru
             this.clearAllData();
             
             if (firebaseData && Object.keys(firebaseData).length > 0) {
@@ -282,454 +542,6 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // 🎯 ERROR HANDLING: Validasi data unit
-    validateUnitData(unitName, unitData) {
-        if (!unitData) {
-            console.warn(`❌ Unit ${unitName}: No data`);
-            return false;
-        }
-        
-        if (unitData.lat === undefined || unitData.lng === undefined) {
-            console.warn(`❌ Unit ${unitName}: Missing coordinates`, unitData);
-            return false;
-        }
-        
-        if (isNaN(parseFloat(unitData.lat)) || isNaN(parseFloat(unitData.lng))) {
-            console.warn(`❌ Unit ${unitName}: Invalid coordinates`, unitData);
-            return false;
-        }
-        
-        return true;
-    }
-
-    testFirebaseConnection() {
-        console.log('🔍 Testing Firebase connection...');
-        
-        database.ref('.info/connected').on('value', (snapshot) => {
-            const connected = snapshot.val();
-            console.log('📡 Firebase Connected:', connected);
-        });
-
-        database.ref('/units').once('value')
-            .then((snapshot) => {
-                const data = snapshot.val();
-                console.log('📊 Raw Firebase Data:', data);
-                
-                if (data) {
-                    console.log('✅ Data found, units:', Object.keys(data));
-                } else {
-                    console.log('❌ No data found in /units path');
-                }
-            })
-            .catch((error) => {
-                console.error('❌ Firebase read error:', error);
-            });
-    }
-
-    // ===== PROCESS REAL-TIME DATA =====
-    processRealTimeData(firebaseData) {
-        console.log('🔄 Processing real-time data:', firebaseData);
-        
-        if (!firebaseData) {
-            console.log('⚠️ No data from Firebase - clearing display');
-            this.clearAllData();
-            this.logData('No real-time data from Firebase', 'warning');
-            return;
-        }
-
-        const unitCount = Object.keys(firebaseData).length;
-        console.log(`📈 Processing ${unitCount} units`);
-        
-        let updates = 0;
-        const activeUnits = new Set();
-        const currentTime = Date.now();
-        
-        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            console.log(`   🔍 Unit ${unitName}:`, unitData);
-            
-            if (!this.validateUnitData(unitName, unitData)) {
-                return;
-            }
-            
-            activeUnits.add(unitName);
-            this.lastDataTimestamps.set(unitName, currentTime);
-            
-            const existingUnit = this.units.get(unitName);
-            
-            if (existingUnit) {
-                this.refreshUnitData(existingUnit, unitData);
-                updates++;
-            } else {
-                const newUnit = this.createNewUnit(unitName, unitData);
-                if (newUnit) {
-                    this.units.set(unitName, newUnit);
-                    updates++;
-                    console.log(`   ✅ New unit created: ${unitName}`);
-                }
-            }
-        });
-
-        this.removeInactiveUnits(activeUnits);
-
-        if (updates > 0) {
-            console.log(`🎯 Refreshing display with ${updates} updates`);
-            this.scheduleRender();
-        }
-    }
-
-    validateSession(unitName, sessionId) {
-        if (!this.unitSessions.has(unitName)) {
-            return true;
-        }
-        return this.unitSessions.get(unitName).sessionId === sessionId;
-    }
-
-    handleDataRemoval(unitName) {
-        this.logData(`Data removed for unit: ${unitName}`, 'info', {
-            unit: unitName,
-            action: 'logout'
-        });
-        
-        this.removeUnitCompletely(unitName);
-    }
-
-    // 🔄 METHOD: Remove inactive units
-    removeInactiveUnits(activeUnits) {
-        const unitsToRemove = [];
-        
-        this.units.forEach((unit, unitName) => {
-            if (!activeUnits.has(unitName)) {
-                unitsToRemove.push(unitName);
-            }
-        });
-
-        unitsToRemove.forEach(unitName => {
-            this.logData(`Unit inactive: ${unitName}`, 'warning', { unit: unitName });
-            this.removeUnitCompletely(unitName);
-        });
-    }
-
-    // 🧹 METHOD: Clear all data yang lebih comprehensive
-    clearAllData() {
-        console.log('🧹 Clearing all data...');
-        
-        this.units.clear();
-        
-        this.markers.forEach((marker, unitName) => {
-            if (marker && this.map) {
-                this.map.removeLayer(marker);
-            }
-        });
-        this.markers.clear();
-        
-        this.unitPolylines.forEach((polyline, unitName) => {
-            if (polyline && this.map) {
-                this.map.removeLayer(polyline);
-            }
-        });
-        this.unitPolylines.clear();
-        
-        this.driverOnlineStatus.clear();
-        this.lastDataTimestamps.clear();
-        this.unitSessions.clear();
-        this.unitHistory.clear();
-        
-        this.logData('All data cleared', 'system');
-    }
-
-    // ⚡ PERFORMANCE: Scheduled render dengan throttling
-    scheduleRender() {
-        const now = Date.now();
-        if (now - this.lastRenderTime < this.renderThrottleMs) {
-            return;
-        }
-        
-        this.lastRenderTime = now;
-        this.refreshDisplay();
-    }
-
-    // ===== CHAT SYSTEM METHODS =====
-    setupMonitorChatSystem() {
-        console.log('💬 Initializing monitor chat system...');
-        
-        database.ref('/chat').on('child_added', (snapshot) => {
-            const unitName = snapshot.key;
-            console.log(`💬 New chat unit detected: ${unitName}`);
-            this.setupUnitChatListener(unitName);
-        });
-
-        database.ref('/chat').on('child_removed', (snapshot) => {
-            const unitName = snapshot.key;
-            this.cleanupUnitChatListener(unitName);
-        });
-
-        this.monitorChatInitialized = true;
-        console.log('💬 Monitor chat system activated');
-        this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
-    }
-
-    setupUnitChatListener(unitName) {
-        if (this.monitorChatRefs.has(unitName)) return;
-        
-        const chatRef = database.ref('/chat/' + unitName);
-        this.monitorChatRefs.set(unitName, chatRef);
-        this.monitorChatMessages.set(unitName, []);
-        this.monitorUnreadCounts.set(unitName, 0);
-        
-        chatRef.on('child_added', (snapshot) => {
-            const message = snapshot.val();
-            this.handleMonitorChatMessage(unitName, message);
-        });
-
-        this.updateMonitorChatUnitSelect();
-        
-        console.log(`💬 Now listening to chat for unit: ${unitName}`);
-    }
-
-    cleanupUnitChatListener(unitName) {
-        if (this.monitorChatRefs.has(unitName)) {
-            const chatRef = this.monitorChatRefs.get(unitName);
-            chatRef.off();
-            
-            this.monitorChatRefs.delete(unitName);
-            this.monitorChatMessages.delete(unitName);
-            this.monitorUnreadCounts.delete(unitName);
-            
-            this.updateMonitorChatUnitSelect();
-            
-            if (this.activeChatUnit === unitName) {
-                this.activeChatUnit = null;
-                this.updateMonitorChatUI();
-            }
-            
-            console.log(`💬 Stopped listening to chat for unit: ${unitName}`);
-        }
-    }
-
-    handleMonitorChatMessage(unitName, message) {
-        if (!this.monitorChatMessages.has(unitName)) {
-            this.monitorChatMessages.set(unitName, []);
-        }
-        
-        const messages = this.monitorChatMessages.get(unitName);
-        
-        const messageExists = messages.some(msg => 
-            msg.timestamp === message.timestamp && msg.sender === message.sender
-        );
-        
-        if (!messageExists) {
-            messages.push(message);
-            
-            if (message.type !== 'monitor' && this.activeChatUnit !== unitName) {
-                const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
-                this.monitorUnreadCounts.set(unitName, currentCount + 1);
-            }
-            
-            this.updateMonitorChatUI();
-            
-            if (this.activeChatUnit !== unitName && message.type !== 'monitor') {
-                this.showMonitorChatNotification(unitName, message);
-            }
-            
-            console.log(`💬 New message from ${unitName}:`, message);
-        }
-    }
-
-    async sendMonitorMessage() {
-        const messageText = document.getElementById('monitorChatInput')?.value.trim();
-        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs.has(this.activeChatUnit)) return;
-        
-        const messageData = {
-            text: messageText,
-            sender: 'MONITOR',
-            unit: this.activeChatUnit,
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            type: 'monitor'
-        };
-        
-        try {
-            const chatRef = this.monitorChatRefs.get(this.activeChatUnit);
-            await chatRef.push(messageData);
-            this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
-            
-            const chatInput = document.getElementById('monitorChatInput');
-            if (chatInput) chatInput.value = '';
-            
-        } catch (error) {
-            console.error('Failed to send monitor message:', error);
-            this.logData('❌ Gagal mengirim pesan ke driver', 'error');
-        }
-    }
-
-    updateMonitorChatUI() {
-        const messageList = document.getElementById('monitorChatMessages');
-        const unreadBadge = document.getElementById('monitorUnreadBadge');
-        const chatInput = document.getElementById('monitorChatInput');
-        const sendBtn = document.getElementById('monitorSendBtn');
-        
-        if (!messageList) return;
-        
-        let totalUnread = 0;
-        this.monitorUnreadCounts.forEach(count => totalUnread += count);
-        
-        if (unreadBadge) {
-            unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
-            unreadBadge.style.display = totalUnread > 0 ? 'block' : 'none';
-        }
-        
-        const hasActiveUnit = !!this.activeChatUnit;
-        if (chatInput) chatInput.disabled = !hasActiveUnit;
-        if (sendBtn) sendBtn.disabled = !hasActiveUnit;
-        
-        messageList.innerHTML = '';
-        
-        if (!this.activeChatUnit) {
-            messageList.innerHTML = `
-                <div class="chat-placeholder text-center text-muted py-4">
-                    <small>Pilih unit untuk memulai percakapan...</small>
-                </div>
-            `;
-            return;
-        }
-        
-        const activeMessages = this.monitorChatMessages.get(this.activeChatUnit) || [];
-        
-        if (activeMessages.length === 0) {
-            messageList.innerHTML = `
-                <div class="chat-placeholder text-center text-muted py-4">
-                    <small>Mulai percakapan dengan driver ${this.activeChatUnit}...</small>
-                </div>
-            `;
-            return;
-        }
-        
-        activeMessages.forEach(message => {
-            const messageElement = document.createElement('div');
-            const isMonitorMessage = message.type === 'monitor';
-            messageElement.className = `chat-message ${isMonitorMessage ? 'message-sent' : 'message-received'}`;
-            
-            messageElement.innerHTML = `
-                <div class="message-content">
-                    ${!isMonitorMessage ? 
-                      `<div class="message-sender">${this.escapeHtml(message.sender)} (${message.unit})</div>` : ''}
-                    <div class="message-text">${this.escapeHtml(message.text)}</div>
-                    <div class="message-time">${message.timeDisplay}</div>
-                </div>
-            `;
-            
-            messageList.appendChild(messageElement);
-        });
-        
-        messageList.scrollTop = messageList.scrollHeight;
-    }
-
-    setupChatEventHandlers() {
-        const unitSelect = document.getElementById('monitorChatUnitSelect');
-        if (unitSelect) {
-            unitSelect.addEventListener('change', (e) => {
-                this.selectChatUnit(e.target.value);
-            });
-        }
-    }
-
-    updateMonitorChatUnitSelect() {
-        const unitSelect = document.getElementById('monitorChatUnitSelect');
-        if (!unitSelect) return;
-        
-        const currentValue = unitSelect.value;
-        
-        unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
-        
-        this.monitorChatRefs.forEach((ref, unitName) => {
-            const unreadCount = this.monitorUnreadCounts.get(unitName) || 0;
-            const option = document.createElement('option');
-            option.value = unitName;
-            option.textContent = unreadCount > 0 ? 
-                `${unitName} (${unreadCount} pesan baru)` : unitName;
-            unitSelect.appendChild(option);
-        });
-        
-        if (currentValue && this.monitorChatRefs.has(currentValue)) {
-            unitSelect.value = currentValue;
-        }
-        
-        this.setupChatEventHandlers();
-    }
-
-    selectChatUnit(unitName) {
-        this.activeChatUnit = unitName;
-        
-        if (unitName && this.monitorUnreadCounts.has(unitName)) {
-            this.monitorUnreadCounts.set(unitName, 0);
-        }
-        
-        this.updateMonitorChatUI();
-        this.updateMonitorChatUnitSelect();
-        
-        console.log(`💬 Now chatting with unit: ${unitName}`);
-    }
-
-    toggleMonitorChat() {
-        this.isMonitorChatOpen = !this.isMonitorChatOpen;
-        const chatWindow = document.getElementById('monitorChatWindow');
-        
-        if (chatWindow) {
-            chatWindow.style.display = this.isMonitorChatOpen ? 'block' : 'none';
-            
-            if (this.isMonitorChatOpen) {
-                this.updateMonitorChatUnitSelect();
-                this.updateMonitorChatUI();
-            }
-        }
-    }
-
-    handleMonitorChatInput(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            this.sendMonitorMessage();
-        }
-    }
-
-    showMonitorChatNotification(unitName, message) {
-        const notification = document.createElement('div');
-        notification.className = 'chat-notification alert alert-warning';
-        notification.innerHTML = `
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <strong>💬 Pesan Baru dari ${unitName}</strong>
-                    <div class="small">${message.sender}: ${message.text}</div>
-                </div>
-                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
-            </div>
-        `;
-        
-        notification.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 9999;
-            min-width: 300px;
-            max-width: 400px;
-            animation: slideInRight 0.3s ease-out;
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 5000);
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // ===== UNIT MANAGEMENT =====
     createNewUnit(unitName, firebaseData) {
         if (!this.validateUnitData(unitName, firebaseData)) {
             return null;
@@ -833,6 +645,28 @@ class OptimizedSAGMGpsTracking {
         unit.lastFuelUpdate = now;
 
         this.addHistoryPoint(unit);
+    }
+
+    markUnitOffline(unitName) {
+        const unit = this.units.get(unitName);
+        if (unit) {
+            this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                unit: unitName,
+                driver: unit.driver,
+                lastLocation: { lat: unit.latitude, lng: unit.longitude }
+            });
+            
+            this.removeUnitCompletely(unitName);
+        }
+    }
+
+    handleDataRemoval(unitName) {
+        this.logData(`Data removed for unit: ${unitName}`, 'info', {
+            unit: unitName,
+            action: 'logout'
+        });
+        
+        this.removeUnitCompletely(unitName);
     }
 
     // ===== MAP METHODS =====
@@ -1149,7 +983,18 @@ class OptimizedSAGMGpsTracking {
     }
 
     // ===== DISPLAY METHODS =====
+    scheduleRender() {
+        const now = Date.now();
+        if (now - this.lastRenderTime < this.renderThrottleMs) {
+            return;
+        }
+        
+        this.lastRenderTime = now;
+        this.refreshDisplay();
+    }
+
     refreshDisplay() {
+        this.cleanupOrphanedMarkers();
         this.updateStatistics();
         this.renderUnitList();
         this.updateMapMarkers();
@@ -1641,6 +1486,287 @@ class OptimizedSAGMGpsTracking {
         );
     }
 
+    // ===== CHAT SYSTEM METHODS =====
+    setupMonitorChatSystem() {
+        console.log('💬 Initializing monitor chat system...');
+        
+        database.ref('/chat').on('child_added', (snapshot) => {
+            const unitName = snapshot.key;
+            console.log(`💬 New chat unit detected: ${unitName}`);
+            this.setupUnitChatListener(unitName);
+        });
+
+        database.ref('/chat').on('child_removed', (snapshot) => {
+            const unitName = snapshot.key;
+            this.cleanupUnitChatListener(unitName);
+        });
+
+        this.monitorChatInitialized = true;
+        console.log('💬 Monitor chat system activated');
+        this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
+    }
+
+    setupUnitChatListener(unitName) {
+        if (this.monitorChatRefs.has(unitName)) return;
+        
+        const chatRef = database.ref('/chat/' + unitName);
+        this.monitorChatRefs.set(unitName, chatRef);
+        this.monitorChatMessages.set(unitName, []);
+        this.monitorUnreadCounts.set(unitName, 0);
+        
+        chatRef.on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            this.handleMonitorChatMessage(unitName, message);
+        });
+
+        this.updateMonitorChatUnitSelect();
+        
+        console.log(`💬 Now listening to chat for unit: ${unitName}`);
+    }
+
+    cleanupUnitChatListener(unitName) {
+        if (this.monitorChatRefs.has(unitName)) {
+            const chatRef = this.monitorChatRefs.get(unitName);
+            chatRef.off();
+            
+            this.monitorChatRefs.delete(unitName);
+            this.monitorChatMessages.delete(unitName);
+            this.monitorUnreadCounts.delete(unitName);
+            
+            this.updateMonitorChatUnitSelect();
+            
+            if (this.activeChatUnit === unitName) {
+                this.activeChatUnit = null;
+                this.updateMonitorChatUI();
+            }
+            
+            console.log(`💬 Stopped listening to chat for unit: ${unitName}`);
+        }
+    }
+
+    handleMonitorChatMessage(unitName, message) {
+        if (!this.monitorChatMessages.has(unitName)) {
+            this.monitorChatMessages.set(unitName, []);
+        }
+        
+        const messages = this.monitorChatMessages.get(unitName);
+        
+        const messageExists = messages.some(msg => 
+            msg.timestamp === message.timestamp && msg.sender === message.sender
+        );
+        
+        if (!messageExists) {
+            messages.push(message);
+            
+            if (message.type !== 'monitor' && this.activeChatUnit !== unitName) {
+                const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
+                this.monitorUnreadCounts.set(unitName, currentCount + 1);
+            }
+            
+            this.updateMonitorChatUI();
+            
+            if (this.activeChatUnit !== unitName && message.type !== 'monitor') {
+                this.showMonitorChatNotification(unitName, message);
+            }
+            
+            console.log(`💬 New message from ${unitName}:`, message);
+        }
+    }
+
+    async sendMonitorMessage() {
+        const messageText = document.getElementById('monitorChatInput')?.value.trim();
+        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs.has(this.activeChatUnit)) return;
+        
+        const messageData = {
+            text: messageText,
+            sender: 'MONITOR',
+            unit: this.activeChatUnit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            type: 'monitor'
+        };
+        
+        try {
+            const chatRef = this.monitorChatRefs.get(this.activeChatUnit);
+            await chatRef.push(messageData);
+            this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
+            
+            const chatInput = document.getElementById('monitorChatInput');
+            if (chatInput) chatInput.value = '';
+            
+        } catch (error) {
+            console.error('Failed to send monitor message:', error);
+            this.logData('❌ Gagal mengirim pesan ke driver', 'error');
+        }
+    }
+
+    updateMonitorChatUI() {
+        const messageList = document.getElementById('monitorChatMessages');
+        const unreadBadge = document.getElementById('monitorUnreadBadge');
+        const chatInput = document.getElementById('monitorChatInput');
+        const sendBtn = document.getElementById('monitorSendBtn');
+        
+        if (!messageList) return;
+        
+        let totalUnread = 0;
+        this.monitorUnreadCounts.forEach(count => totalUnread += count);
+        
+        if (unreadBadge) {
+            unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
+            unreadBadge.style.display = totalUnread > 0 ? 'block' : 'none';
+        }
+        
+        const hasActiveUnit = !!this.activeChatUnit;
+        if (chatInput) chatInput.disabled = !hasActiveUnit;
+        if (sendBtn) sendBtn.disabled = !hasActiveUnit;
+        
+        messageList.innerHTML = '';
+        
+        if (!this.activeChatUnit) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Pilih unit untuk memulai percakapan...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        const activeMessages = this.monitorChatMessages.get(this.activeChatUnit) || [];
+        
+        if (activeMessages.length === 0) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan driver ${this.activeChatUnit}...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        activeMessages.forEach(message => {
+            const messageElement = document.createElement('div');
+            const isMonitorMessage = message.type === 'monitor';
+            messageElement.className = `chat-message ${isMonitorMessage ? 'message-sent' : 'message-received'}`;
+            
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    ${!isMonitorMessage ? 
+                      `<div class="message-sender">${this.escapeHtml(message.sender)} (${message.unit})</div>` : ''}
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-time">${message.timeDisplay}</div>
+                </div>
+            `;
+            
+            messageList.appendChild(messageElement);
+        });
+        
+        messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    setupChatEventHandlers() {
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        if (unitSelect) {
+            unitSelect.addEventListener('change', (e) => {
+                this.selectChatUnit(e.target.value);
+            });
+        }
+    }
+
+    updateMonitorChatUnitSelect() {
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        if (!unitSelect) return;
+        
+        const currentValue = unitSelect.value;
+        
+        unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
+        
+        this.monitorChatRefs.forEach((ref, unitName) => {
+            const unreadCount = this.monitorUnreadCounts.get(unitName) || 0;
+            const option = document.createElement('option');
+            option.value = unitName;
+            option.textContent = unreadCount > 0 ? 
+                `${unitName} (${unreadCount} pesan baru)` : unitName;
+            unitSelect.appendChild(option);
+        });
+        
+        if (currentValue && this.monitorChatRefs.has(currentValue)) {
+            unitSelect.value = currentValue;
+        }
+        
+        this.setupChatEventHandlers();
+    }
+
+    selectChatUnit(unitName) {
+        this.activeChatUnit = unitName;
+        
+        if (unitName && this.monitorUnreadCounts.has(unitName)) {
+            this.monitorUnreadCounts.set(unitName, 0);
+        }
+        
+        this.updateMonitorChatUI();
+        this.updateMonitorChatUnitSelect();
+        
+        console.log(`💬 Now chatting with unit: ${unitName}`);
+    }
+
+    toggleMonitorChat() {
+        this.isMonitorChatOpen = !this.isMonitorChatOpen;
+        const chatWindow = document.getElementById('monitorChatWindow');
+        
+        if (chatWindow) {
+            chatWindow.style.display = this.isMonitorChatOpen ? 'block' : 'none';
+            
+            if (this.isMonitorChatOpen) {
+                this.updateMonitorChatUnitSelect();
+                this.updateMonitorChatUI();
+            }
+        }
+    }
+
+    handleMonitorChatInput(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            this.sendMonitorMessage();
+        }
+    }
+
+    showMonitorChatNotification(unitName, message) {
+        const notification = document.createElement('div');
+        notification.className = 'chat-notification alert alert-warning';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>💬 Pesan Baru dari ${unitName}</strong>
+                    <div class="small">${message.sender}: ${message.text}</div>
+                </div>
+                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // ===== EVENT HANDLERS =====
     setupEventHandlers() {
         const searchInput = document.getElementById('searchUnit');
@@ -1672,60 +1798,6 @@ class OptimizedSAGMGpsTracking {
                 statusElement.className = 'text-danger';
             }
         }
-    }
-
-    // ===== UTILITY METHODS =====
-    startPeriodicTasks() {
-        const refreshInterval = setInterval(() => {
-            this.logData('Auto-refresh cycle', 'info');
-        }, 30000);
-        this.intervals.add(refreshInterval);
-
-        const statusInterval = setInterval(() => {
-            const now = Date.now();
-            this.lastDataTimestamps.forEach((lastUpdate, unitName) => {
-                const timeDiff = now - lastUpdate;
-                if (timeDiff > 15000) {
-                    this.markUnitOffline(unitName);
-                }
-            });
-        }, 5000);
-        this.intervals.add(statusInterval);
-    }
-
-    markUnitOffline(unitName) {
-        const unit = this.units.get(unitName);
-        if (unit) {
-            this.logData(`Unit marked offline: ${unitName}`, 'warning', {
-                unit: unitName,
-                driver: unit.driver,
-                lastLocation: { lat: unit.latitude, lng: unit.longitude }
-            });
-            
-            this.removeUnitCompletely(unitName);
-        }
-    }
-
-    removeUnitCompletely(unitName) {
-        this.units.delete(unitName);
-        
-        const marker = this.markers.get(unitName);
-        if (marker && this.map) {
-            this.map.removeLayer(marker);
-            this.markers.delete(unitName);
-        }
-        
-        const polyline = this.unitPolylines.get(unitName);
-        if (polyline && this.map) {
-            this.map.removeLayer(polyline);
-            this.unitPolylines.delete(unitName);
-        }
-        
-        this.driverOnlineStatus.delete(unitName);
-        this.lastDataTimestamps.delete(unitName);
-        this.unitSessions.delete(unitName);
-        
-        this.scheduleRender();
     }
 
     applyFilters() {
@@ -1890,40 +1962,28 @@ class OptimizedSAGMGpsTracking {
         }, 2000);
     }
 
-    // 🔄 Refresh data method
-    refreshData() {
-        console.log('🔄 Manual refresh triggered');
-        this.logData('Manual refresh initiated', 'info');
-        this.loadInitialData();
-    }
+    testFirebaseConnection() {
+        console.log('🔍 Testing Firebase connection...');
+        
+        database.ref('.info/connected').on('value', (snapshot) => {
+            const connected = snapshot.val();
+            console.log('📡 Firebase Connected:', connected);
+        });
 
-    // 🧹 COMPREHENSIVE CLEANUP METHOD
-    cleanup() {
-        console.log('🧹 Cleaning up system...');
-        
-        this.cleanupFirebaseListeners();
-        
-        this.intervals.forEach(interval => clearInterval(interval));
-        this.intervals.clear();
-        
-        if (this.updateDebounce) {
-            clearTimeout(this.updateDebounce);
-        }
-        
-        database.ref('/chat').off('child_added');
-        database.ref('/chat').off('child_removed');
-        this.monitorChatRefs.forEach(ref => ref.off());
-        this.monitorChatRefs.clear();
-        
-        if (this.map) {
-            this.map.remove();
-        }
-        
-        if (this.dataLogger.exportInterval) {
-            clearInterval(this.dataLogger.exportInterval);
-        }
-        
-        console.log('✅ System cleanup completed');
+        database.ref('/units').once('value')
+            .then((snapshot) => {
+                const data = snapshot.val();
+                console.log('📊 Raw Firebase Data:', data);
+                
+                if (data) {
+                    console.log('✅ Data found, units:', Object.keys(data));
+                } else {
+                    console.log('❌ No data found in /units path');
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Firebase read error:', error);
+            });
     }
 
     // ===== FUEL CALCULATION METHODS =====
@@ -1970,12 +2030,73 @@ class OptimizedSAGMGpsTracking {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c;
     }
+
+    getMemoryUsage() {
+        if (performance.memory) {
+            const memory = performance.memory;
+            return {
+                used: Math.round(memory.usedJSHeapSize / 1048576),
+                total: Math.round(memory.totalJSHeapSize / 1048576),
+                limit: Math.round(memory.jsHeapSizeLimit / 1048576)
+            };
+        }
+        return { used: 'N/A', total: 'N/A', limit: 'N/A' };
+    }
+
+    refreshData() {
+        console.log('🔄 Manual refresh with cleanup');
+        this.logData('Manual refresh initiated', 'info');
+        this.forceCleanupInactiveUnits();
+        this.loadInitialData();
+    }
 }
 
 // Initialize the system
 let gpsSystem;
 
-// Event listener untuk memastikan chat system terinisialisasi
+// Enhanced global refresh function
+function refreshData() {
+    if (window.gpsSystem) {
+        console.log('🔄 MANUAL REFRESH WITH CLEANUP');
+        window.gpsSystem.refreshData();
+        
+        const refreshBtn = document.getElementById('refreshBtn');
+        const refreshIcon = document.getElementById('refreshIcon');
+        
+        if (refreshBtn && refreshIcon) {
+            refreshBtn.disabled = true;
+            refreshIcon.innerHTML = '⏳';
+            
+            setTimeout(() => {
+                refreshBtn.disabled = false;
+                refreshIcon.innerHTML = '🔄';
+            }, 3000);
+        }
+    }
+}
+
+// Manual cleanup function
+function forceCleanup() {
+    if (window.gpsSystem) {
+        window.gpsSystem.forceCleanupInactiveUnits();
+        alert('Force cleanup executed!');
+    }
+}
+
+// Add cleanup button untuk debugging
+function addCleanupButton() {
+    const existingBtn = document.querySelector('.cleanup-debug-btn');
+    if (existingBtn) existingBtn.remove();
+
+    const cleanupBtn = document.createElement('button');
+    cleanupBtn.className = 'btn btn-sm btn-danger position-fixed cleanup-debug-btn';
+    cleanupBtn.style.cssText = 'bottom: 20px; right: 20px; z-index: 1000;';
+    cleanupBtn.innerHTML = '🧹 Force Cleanup';
+    cleanupBtn.onclick = forceCleanup;
+    document.body.appendChild(cleanupBtn);
+}
+
+// Event listener dengan enhanced cleanup
 document.addEventListener('DOMContentLoaded', function() {
     if (window.gpsSystem) {
         window.gpsSystem.cleanup();
@@ -1984,20 +2105,10 @@ document.addEventListener('DOMContentLoaded', function() {
     gpsSystem = new OptimizedSAGMGpsTracking();
     window.gpsSystem = gpsSystem;
     
-    setTimeout(() => {
-        if (gpsSystem.setupChatEventHandlers) {
-            gpsSystem.setupChatEventHandlers();
-        }
-    }, 1000);
+    setTimeout(addCleanupButton, 3000);
 });
 
 // Global functions
-function refreshData() {
-    if (window.gpsSystem) {
-        window.gpsSystem.refreshData();
-    }
-}
-
 function exportData() {
     if (window.gpsSystem) {
         window.gpsSystem.downloadRouteData();
