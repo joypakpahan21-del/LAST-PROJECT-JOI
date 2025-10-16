@@ -184,6 +184,9 @@
                             <button class="btn btn-sm btn-outline-success d-md-none" onclick="toggleSidebar()">
                                 <i>📋</i> Daftar Unit
                             </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="forceCleanup()" title="Force Cleanup Data Lengket">
+                                <i>🧹</i> Force Cleanup
+                            </button>
                         </div>
                     </div>
                     <div class="card-body p-0 position-relative">
@@ -391,6 +394,14 @@
         }
         setInterval(updateClock, 1000);
         updateClock();
+
+        // Force cleanup function
+        function forceCleanup() {
+            if (window.gpsSystem) {
+                window.gpsSystem.forceCleanupAllData();
+                alert('Force cleanup executed! All sticky data removed.');
+            }
+        }
     </script>
 </body>
 </html>
