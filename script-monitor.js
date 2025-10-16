@@ -51,7 +51,7 @@ class OptimizedSAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // Chat System - Optimized
+        // Chat System - FIXED
         this.monitorChatRefs = new Map();
         this.monitorChatMessages = new Map();
         this.monitorUnreadCounts = new Map();
@@ -59,7 +59,7 @@ class OptimizedSAGMGpsTracking {
         this.isMonitorChatOpen = false;
         this.monitorChatInitialized = false;
         
-        // Route visualization
+        // Route visualization - ENHANCED
         this.showRoutes = true;
         this.routeColors = new Map();
         this.routeControls = null;
@@ -129,6 +129,7 @@ class OptimizedSAGMGpsTracking {
             this.setupDataLogger();
             this.testFirebaseConnection();
             
+            // ✅ CHAT SYSTEM FIXED - Initialize properly
             this.setupMonitorChatSystem();
             
             setTimeout(() => this.showDebugPanel(), 2000);
@@ -818,11 +819,15 @@ class OptimizedSAGMGpsTracking {
         this.routeControls = routeControl;
     }
 
-    // ===== ROUTE VISUALIZATION METHODS =====
+    // ===== ENHANCED SMOOTH POLYLINE METHODS =====
     createRoutePolyline(unit, routePoints, routeColor) {
         try {
+            // ✅ OPTIMASI: Smooth polyline seperti Google Maps
+            const smoothedPoints = this.smoothPolyline(routePoints);
+            const simplifiedPoints = this.simplifyPolyline(smoothedPoints, 0.0001);
+            
             const style = this.getRouteStyle(unit.status, routeColor);
-            this.unitPolylines.set(unit.name, L.polyline(routePoints, style));
+            this.unitPolylines.set(unit.name, L.polyline(simplifiedPoints, style));
             
             if (this.showRoutes) {
                 this.unitPolylines.get(unit.name).addTo(this.map);
@@ -835,7 +840,8 @@ class OptimizedSAGMGpsTracking {
 
             this.logData(`Route polyline created for ${unit.name}`, 'system', {
                 unit: unit.name,
-                points: routePoints.length
+                originalPoints: routePoints.length,
+                smoothedPoints: simplifiedPoints.length
             });
         } catch (error) {
             this.logData(`Failed to create route for ${unit.name}`, 'error', {
@@ -845,22 +851,96 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
+    // ✅ ALGORITMA SMOOTHING seperti Google Maps
+    smoothPolyline(points) {
+        if (points.length < 3) return points;
+        
+        const smoothed = [];
+        smoothed.push(points[0]); // Pertahankan titik pertama
+        
+        for (let i = 1; i < points.length - 1; i++) {
+            const prev = points[i - 1];
+            const curr = points[i];
+            const next = points[i + 1];
+            
+            // Interpolasi quadratic untuk smoothing
+            const smoothedPoint = [
+                (prev[0] + curr[0] * 2 + next[0]) / 4,
+                (prev[1] + curr[1] * 2 + next[1]) / 4
+            ];
+            
+            smoothed.push(smoothedPoint);
+        }
+        
+        smoothed.push(points[points.length - 1]); // Pertahankan titik terakhir
+        return smoothed;
+    }
+
+    // ✅ ALGORITMA SIMPLIFIKASI: Douglas-Peucker (seperti Google Maps)
+    simplifyPolyline(points, tolerance = 0.0001) {
+        if (points.length <= 2) return points;
+        
+        const simplified = [points[0]];
+        this.douglasPeucker(points, 0, points.length - 1, tolerance, simplified);
+        simplified.push(points[points.length - 1]);
+        
+        return simplified;
+    }
+
+    douglasPeucker(points, startIdx, endIdx, tolerance, simplified) {
+        if (endIdx <= startIdx + 1) return;
+        
+        let maxDistance = 0;
+        let maxIndex = 0;
+        const start = points[startIdx];
+        const end = points[endIdx];
+        
+        for (let i = startIdx + 1; i < endIdx; i++) {
+            const distance = this.perpendicularDistance(points[i], start, end);
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                maxIndex = i;
+            }
+        }
+        
+        if (maxDistance > tolerance) {
+            this.douglasPeucker(points, startIdx, maxIndex, tolerance, simplified);
+            simplified.push(points[maxIndex]);
+            this.douglasPeucker(points, maxIndex, endIdx, tolerance, simplified);
+        }
+    }
+
+    perpendicularDistance(point, lineStart, lineEnd) {
+        const area = Math.abs(
+            (lineEnd[0] - lineStart[0]) * (lineStart[1] - point[1]) - 
+            (lineStart[0] - point[0]) * (lineEnd[1] - lineStart[1])
+        );
+        const lineLength = Math.sqrt(
+            Math.pow(lineEnd[0] - lineStart[0], 2) + 
+            Math.pow(lineEnd[1] - lineStart[1], 2)
+        );
+        return lineLength > 0 ? area / lineLength : 0;
+    }
+
+    // ✅ UPDATE method untuk route style yang lebih smooth
     getRouteStyle(status, color) {
         const baseStyle = {
             color: color,
-            weight: 4,
-            opacity: 0.7,
+            weight: 5, // Lebih tebal untuk smoothness
+            opacity: 0.8,
             lineCap: 'round',
-            className: 'route-line'
+            lineJoin: 'round', // Penting untuk smooth corners
+            className: 'route-line smooth-route',
+            smoothFactor: 1.0 // Leaflet smooth factor
         };
 
         switch(status) {
             case 'moving':
-                return { ...baseStyle, opacity: 0.9, weight: 5, dashArray: null };
+                return { ...baseStyle, opacity: 0.9, weight: 6, dashArray: null };
             case 'active':
-                return { ...baseStyle, opacity: 0.7, weight: 4, dashArray: '5, 10' };
+                return { ...baseStyle, opacity: 0.7, weight: 5, dashArray: '8, 12' };
             case 'inactive':
-                return { ...baseStyle, opacity: 0.4, weight: 3, dashArray: '2, 8' };
+                return { ...baseStyle, opacity: 0.4, weight: 4, dashArray: '4, 8' };
             default:
                 return baseStyle;
         }
@@ -1005,17 +1085,22 @@ class OptimizedSAGMGpsTracking {
         let totalDistance = 0;
         let totalSpeed = 0;
         let totalFuel = 0;
+        let unitCount = 0;
 
         this.units.forEach(unit => {
-            if (unit.status === 'active' || unit.status === 'moving') {
-                activeUnits++;
+            if (unit.isOnline) {
+                unitCount++;
+                if (unit.status === 'active' || unit.status === 'moving') {
+                    activeUnits++;
+                }
+                totalDistance += unit.distance || 0;
+                totalSpeed += unit.speed || 0;
+                totalFuel += unit.fuelUsed || 0;
             }
-            totalDistance += unit.distance;
-            totalSpeed += unit.speed;
-            totalFuel += unit.fuelUsed;
         });
 
-        const avgSpeed = this.units.size > 0 ? totalSpeed / this.units.size : 0;
+        // ✅ SINKRONISASI: Pastikan data match dengan yang di peta
+        const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
 
         this.activeUnits = activeUnits;
         this.totalDistance = totalDistance;
@@ -1027,13 +1112,28 @@ class OptimizedSAGMGpsTracking {
             if (element) element.textContent = value;
         };
 
-        updateElement('activeUnits', `${activeUnits}/23`);
+        // Update display dengan data yang sama seperti di peta
+        updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
         updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
         updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
         updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
 
-        const fuelEfficiency = totalDistance > 0 ? totalDistance / totalFuel : 0;
-        updateElement('fuelEfficiency', `${fuelEfficiency.toFixed(1)} km/L`);
+        // Update detail information
+        const activeDetail = document.getElementById('activeUnitsDetail');
+        if (activeDetail) {
+            activeDetail.textContent = `${unitCount} units terdeteksi`;
+        }
+
+        const distanceDetail = document.getElementById('distanceDetail');
+        if (distanceDetail) {
+            distanceDetail.textContent = `${this.units.size} units`;
+        }
+
+        // Update data count untuk system status
+        const dataCount = document.getElementById('dataCount');
+        if (dataCount) {
+            dataCount.textContent = this.unitHistory.size;
+        }
     }
 
     renderUnitList() {
@@ -1486,10 +1586,11 @@ class OptimizedSAGMGpsTracking {
         );
     }
 
-    // ===== CHAT SYSTEM METHODS =====
+    // ===== ✅ CHAT SYSTEM METHODS - FIXED =====
     setupMonitorChatSystem() {
         console.log('💬 Initializing monitor chat system...');
         
+        // ✅ FIXED: Proper Firebase listener setup
         database.ref('/chat').on('child_added', (snapshot) => {
             const unitName = snapshot.key;
             console.log(`💬 New chat unit detected: ${unitName}`);
@@ -1501,7 +1602,10 @@ class OptimizedSAGMGpsTracking {
             this.cleanupUnitChatListener(unitName);
         });
 
+        // ✅ FIXED: Initialize chat UI
+        this.setupChatEventHandlers();
         this.monitorChatInitialized = true;
+        
         console.log('💬 Monitor chat system activated');
         this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
     }
@@ -2134,7 +2238,7 @@ function clearRoutes() {
     }
 }
 
-// Global functions untuk chat system
+// ✅ FIXED: Global functions untuk chat system
 function toggleMonitorChat() {
     if (window.gpsSystem) {
         window.gpsSystem.toggleMonitorChat();
