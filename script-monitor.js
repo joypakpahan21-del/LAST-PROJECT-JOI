@@ -13,10 +13,10 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ENHANCED SAGM GPS TRACKING SYSTEM WITH COMPLETE CHAT SYSTEM
+// ENHANCED SAGM GPS TRACKING SYSTEM WITH SMOOTH ANIMATION CHAT
 class OptimizedSAGMGpsTracking {
     constructor() {
-        console.log('🚀 Initializing Enhanced GPS Tracking System with Chat...');
+        console.log('🚀 Initializing Enhanced GPS Tracking System with Smooth Animation Chat...');
         
         // 🔄 ENHANCED MEMORY MANAGEMENT
         this.units = new Map();
@@ -52,7 +52,7 @@ class OptimizedSAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // ✅ ENHANCED CHAT SYSTEM
+        // ✅ ENHANCED CHAT SYSTEM WITH SMOOTH ANIMATION
         this.monitorChatRefs = new Map();
         this.monitorChatMessages = new Map();
         this.monitorUnreadCounts = new Map();
@@ -61,6 +61,11 @@ class OptimizedSAGMGpsTracking {
         this.monitorChatInitialized = false;
         this.isMonitorTyping = false;
         this.monitorTypingTimeout = null;
+        
+        // Chat event handlers for cleanup
+        this.chatWindowClickHandler = null;
+        this.documentClickHandler = null;
+        this.escapeKeyHandler = null;
         
         // Route visualization - ENHANCED
         this.showRoutes = true;
@@ -124,7 +129,7 @@ class OptimizedSAGMGpsTracking {
     // ===== INITIALIZATION METHODS =====
     initializeSystem() {
         try {
-            console.log('🚀 Starting Enhanced GPS Tracking System with Chat...');
+            console.log('🚀 Starting Enhanced GPS Tracking System with Smooth Animation Chat...');
             this.setupMap();
             this.setupEventHandlers();
             this.connectToFirebase();
@@ -132,7 +137,10 @@ class OptimizedSAGMGpsTracking {
             this.setupDataLogger();
             this.testFirebaseConnection();
             
-            // ✅ ENHANCED CHAT SYSTEM - Initialize properly
+            // ✅ SETUP CHAT WINDOW BEHAVIOR WITH SMOOTH ANIMATION
+            this.setupChatWindowBehavior();
+            
+            // ✅ ENHANCED CHAT SYSTEM
             this.setupMonitorChatSystem();
             
             setTimeout(() => this.showDebugPanel(), 2000);
@@ -272,9 +280,9 @@ class OptimizedSAGMGpsTracking {
         this.scheduleRender();
     }
 
-    // ✅ ENHANCED CHAT SYSTEM METHODS
+    // ✅ ENHANCED CHAT SYSTEM METHODS WITH SMOOTH ANIMATION
     setupMonitorChatSystem() {
-        console.log('💬 Initializing enhanced monitor chat system...');
+        console.log('💬 Initializing enhanced monitor chat system with smooth animation...');
         
         // Listen for new chat units
         database.ref('/chat').on('child_added', (snapshot) => {
@@ -303,8 +311,8 @@ class OptimizedSAGMGpsTracking {
         this.setupChatEventHandlers();
         this.monitorChatInitialized = true;
         
-        console.log('💬 Enhanced monitor chat system activated');
-        this.logData('Sistem chat monitor ditingkatkan - komunikasi real-time dengan driver', 'system');
+        console.log('💬 Enhanced monitor chat system with smooth animation activated');
+        this.logData('Sistem chat monitor dengan animasi smooth diaktifkan', 'system');
     }
 
     // ✅ IMPROVED UNIT CHAT LISTENER
@@ -373,6 +381,116 @@ class OptimizedSAGMGpsTracking {
         }
         
         console.log(`💬 New message from ${unitName}:`, message);
+    }
+
+    // ✅ ENHANCED TOGGLE CHAT METHOD WITH SMOOTH ANIMATION
+    toggleMonitorChat() {
+        this.isMonitorChatOpen = !this.isMonitorChatOpen;
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatToggle = document.getElementById('monitorChatToggle');
+        
+        if (chatWindow) {
+            if (this.isMonitorChatOpen) {
+                // ✅ BUKA CHAT WINDOW DENGAN ANIMASI SMOOTH
+                chatWindow.style.display = 'flex';
+                
+                // Trigger reflow untuk memastikan animasi berjalan
+                void chatWindow.offsetWidth;
+                
+                // Apply animation
+                chatWindow.style.animation = 'slideInUp 0.3s ease-out forwards';
+                
+                // Update UI components
+                this.updateMonitorChatUnitSelect();
+                this.updateMonitorChatUI();
+                
+                // Auto-focus dengan delay untuk smooth experience
+                if (this.activeChatUnit) {
+                    setTimeout(() => {
+                        const chatInput = document.getElementById('monitorChatInput');
+                        if (chatInput) {
+                            chatInput.focus();
+                            chatInput.select();
+                        }
+                    }, 350);
+                }
+                
+                // Update toggle button state
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Tutup Chat <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
+                    chatToggle.classList.add('btn-secondary');
+                    chatToggle.classList.remove('btn-primary');
+                }
+                
+            } else {
+                // ✅ TUTUP CHAT WINDOW DENGAN ANIMASI SMOOTH
+                chatWindow.style.animation = 'slideOutDown 0.25s ease-in forwards';
+                
+                // Stop typing indicator immediately
+                this.stopMonitorTyping();
+                
+                // Update toggle button state
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
+                    chatToggle.classList.add('btn-primary');
+                    chatToggle.classList.remove('btn-secondary');
+                }
+                
+                // Hide after animation completes
+                setTimeout(() => {
+                    if (!this.isMonitorChatOpen) {
+                        chatWindow.style.display = 'none';
+                        // Reset animation for next open
+                        chatWindow.style.animation = '';
+                    }
+                }, 250);
+            }
+        }
+    }
+
+    // ✅ ENHANCED CHAT WINDOW BEHAVIOR WITH PROPER CLEANUP
+    setupChatWindowBehavior() {
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatToggle = document.getElementById('monitorChatToggle');
+        
+        if (chatWindow && chatToggle) {
+            // Store reference to bound functions for cleanup
+            this.chatWindowClickHandler = (e) => e.stopPropagation();
+            this.documentClickHandler = (e) => {
+                if (this.isMonitorChatOpen && 
+                    !chatWindow.contains(e.target) && 
+                    !chatToggle.contains(e.target)) {
+                    this.toggleMonitorChat();
+                }
+            };
+            this.escapeKeyHandler = (e) => {
+                if (e.key === 'Escape' && this.isMonitorChatOpen) {
+                    this.toggleMonitorChat();
+                }
+            };
+            
+            // Add event listeners
+            chatWindow.addEventListener('click', this.chatWindowClickHandler);
+            document.addEventListener('click', this.documentClickHandler);
+            document.addEventListener('keydown', this.escapeKeyHandler);
+        }
+    }
+
+    // ✅ CLEANUP CHAT EVENT LISTENERS
+    cleanupChatEventListeners() {
+        const chatWindow = document.getElementById('monitorChatWindow');
+        
+        if (chatWindow && this.chatWindowClickHandler) {
+            chatWindow.removeEventListener('click', this.chatWindowClickHandler);
+        }
+        
+        if (this.documentClickHandler) {
+            document.removeEventListener('click', this.documentClickHandler);
+        }
+        
+        if (this.escapeKeyHandler) {
+            document.removeEventListener('keydown', this.escapeKeyHandler);
+        }
     }
 
     // ✅ IMPROVED SEND MESSAGE METHOD
@@ -551,8 +669,13 @@ class OptimizedSAGMGpsTracking {
         typingIndicator.style.display = 'none';
         messageList.appendChild(typingIndicator);
         
-        // Auto scroll to bottom
-        messageList.scrollTop = messageList.scrollHeight;
+        // Auto scroll to bottom with smooth behavior
+        setTimeout(() => {
+            messageList.scrollTo({
+                top: messageList.scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 100);
     }
 
     // ✅ GROUP MESSAGES FOR MONITOR
@@ -663,10 +786,13 @@ class OptimizedSAGMGpsTracking {
         this.updateMonitorChatUI();
         this.updateMonitorChatUnitSelect();
         
-        // Focus on input
+        // Focus on input dengan smooth transition
         const chatInput = document.getElementById('monitorChatInput');
         if (chatInput) {
-            setTimeout(() => chatInput.focus(), 100);
+            setTimeout(() => {
+                chatInput.focus();
+                chatInput.select();
+            }, 150);
         }
         
         console.log(`💬 Now chatting with unit: ${unitName}`);
@@ -702,32 +828,6 @@ class OptimizedSAGMGpsTracking {
             unitSelect.value = currentValue;
         } else if (this.activeChatUnit && allUnits.has(this.activeChatUnit)) {
             unitSelect.value = this.activeChatUnit;
-        }
-    }
-
-    // ✅ TOGGLE CHAT WINDOW
-    toggleMonitorChat() {
-        this.isMonitorChatOpen = !this.isMonitorChatOpen;
-        const chatWindow = document.getElementById('monitorChatWindow');
-        
-        if (chatWindow) {
-            chatWindow.style.display = this.isMonitorChatOpen ? 'block' : 'none';
-            
-            if (this.isMonitorChatOpen) {
-                this.updateMonitorChatUnitSelect();
-                this.updateMonitorChatUI();
-                
-                // Focus on input if unit is selected
-                if (this.activeChatUnit) {
-                    setTimeout(() => {
-                        const chatInput = document.getElementById('monitorChatInput');
-                        if (chatInput) chatInput.focus();
-                    }, 100);
-                }
-            } else {
-                // Stop typing when closing chat
-                this.stopMonitorTyping();
-            }
         }
     }
 
@@ -799,7 +899,7 @@ class OptimizedSAGMGpsTracking {
         return div.innerHTML;
     }
 
-    // ===== EXISTING GPS TRACKING METHODS (simplified for brevity) =====
+    // ===== EXISTING GPS TRACKING METHODS =====
     validateUnitData(unitName, unitData) {
         if (!unitData) return false;
         if (unitData.lat === undefined || unitData.lng === undefined) return false;
@@ -1316,7 +1416,7 @@ class OptimizedSAGMGpsTracking {
         this.renderLogger();
         this.startAutoExport();
         
-        this.logData('Enhanced GPS Monitoring System with Chat initialized', 'system', {
+        this.logData('Enhanced GPS Monitoring System with Smooth Animation Chat initialized', 'system', {
             timestamp: new Date().toISOString(),
             version: '4.0'
         });
@@ -1978,37 +2078,47 @@ class OptimizedSAGMGpsTracking {
         this.logData('Route data exported', 'success');
     }
 
+    // ===== ENHANCED CLEANUP WITH CHAT SUPPORT =====
     cleanup() {
-        console.log('🧹 Comprehensive system cleanup...');
+        console.log('🧹 Comprehensive system cleanup with chat support...');
         
+        // Cleanup chat event listeners
+        this.cleanupChatEventListeners();
+        
+        // Cleanup Firebase listeners
         this.cleanupFirebaseListeners();
         
+        // Cleanup intervals
         this.intervals.forEach(interval => clearInterval(interval));
         this.intervals.clear();
         
+        // Cleanup debounce
         if (this.updateDebounce) {
             clearTimeout(this.updateDebounce);
         }
         
-        // Cleanup all chat listeners
+        // Cleanup all chat Firebase listeners
         this.monitorChatRefs.forEach(ref => ref.off());
         this.monitorChatRefs.clear();
         
         database.ref('/chat').off('child_added');
         database.ref('/chat').off('child_removed');
         
+        // Clear all data
         this.clearAllData();
         
+        // Cleanup map
         if (this.map) {
             this.map.remove();
             this.map = null;
         }
         
+        // Cleanup data logger
         if (this.dataLogger.exportInterval) {
             clearInterval(this.dataLogger.exportInterval);
         }
         
-        console.log('✅ System cleanup completed');
+        console.log('✅ System cleanup with chat support completed');
     }
 }
 
@@ -2039,6 +2149,31 @@ function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {
         sidebar.classList.toggle('show');
+    }
+}
+
+// ✅ ENHANCED CHAT GLOBAL FUNCTIONS
+function toggleMonitorChat() {
+    if (window.gpsSystem) {
+        window.gpsSystem.toggleMonitorChat();
+    }
+}
+
+function handleMonitorChatInput(event) {
+    if (window.gpsSystem) {
+        window.gpsSystem.handleMonitorChatInput(event);
+    }
+}
+
+function sendMonitorMessage() {
+    if (window.gpsSystem) {
+        window.gpsSystem.sendMonitorMessage();
+    }
+}
+
+function selectChatUnit(unitName) {
+    if (window.gpsSystem) {
+        window.gpsSystem.selectChatUnit(unitName);
     }
 }
 
