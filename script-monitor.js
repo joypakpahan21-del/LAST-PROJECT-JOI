@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// OPTIMIZED SAGM GPS TRACKING SYSTEM WITH ENHANCED CLEANUP
+// OPTIMIZED SAGM GPS TRACKING SYSTEM WITH ENHANCED DATA CLEANING
 class OptimizedSAGMGpsTracking {
     constructor() {
         console.log('🚀 Initializing Optimized GPS Tracking System...');
@@ -34,6 +34,7 @@ class OptimizedSAGMGpsTracking {
         this.cleanupInterval = null;
         this.lastCleanupTime = null;
         this.inactiveUnitTracker = new Map();
+        this.dataCorrectionQueue = new Map();
         
         // ⚡ PERFORMANCE OPTIMIZATION
         this.updateDebounce = null;
@@ -234,6 +235,8 @@ class OptimizedSAGMGpsTracking {
 
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
             if (!this.validateUnitData(unitName, unitData)) {
+                // ✅ AUTO-CORRECT INVALID DATA
+                this.correctUnitData(unitName, unitData);
                 return;
             }
 
@@ -262,6 +265,56 @@ class OptimizedSAGMGpsTracking {
         this.scheduleRender();
     }
 
+    // ✅ NEW: Auto-correct invalid unit data
+    correctUnitData(unitName, unitData) {
+        console.log(`🛠️ Correcting invalid data for ${unitName}:`, unitData);
+        
+        const correctedData = {
+            driver: unitData.driver || 'Unknown Driver',
+            unit: unitName,
+            lat: this.parseCoordinate(unitData.lat, -0.4345),
+            lng: this.parseCoordinate(unitData.lng, 102.9674),
+            speed: this.parseNumber(unitData.speed, 0),
+            distance: this.parseNumber(unitData.distance, 0),
+            fuel: this.parseNumber(unitData.fuel, 100),
+            accuracy: this.parseNumber(unitData.accuracy, 10),
+            lastUpdate: unitData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+            timestamp: new Date().toISOString(),
+            journeyStatus: unitData.journeyStatus || 'ready',
+            sessionId: unitData.sessionId || `SESS_${Date.now()}_${unitName}`,
+            isOnline: true
+        };
+
+        // Update Firebase with corrected data
+        database.ref('/units/' + unitName).update(correctedData)
+            .then(() => {
+                this.logData(`Auto-corrected data for ${unitName}`, 'warning', { original: unitData, corrected: correctedData });
+            })
+            .catch(error => {
+                console.error(`Failed to correct data for ${unitName}:`, error);
+            });
+    }
+
+    parseCoordinate(value, defaultValue) {
+        if (typeof value === 'string') {
+            // Remove non-numeric characters except decimal point and minus
+            const cleaned = value.replace(/[^\d.-]/g, '');
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? defaultValue : parsed;
+        }
+        return parseFloat(value) || defaultValue;
+    }
+
+    parseNumber(value, defaultValue) {
+        if (typeof value === 'string') {
+            // Handle cases like "0.0171327106654644 km/h"
+            const cleaned = value.replace(/[^\d.-]/g, '');
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? defaultValue : Math.round(parsed * 100) / 100;
+        }
+        return parseFloat(value) || defaultValue;
+    }
+
     validateUnitData(unitName, unitData) {
         if (!unitData) {
             console.warn(`❌ Invalid unit data for ${unitName}: null data`);
@@ -273,17 +326,30 @@ class OptimizedSAGMGpsTracking {
             return false;
         }
 
-        if (isNaN(parseFloat(unitData.lat)) || isNaN(parseFloat(unitData.lng))) {
+        const lat = parseFloat(unitData.lat);
+        const lng = parseFloat(unitData.lng);
+        
+        if (isNaN(lat) || isNaN(lng)) {
             console.warn(`❌ Invalid numeric coordinates for ${unitName}:`, unitData);
             return false;
         }
 
-        const lat = parseFloat(unitData.lat);
-        const lng = parseFloat(unitData.lng);
-        
+        // Check for reasonable coordinates (Kebun Tempuling area)
         if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
             console.warn(`❌ Suspicious coordinates for ${unitName}: ${lat}, ${lng}`);
             return false;
+        }
+
+        // Check for stuck data (same coordinates for too long)
+        const existingUnit = this.units.get(unitName);
+        if (existingUnit) {
+            const timeDiff = Date.now() - (this.lastDataTimestamps.get(unitName) || 0);
+            const coordDiff = Math.abs(lat - existingUnit.latitude) + Math.abs(lng - existingUnit.longitude);
+            
+            if (timeDiff > 30000 && coordDiff < 0.0001) {
+                console.warn(`❌ Stuck data detected for ${unitName}`);
+                return false;
+            }
         }
 
         return true;
@@ -344,6 +410,31 @@ class OptimizedSAGMGpsTracking {
             });
             this.removeUnitCompletely(unitName);
         });
+
+        this.scheduleRender();
+    }
+
+    // ✅ NEW: Force cleanup all data (manual trigger)
+    forceCleanupAllData() {
+        console.log('🧹 FORCE CLEANUP ALL: Removing ALL units and data');
+        
+        const unitsToRemove = Array.from(this.units.keys());
+        
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Force removing ALL: ${unitName}`, 'warning');
+            this.removeUnitCompletely(unitName);
+        });
+
+        // Clear all Firebase data
+        database.ref('/units').remove()
+            .then(() => {
+                this.logData('All Firebase data cleared', 'success');
+            })
+            .catch(error => {
+                this.logData('Failed to clear Firebase data', 'error', { error: error.message });
+            });
+
+        this.scheduleRender();
     }
 
     removeUnitCompletely(unitName) {
@@ -522,6 +613,9 @@ class OptimizedSAGMGpsTracking {
                             this.units.set(unitName, unit);
                             loadedCount++;
                         }
+                    } else {
+                        // Auto-correct invalid data
+                        this.correctUnitData(unitName, unitData);
                     }
                 });
                 
@@ -819,186 +913,6 @@ class OptimizedSAGMGpsTracking {
         this.routeControls = routeControl;
     }
 
-    // ===== ENHANCED SMOOTH POLYLINE METHODS =====
-    createRoutePolyline(unit, routePoints, routeColor) {
-        try {
-            // ✅ OPTIMASI: Smooth polyline seperti Google Maps
-            const smoothedPoints = this.smoothPolyline(routePoints);
-            const simplifiedPoints = this.simplifyPolyline(smoothedPoints, 0.0001);
-            
-            const style = this.getRouteStyle(unit.status, routeColor);
-            this.unitPolylines.set(unit.name, L.polyline(simplifiedPoints, style));
-            
-            if (this.showRoutes) {
-                this.unitPolylines.get(unit.name).addTo(this.map);
-            }
-
-            this.unitPolylines.get(unit.name).bindPopup(this.createRoutePopup(unit));
-            this.unitPolylines.get(unit.name).on('click', () => {
-                this.centerOnUnit(unit);
-            });
-
-            this.logData(`Route polyline created for ${unit.name}`, 'system', {
-                unit: unit.name,
-                originalPoints: routePoints.length,
-                smoothedPoints: simplifiedPoints.length
-            });
-        } catch (error) {
-            this.logData(`Failed to create route for ${unit.name}`, 'error', {
-                unit: unit.name,
-                error: error.message
-            });
-        }
-    }
-
-    // ✅ ALGORITMA SMOOTHING seperti Google Maps
-    smoothPolyline(points) {
-        if (points.length < 3) return points;
-        
-        const smoothed = [];
-        smoothed.push(points[0]); // Pertahankan titik pertama
-        
-        for (let i = 1; i < points.length - 1; i++) {
-            const prev = points[i - 1];
-            const curr = points[i];
-            const next = points[i + 1];
-            
-            // Interpolasi quadratic untuk smoothing
-            const smoothedPoint = [
-                (prev[0] + curr[0] * 2 + next[0]) / 4,
-                (prev[1] + curr[1] * 2 + next[1]) / 4
-            ];
-            
-            smoothed.push(smoothedPoint);
-        }
-        
-        smoothed.push(points[points.length - 1]); // Pertahankan titik terakhir
-        return smoothed;
-    }
-
-    // ✅ ALGORITMA SIMPLIFIKASI: Douglas-Peucker (seperti Google Maps)
-    simplifyPolyline(points, tolerance = 0.0001) {
-        if (points.length <= 2) return points;
-        
-        const simplified = [points[0]];
-        this.douglasPeucker(points, 0, points.length - 1, tolerance, simplified);
-        simplified.push(points[points.length - 1]);
-        
-        return simplified;
-    }
-
-    douglasPeucker(points, startIdx, endIdx, tolerance, simplified) {
-        if (endIdx <= startIdx + 1) return;
-        
-        let maxDistance = 0;
-        let maxIndex = 0;
-        const start = points[startIdx];
-        const end = points[endIdx];
-        
-        for (let i = startIdx + 1; i < endIdx; i++) {
-            const distance = this.perpendicularDistance(points[i], start, end);
-            if (distance > maxDistance) {
-                maxDistance = distance;
-                maxIndex = i;
-            }
-        }
-        
-        if (maxDistance > tolerance) {
-            this.douglasPeucker(points, startIdx, maxIndex, tolerance, simplified);
-            simplified.push(points[maxIndex]);
-            this.douglasPeucker(points, maxIndex, endIdx, tolerance, simplified);
-        }
-    }
-
-    perpendicularDistance(point, lineStart, lineEnd) {
-        const area = Math.abs(
-            (lineEnd[0] - lineStart[0]) * (lineStart[1] - point[1]) - 
-            (lineStart[0] - point[0]) * (lineEnd[1] - lineStart[1])
-        );
-        const lineLength = Math.sqrt(
-            Math.pow(lineEnd[0] - lineStart[0], 2) + 
-            Math.pow(lineEnd[1] - lineStart[1], 2)
-        );
-        return lineLength > 0 ? area / lineLength : 0;
-    }
-
-    // ✅ UPDATE method untuk route style yang lebih smooth
-    getRouteStyle(status, color) {
-        const baseStyle = {
-            color: color,
-            weight: 5, // Lebih tebal untuk smoothness
-            opacity: 0.8,
-            lineCap: 'round',
-            lineJoin: 'round', // Penting untuk smooth corners
-            className: 'route-line smooth-route',
-            smoothFactor: 1.0 // Leaflet smooth factor
-        };
-
-        switch(status) {
-            case 'moving':
-                return { ...baseStyle, opacity: 0.9, weight: 6, dashArray: null };
-            case 'active':
-                return { ...baseStyle, opacity: 0.7, weight: 5, dashArray: '8, 12' };
-            case 'inactive':
-                return { ...baseStyle, opacity: 0.4, weight: 4, dashArray: '4, 8' };
-            default:
-                return baseStyle;
-        }
-    }
-
-    createRoutePopup(unit) {
-        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
-        const totalDistance = unit.distance.toFixed(2);
-        const fuelUsed = unit.fuelUsed.toFixed(2);
-        const routeColor = this.getRouteColor(unit.name);
-
-        return `
-            <div class="route-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">🗺️ Rute ${unit.name}</h6>
-                </div>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Driver:</span>
-                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Total Jarak:</span>
-                        <span class="info-value">${totalDistance} km</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Bahan Bakar Digunakan:</span>
-                        <span class="info-value">${fuelUsed} L</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Points Rute:</span>
-                        <span class="info-value">${routePoints}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Warna Rute:</span>
-                        <span class="info-value">
-                            <span style="color: ${routeColor}">■</span> ${routeColor}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    getRouteColor(unitName) {
-        if (!this.routeColors.has(unitName)) {
-            const colors = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
-                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
-                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
-            ];
-            this.routeColors.set(unitName, colors[this.routeColors.size % colors.length]);
-        }
-        return this.routeColors.get(unitName);
-    }
-
     // ===== ROUTE HISTORY METHODS =====
     initializeUnitHistory(unit) {
         if (!this.unitHistory.has(unit.name)) {
@@ -1099,7 +1013,6 @@ class OptimizedSAGMGpsTracking {
             }
         });
 
-        // ✅ SINKRONISASI: Pastikan data match dengan yang di peta
         const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
 
         this.activeUnits = activeUnits;
@@ -1112,13 +1025,11 @@ class OptimizedSAGMGpsTracking {
             if (element) element.textContent = value;
         };
 
-        // Update display dengan data yang sama seperti di peta
         updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
         updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
         updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
         updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
 
-        // Update detail information
         const activeDetail = document.getElementById('activeUnitsDetail');
         if (activeDetail) {
             activeDetail.textContent = `${unitCount} units terdeteksi`;
@@ -1129,7 +1040,6 @@ class OptimizedSAGMGpsTracking {
             distanceDetail.textContent = `${this.units.size} units`;
         }
 
-        // Update data count untuk system status
         const dataCount = document.getElementById('dataCount');
         if (dataCount) {
             dataCount.textContent = this.unitHistory.size;
@@ -1590,7 +1500,6 @@ class OptimizedSAGMGpsTracking {
     setupMonitorChatSystem() {
         console.log('💬 Initializing monitor chat system...');
         
-        // ✅ FIXED: Proper Firebase listener setup
         database.ref('/chat').on('child_added', (snapshot) => {
             const unitName = snapshot.key;
             console.log(`💬 New chat unit detected: ${unitName}`);
@@ -1602,7 +1511,6 @@ class OptimizedSAGMGpsTracking {
             this.cleanupUnitChatListener(unitName);
         });
 
-        // ✅ FIXED: Initialize chat UI
         this.setupChatEventHandlers();
         this.monitorChatInitialized = true;
         
@@ -2038,6 +1946,9 @@ class OptimizedSAGMGpsTracking {
                     <button class="btn btn-sm btn-warning w-100" onclick="window.gpsSystem.testFirebaseConnection()">
                         Test Connection
                     </button>
+                    <button class="btn btn-sm btn-danger w-100 mt-1" onclick="forceCleanup()">
+                        🧹 Force Cleanup
+                    </button>
                 </div>
             </div>
         `;
@@ -2153,6 +2064,105 @@ class OptimizedSAGMGpsTracking {
         this.forceCleanupInactiveUnits();
         this.loadInitialData();
     }
+
+    // ===== ROUTE STYLING METHODS =====
+    createRoutePolyline(unit, routePoints, routeColor) {
+        try {
+            const style = this.getRouteStyle(unit.status, routeColor);
+            this.unitPolylines.set(unit.name, L.polyline(routePoints, style));
+            
+            if (this.showRoutes) {
+                this.unitPolylines.get(unit.name).addTo(this.map);
+            }
+
+            this.unitPolylines.get(unit.name).bindPopup(this.createRoutePopup(unit));
+            this.unitPolylines.get(unit.name).on('click', () => {
+                this.centerOnUnit(unit);
+            });
+
+        } catch (error) {
+            this.logData(`Failed to create route for ${unit.name}`, 'error', {
+                unit: unit.name,
+                error: error.message
+            });
+        }
+    }
+
+    getRouteStyle(status, color) {
+        const baseStyle = {
+            color: color,
+            weight: 5,
+            opacity: 0.8,
+            lineCap: 'round',
+            lineJoin: 'round',
+            className: 'route-line smooth-route',
+            smoothFactor: 1.0
+        };
+
+        switch(status) {
+            case 'moving':
+                return { ...baseStyle, opacity: 0.9, weight: 6, dashArray: null };
+            case 'active':
+                return { ...baseStyle, opacity: 0.7, weight: 5, dashArray: '8, 12' };
+            case 'inactive':
+                return { ...baseStyle, opacity: 0.4, weight: 4, dashArray: '4, 8' };
+            default:
+                return baseStyle;
+        }
+    }
+
+    getRouteColor(unitName) {
+        if (!this.routeColors.has(unitName)) {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
+                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
+            ];
+            this.routeColors.set(unitName, colors[this.routeColors.size % colors.length]);
+        }
+        return this.routeColors.get(unitName);
+    }
+
+    createRoutePopup(unit) {
+        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
+        const totalDistance = unit.distance.toFixed(2);
+        const fuelUsed = unit.fuelUsed.toFixed(2);
+        const routeColor = this.getRouteColor(unit.name);
+
+        return `
+            <div class="route-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">🗺️ Rute ${unit.name}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Driver:</span>
+                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Jarak:</span>
+                        <span class="info-value">${totalDistance} km</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Bahan Bakar Digunakan:</span>
+                        <span class="info-value">${fuelUsed} L</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Points Rute:</span>
+                        <span class="info-value">${routePoints}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Warna Rute:</span>
+                        <span class="info-value">
+                            <span style="color: ${routeColor}">■</span> ${routeColor}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 }
 
 // Initialize the system
@@ -2182,22 +2192,9 @@ function refreshData() {
 // Manual cleanup function
 function forceCleanup() {
     if (window.gpsSystem) {
-        window.gpsSystem.forceCleanupInactiveUnits();
-        alert('Force cleanup executed!');
+        window.gpsSystem.forceCleanupAllData();
+        alert('Force cleanup executed! All sticky data removed.');
     }
-}
-
-// Add cleanup button untuk debugging
-function addCleanupButton() {
-    const existingBtn = document.querySelector('.cleanup-debug-btn');
-    if (existingBtn) existingBtn.remove();
-
-    const cleanupBtn = document.createElement('button');
-    cleanupBtn.className = 'btn btn-sm btn-danger position-fixed cleanup-debug-btn';
-    cleanupBtn.style.cssText = 'bottom: 20px; right: 20px; z-index: 1000;';
-    cleanupBtn.innerHTML = '🧹 Force Cleanup';
-    cleanupBtn.onclick = forceCleanup;
-    document.body.appendChild(cleanupBtn);
 }
 
 // Event listener dengan enhanced cleanup
@@ -2208,8 +2205,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     gpsSystem = new OptimizedSAGMGpsTracking();
     window.gpsSystem = gpsSystem;
-    
-    setTimeout(addCleanupButton, 3000);
 });
 
 // Global functions
