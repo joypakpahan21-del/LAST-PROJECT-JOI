@@ -1,4 +1,3 @@
-<script>
 // ==== FIREBASE CONFIG ====
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
@@ -80,13 +79,24 @@ class DTGPSLogger {
             };
 
             this.firebaseRef = database.ref('/units/' + unitNumber);
-            this.firebaseRef.set({
+            
+            // ✅ ENHANCED: Clean data format sebelum kirim ke Firebase
+            const cleanData = {
                 driver: driverName,
                 unit: unitNumber,
                 sessionId: this.driverData.sessionId,
                 journeyStatus: 'ready',
-                lastUpdate: new Date().toLocaleTimeString('id-ID')
-            });
+                lastUpdate: new Date().toLocaleTimeString('id-ID'),
+                lat: 0,
+                lng: 0,
+                speed: 0,
+                distance: 0,
+                fuel: 100,
+                accuracy: 0,
+                timestamp: new Date().toISOString()
+            };
+
+            this.firebaseRef.set(cleanData);
 
             this.showDriverApp();
             this.startGPSTracking();
@@ -388,54 +398,6 @@ class DTGPSLogger {
         }
     }
 
-    // Sync semua history ke Firebase
-    async syncCompleteHistory() {
-        if (!this.isOnline || !this.firebaseRef || !this.driverData) {
-            console.log('❌ Cannot sync history: offline or no driver data');
-            return;
-        }
-        
-        const history = this.loadCompleteHistory();
-        const sessionHistory = history.filter(point => 
-            point.sessionId === this.driverData.sessionId
-        );
-        
-        if (sessionHistory.length === 0) {
-            console.log('ℹ️ No history to sync');
-            return;
-        }
-        
-        try {
-            // Kirim ke Firebase under history node
-            const historyRef = database.ref('/history/' + this.driverData.unit + '/' + this.driverData.sessionId);
-            
-            // Push semua data sebagai object
-            const historyObject = {};
-            sessionHistory.forEach((point, index) => {
-                historyObject['point_' + index] = {
-                    lat: point.lat,
-                    lng: point.lng,
-                    speed: point.speed,
-                    accuracy: point.accuracy,
-                    bearing: point.bearing,
-                    timestamp: point.timestamp,
-                    isOnline: point.isOnline,
-                    driver: point.driver,
-                    unit: point.unit
-                };
-            });
-            
-            await historyRef.set(historyObject);
-            
-            console.log(`✅ History synced: ${sessionHistory.length} points`);
-            this.addLog(`📡 Sync complete: ${sessionHistory.length} data points`, 'success');
-            
-        } catch (error) {
-            console.error('History sync failed:', error);
-            this.addLog(`❌ Gagal sync history: ${error.message}`, 'error');
-        }
-    }
-
     // Enhanced position update dengan perhitungan jarak yang akurat
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
@@ -445,6 +407,12 @@ class DTGPSLogger {
         const bearing = position.coords.heading;
         const timestamp = new Date();
         
+        // ✅ ENHANCED: Validate and clean GPS data
+        if (!this.isValidCoordinate(lat, lng)) {
+            console.warn('Invalid GPS coordinates received:', { lat, lng });
+            return;
+        }
+
         // Simpan ke complete history (SELALU)
         this.saveToCompleteHistory({
             lat: lat,
@@ -482,6 +450,21 @@ class DTGPSLogger {
 
         // Update average speed
         this.updateAverageSpeed();
+    }
+
+    // ✅ NEW: Validate GPS coordinates
+    isValidCoordinate(lat, lng) {
+        // Check for reasonable coordinates (Kebun Tempuling area)
+        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
+            return false;
+        }
+        
+        // Check for NaN values
+        if (isNaN(lat) || isNaN(lng)) {
+            return false;
+        }
+        
+        return true;
     }
 
     // Enhanced distance calculation menggunakan rumus S = V × t
@@ -543,22 +526,30 @@ class DTGPSLogger {
         if (!this.firebaseRef || !this.lastPosition) return;
 
         try {
+            // ✅ ENHANCED: Clean and validate data before sending
             const gpsData = {
                 driver: this.driverData.name,
                 unit: this.driverData.unit,
-                lat: this.lastPosition.lat,
-                lng: this.lastPosition.lng,
-                speed: this.lastPosition.speed,
-                accuracy: this.lastPosition.accuracy,
-                bearing: this.lastPosition.bearing,
+                lat: parseFloat(this.lastPosition.lat.toFixed(6)),
+                lng: parseFloat(this.lastPosition.lng.toFixed(6)),
+                speed: parseFloat(this.lastPosition.speed.toFixed(1)),
+                accuracy: parseFloat(this.lastPosition.accuracy.toFixed(1)),
+                bearing: this.lastPosition.bearing ? parseFloat(this.lastPosition.bearing.toFixed(0)) : null,
                 timestamp: new Date().toISOString(),
                 lastUpdate: new Date().toLocaleTimeString('id-ID'),
                 distance: parseFloat(this.totalDistance.toFixed(3)),
                 journeyStatus: this.journeyStatus,
                 batteryLevel: this.getBatteryLevel(),
                 sessionId: this.driverData.sessionId,
-                isOfflineData: false
+                isOfflineData: false,
+                fuel: this.calculateFuelLevel()
             };
+
+            // Validate data before sending
+            if (!this.isValidCoordinate(gpsData.lat, gpsData.lng)) {
+                console.warn('Invalid coordinates, skipping Firebase update');
+                return;
+            }
 
             if (this.isOnline) {
                 await this.firebaseRef.set(gpsData);
@@ -585,6 +576,15 @@ class DTGPSLogger {
             }
             this.updateConnectionStatus(false);
         }
+    }
+
+    // ✅ NEW: Calculate fuel level based on distance
+    calculateFuelLevel() {
+        const baseFuel = 100;
+        const fuelConsumptionRate = 0.25; // liters per km
+        const fuelUsed = this.totalDistance * fuelConsumptionRate;
+        const remainingFuel = Math.max(0, baseFuel - fuelUsed);
+        return Math.min(100, Math.max(0, Math.round(remainingFuel)));
     }
 
     getBatteryLevel() {
@@ -779,6 +779,54 @@ class DTGPSLogger {
         this.dataPoints = 0;
         this.lastPosition = null;
         this.lastUpdateTime = null;
+    }
+
+    // Sync semua history ke Firebase
+    async syncCompleteHistory() {
+        if (!this.isOnline || !this.firebaseRef || !this.driverData) {
+            console.log('❌ Cannot sync history: offline or no driver data');
+            return;
+        }
+        
+        const history = this.loadCompleteHistory();
+        const sessionHistory = history.filter(point => 
+            point.sessionId === this.driverData.sessionId
+        );
+        
+        if (sessionHistory.length === 0) {
+            console.log('ℹ️ No history to sync');
+            return;
+        }
+        
+        try {
+            // Kirim ke Firebase under history node
+            const historyRef = database.ref('/history/' + this.driverData.unit + '/' + this.driverData.sessionId);
+            
+            // Push semua data sebagai object
+            const historyObject = {};
+            sessionHistory.forEach((point, index) => {
+                historyObject['point_' + index] = {
+                    lat: point.lat,
+                    lng: point.lng,
+                    speed: point.speed,
+                    accuracy: point.accuracy,
+                    bearing: point.bearing,
+                    timestamp: point.timestamp,
+                    isOnline: point.isOnline,
+                    driver: point.driver,
+                    unit: point.unit
+                };
+            });
+            
+            await historyRef.set(historyObject);
+            
+            console.log(`✅ History synced: ${sessionHistory.length} points`);
+            this.addLog(`📡 Sync complete: ${sessionHistory.length} data points`, 'success');
+            
+        } catch (error) {
+            console.error('History sync failed:', error);
+            this.addLog(`❌ Gagal sync history: ${error.message}`, 'error');
+        }
     }
 }
 
@@ -982,4 +1030,3 @@ document.addEventListener('visibilitychange', function() {
         }
     }
 });
-</script>
