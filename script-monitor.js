@@ -13,14 +13,33 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// SAGM GPS Tracking System for Kebun Tempuling
-class SAGMGpsTracking {
+// OPTIMIZED SAGM GPS TRACKING SYSTEM
+class OptimizedSAGMGpsTracking {
     constructor() {
+        console.log('🚀 Initializing Optimized GPS Tracking System...');
+        
+        // 🔄 FIX DUPLICATE DATA: Gunakan Map untuk prevent duplicates
+        this.units = new Map();
+        this.markers = new Map();
+        this.unitPolylines = new Map();
+        this.unitHistory = new Map();
+        this.unitSessions = new Map();
+        this.driverOnlineStatus = new Map();
+        this.lastDataTimestamps = new Map();
+        
+        // 🧹 MEMORY MANAGEMENT: Tracking semua resources untuk cleanup
+        this.cleanupCallbacks = [];
+        this.intervals = new Set();
+        this.firebaseListeners = new Map();
+        
+        // ⚡ PERFORMANCE: Debouncing untuk updates
+        this.updateDebounce = null;
+        this.lastRenderTime = 0;
+        this.renderThrottleMs = 500;
+        
+        // System state
         this.map = null;
-        this.units = [];
-        this.markers = {};
         this.importantMarkers = [];
-        this.unitHistory = {};
         this.activeUnits = 0;
         this.totalDistance = 0;
         this.avgSpeed = 0;
@@ -29,25 +48,24 @@ class SAGMGpsTracking {
         this.autoRefreshInterval = null;
         this.firebaseListener = null;
         
-        // ✅ Chat System Properties untuk Monitor
-        this.monitorChatRefs = {};
-        this.monitorChatMessages = {};
-        this.monitorUnreadCounts = {};
+        // Chat System - Optimized dengan Map
+        this.monitorChatRefs = new Map();
+        this.monitorChatMessages = new Map();
+        this.monitorUnreadCounts = new Map();
         this.activeChatUnit = null;
         this.isMonitorChatOpen = false;
         this.monitorChatInitialized = false;
         
         // Route visualization
-        this.unitPolylines = {};
         this.showRoutes = true;
-        this.routeColors = {};
+        this.routeColors = new Map();
         this.routeControls = null;
         this.maxRoutePoints = 200;
         
         // Enhanced tracking
-        this.driverOnlineStatus = {};
-        this.lastDataTimestamps = {};
-        this.unitSessions = {};
+        this.driverOnlineStatus = new Map();
+        this.lastDataTimestamps = new Map();
+        this.unitSessions = new Map();
         
         // Data Logger System
         this.dataLogger = {
@@ -105,19 +123,18 @@ class SAGMGpsTracking {
     // ===== INITIALIZATION METHODS =====
     initializeSystem() {
         try {
-            console.log('🚀 Starting GPS Tracking System...');
+            console.log('🚀 Starting Optimized GPS Tracking System...');
             this.setupMap();
             this.setupEventHandlers();
             this.connectToFirebase();
-            this.loadInitialData();
             this.startPeriodicTasks();
             this.setupDataLogger();
             this.testFirebaseConnection();
             
-            // ✅ Setup monitor chat system
+            // Setup monitor chat system
             this.setupMonitorChatSystem();
             
-            // ✅ Debug panel
+            // Debug panel
             setTimeout(() => this.showDebugPanel(), 2000);
             
         } catch (error) {
@@ -126,18 +143,321 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Setup chat system untuk monitor - DIKOREKSI
+    // ===== FIREBASE METHODS - OPTIMIZED =====
+    connectToFirebase() {
+        try {
+            console.log('🟡 Connecting to Firebase...');
+            
+            // 🧹 CLEANUP: Hapus listener lama jika ada
+            this.cleanupFirebaseListeners();
+
+            // Connection status monitoring
+            const connectionListener = database.ref('.info/connected').on('value', (snapshot) => {
+                const connected = snapshot.val();
+                this.updateConnectionStatus(connected);
+                
+                if (connected) {
+                    this.logData('Firebase connected', 'success');
+                    this.loadInitialData();
+                } else {
+                    this.logData('Firebase disconnected', 'warning');
+                    setTimeout(() => this.connectToFirebase(), 5000);
+                }
+            });
+            this.firebaseListeners.set('connection', connectionListener);
+
+            // 🔄 Setup real-time listener dengan debouncing
+            const unitsListener = database.ref('/units').on('value', 
+                (snapshot) => {
+                    try {
+                        const data = snapshot.val();
+                        if (data) {
+                            this.debouncedProcessRealTimeData(data);
+                        } else {
+                            console.log('⚠️ No data received from Firebase');
+                            this.clearAllData();
+                        }
+                    } catch (processError) {
+                        console.error('❌ Error processing data:', processError);
+                        this.logData('Data processing error', 'error', { error: processError.message });
+                    }
+                }, 
+                (error) => {
+                    console.error('❌ Firebase listener error:', error);
+                    this.logData('Firebase listener error', 'error', { 
+                        error: error.message,
+                        code: error.code
+                    });
+                    
+                    setTimeout(() => {
+                        console.log('🔄 Retrying Firebase connection...');
+                        this.connectToFirebase();
+                    }, 3000);
+                }
+            );
+            this.firebaseListeners.set('units', unitsListener);
+
+            // Handle data removal (logout)
+            const removalListener = database.ref('/units').on('child_removed', (snapshot) => {
+                this.handleDataRemoval(snapshot.key);
+            });
+            this.firebaseListeners.set('removal', removalListener);
+
+            console.log('✅ Firebase listeners setup completed');
+            
+        } catch (error) {
+            console.error('🔥 Critical Firebase error:', error);
+            this.logData('Critical Firebase error', 'error', { error: error.message });
+            setTimeout(() => this.connectToFirebase(), 5000);
+        }
+    }
+
+    // 🔄 DEBOUNCED METHOD: Prevent multiple rapid updates
+    debouncedProcessRealTimeData(data) {
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
+        }
+        this.updateDebounce = setTimeout(() => {
+            this.processRealTimeData(data);
+        }, 300);
+    }
+
+    // 🧹 MEMORY MANAGEMENT: Cleanup Firebase listeners
+    cleanupFirebaseListeners() {
+        this.firebaseListeners.forEach((listener, key) => {
+            try {
+                if (key === 'connection') {
+                    database.ref('.info/connected').off('value', listener);
+                } else if (key === 'units') {
+                    database.ref('/units').off('value', listener);
+                } else if (key === 'removal') {
+                    database.ref('/units').off('child_removed', listener);
+                }
+            } catch (error) {
+                console.warn(`Error cleaning up listener ${key}:`, error);
+            }
+        });
+        this.firebaseListeners.clear();
+    }
+
+    // 🔄 METHOD: Load initial data yang lebih clean
+    async loadInitialData() {
+        this.showLoadingIndicator(true);
+        
+        try {
+            const snapshot = await database.ref('/units').once('value');
+            const firebaseData = snapshot.val();
+            
+            // 🧹 CLEAR data lama sebelum load baru
+            this.clearAllData();
+            
+            if (firebaseData && Object.keys(firebaseData).length > 0) {
+                let loadedCount = 0;
+                
+                Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+                    if (this.validateUnitData(unitName, unitData)) {
+                        const unit = this.createNewUnit(unitName, unitData);
+                        if (unit) {
+                            this.units.set(unitName, unit);
+                            loadedCount++;
+                        }
+                    }
+                });
+                
+                this.logData('Initial data loaded successfully', 'success', {
+                    units: loadedCount,
+                    total: Object.keys(firebaseData).length
+                });
+            } else {
+                this.logData('No initial data found', 'warning');
+            }
+            
+            this.scheduleRender();
+            
+        } catch (error) {
+            console.error('Failed to load initial data:', error);
+            this.logData('Failed to load initial data', 'error', { error: error.message });
+        } finally {
+            this.showLoadingIndicator(false);
+        }
+    }
+
+    // 🎯 ERROR HANDLING: Validasi data unit
+    validateUnitData(unitName, unitData) {
+        if (!unitData) {
+            console.warn(`❌ Unit ${unitName}: No data`);
+            return false;
+        }
+        
+        if (unitData.lat === undefined || unitData.lng === undefined) {
+            console.warn(`❌ Unit ${unitName}: Missing coordinates`, unitData);
+            return false;
+        }
+        
+        if (isNaN(parseFloat(unitData.lat)) || isNaN(parseFloat(unitData.lng))) {
+            console.warn(`❌ Unit ${unitName}: Invalid coordinates`, unitData);
+            return false;
+        }
+        
+        return true;
+    }
+
+    testFirebaseConnection() {
+        console.log('🔍 Testing Firebase connection...');
+        
+        database.ref('.info/connected').on('value', (snapshot) => {
+            const connected = snapshot.val();
+            console.log('📡 Firebase Connected:', connected);
+        });
+
+        database.ref('/units').once('value')
+            .then((snapshot) => {
+                const data = snapshot.val();
+                console.log('📊 Raw Firebase Data:', data);
+                
+                if (data) {
+                    console.log('✅ Data found, units:', Object.keys(data));
+                } else {
+                    console.log('❌ No data found in /units path');
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Firebase read error:', error);
+            });
+    }
+
+    // ===== PROCESS REAL-TIME DATA =====
+    processRealTimeData(firebaseData) {
+        console.log('🔄 Processing real-time data:', firebaseData);
+        
+        if (!firebaseData) {
+            console.log('⚠️ No data from Firebase - clearing display');
+            this.clearAllData();
+            this.logData('No real-time data from Firebase', 'warning');
+            return;
+        }
+
+        const unitCount = Object.keys(firebaseData).length;
+        console.log(`📈 Processing ${unitCount} units`);
+        
+        let updates = 0;
+        const activeUnits = new Set();
+        const currentTime = Date.now();
+        
+        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+            console.log(`   🔍 Unit ${unitName}:`, unitData);
+            
+            if (!this.validateUnitData(unitName, unitData)) {
+                return;
+            }
+            
+            activeUnits.add(unitName);
+            this.lastDataTimestamps.set(unitName, currentTime);
+            
+            const existingUnit = this.units.get(unitName);
+            
+            if (existingUnit) {
+                this.refreshUnitData(existingUnit, unitData);
+                updates++;
+            } else {
+                const newUnit = this.createNewUnit(unitName, unitData);
+                if (newUnit) {
+                    this.units.set(unitName, newUnit);
+                    updates++;
+                    console.log(`   ✅ New unit created: ${unitName}`);
+                }
+            }
+        });
+
+        this.removeInactiveUnits(activeUnits);
+
+        if (updates > 0) {
+            console.log(`🎯 Refreshing display with ${updates} updates`);
+            this.scheduleRender();
+        }
+    }
+
+    validateSession(unitName, sessionId) {
+        if (!this.unitSessions.has(unitName)) {
+            return true;
+        }
+        return this.unitSessions.get(unitName).sessionId === sessionId;
+    }
+
+    handleDataRemoval(unitName) {
+        this.logData(`Data removed for unit: ${unitName}`, 'info', {
+            unit: unitName,
+            action: 'logout'
+        });
+        
+        this.removeUnitCompletely(unitName);
+    }
+
+    // 🔄 METHOD: Remove inactive units
+    removeInactiveUnits(activeUnits) {
+        const unitsToRemove = [];
+        
+        this.units.forEach((unit, unitName) => {
+            if (!activeUnits.has(unitName)) {
+                unitsToRemove.push(unitName);
+            }
+        });
+
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Unit inactive: ${unitName}`, 'warning', { unit: unitName });
+            this.removeUnitCompletely(unitName);
+        });
+    }
+
+    // 🧹 METHOD: Clear all data yang lebih comprehensive
+    clearAllData() {
+        console.log('🧹 Clearing all data...');
+        
+        this.units.clear();
+        
+        this.markers.forEach((marker, unitName) => {
+            if (marker && this.map) {
+                this.map.removeLayer(marker);
+            }
+        });
+        this.markers.clear();
+        
+        this.unitPolylines.forEach((polyline, unitName) => {
+            if (polyline && this.map) {
+                this.map.removeLayer(polyline);
+            }
+        });
+        this.unitPolylines.clear();
+        
+        this.driverOnlineStatus.clear();
+        this.lastDataTimestamps.clear();
+        this.unitSessions.clear();
+        this.unitHistory.clear();
+        
+        this.logData('All data cleared', 'system');
+    }
+
+    // ⚡ PERFORMANCE: Scheduled render dengan throttling
+    scheduleRender() {
+        const now = Date.now();
+        if (now - this.lastRenderTime < this.renderThrottleMs) {
+            return;
+        }
+        
+        this.lastRenderTime = now;
+        this.refreshDisplay();
+    }
+
+    // ===== CHAT SYSTEM METHODS =====
     setupMonitorChatSystem() {
         console.log('💬 Initializing monitor chat system...');
         
-        // Listen untuk semua unit yang aktif
         database.ref('/chat').on('child_added', (snapshot) => {
             const unitName = snapshot.key;
             console.log(`💬 New chat unit detected: ${unitName}`);
             this.setupUnitChatListener(unitName);
         });
 
-        // Listen untuk unit yang dihapus (logout)
         database.ref('/chat').on('child_removed', (snapshot) => {
             const unitName = snapshot.key;
             this.cleanupUnitChatListener(unitName);
@@ -148,37 +468,35 @@ class SAGMGpsTracking {
         this.logData('Sistem chat monitor aktif - bisa komunikasi dengan semua driver', 'system');
     }
 
-    // ✅ METHOD BARU: Setup listener per unit
     setupUnitChatListener(unitName) {
-        if (this.monitorChatRefs[unitName]) return; // Already listening
+        if (this.monitorChatRefs.has(unitName)) return;
         
-        this.monitorChatRefs[unitName] = database.ref('/chat/' + unitName);
-        this.monitorChatMessages[unitName] = [];
-        this.monitorUnreadCounts[unitName] = 0;
+        const chatRef = database.ref('/chat/' + unitName);
+        this.monitorChatRefs.set(unitName, chatRef);
+        this.monitorChatMessages.set(unitName, []);
+        this.monitorUnreadCounts.set(unitName, 0);
         
-        this.monitorChatRefs[unitName].on('child_added', (snapshot) => {
+        chatRef.on('child_added', (snapshot) => {
             const message = snapshot.val();
             this.handleMonitorChatMessage(unitName, message);
         });
 
-        // Update unit dropdown
         this.updateMonitorChatUnitSelect();
         
         console.log(`💬 Now listening to chat for unit: ${unitName}`);
     }
 
-    // ✅ METHOD BARU: Cleanup listener saat unit logout
     cleanupUnitChatListener(unitName) {
-        if (this.monitorChatRefs[unitName]) {
-            this.monitorChatRefs[unitName].off();
-            delete this.monitorChatRefs[unitName];
-            delete this.monitorChatMessages[unitName];
-            delete this.monitorUnreadCounts[unitName];
+        if (this.monitorChatRefs.has(unitName)) {
+            const chatRef = this.monitorChatRefs.get(unitName);
+            chatRef.off();
             
-            // Update unit dropdown
+            this.monitorChatRefs.delete(unitName);
+            this.monitorChatMessages.delete(unitName);
+            this.monitorUnreadCounts.delete(unitName);
+            
             this.updateMonitorChatUnitSelect();
             
-            // Jika unit yang aktif di-chat logout, reset chat
             if (this.activeChatUnit === unitName) {
                 this.activeChatUnit = null;
                 this.updateMonitorChatUI();
@@ -188,29 +506,27 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Handle pesan baru di monitor
     handleMonitorChatMessage(unitName, message) {
-        if (!this.monitorChatMessages[unitName]) {
-            this.monitorChatMessages[unitName] = [];
+        if (!this.monitorChatMessages.has(unitName)) {
+            this.monitorChatMessages.set(unitName, []);
         }
         
-        // Cek apakah message sudah ada (prevent duplicates)
-        const messageExists = this.monitorChatMessages[unitName].some(msg => 
+        const messages = this.monitorChatMessages.get(unitName);
+        
+        const messageExists = messages.some(msg => 
             msg.timestamp === message.timestamp && msg.sender === message.sender
         );
         
         if (!messageExists) {
-            this.monitorChatMessages[unitName].push(message);
+            messages.push(message);
             
-            // Tambah unread count jika bukan dari monitor dan chat tidak aktif
             if (message.type !== 'monitor' && this.activeChatUnit !== unitName) {
-                this.monitorUnreadCounts[unitName] = (this.monitorUnreadCounts[unitName] || 0) + 1;
+                const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
+                this.monitorUnreadCounts.set(unitName, currentCount + 1);
             }
             
-            // Update UI
             this.updateMonitorChatUI();
             
-            // Show notification jika bukan chat aktif
             if (this.activeChatUnit !== unitName && message.type !== 'monitor') {
                 this.showMonitorChatNotification(unitName, message);
             }
@@ -219,10 +535,9 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Kirim pesan dari monitor
     async sendMonitorMessage() {
-        const messageText = document.getElementById('monitorChatInput').value.trim();
-        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs[this.activeChatUnit]) return;
+        const messageText = document.getElementById('monitorChatInput')?.value.trim();
+        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs.has(this.activeChatUnit)) return;
         
         const messageData = {
             text: messageText,
@@ -234,11 +549,12 @@ class SAGMGpsTracking {
         };
         
         try {
-            await this.monitorChatRefs[this.activeChatUnit].push(messageData);
+            const chatRef = this.monitorChatRefs.get(this.activeChatUnit);
+            await chatRef.push(messageData);
             this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
             
-            // Clear input
-            document.getElementById('monitorChatInput').value = '';
+            const chatInput = document.getElementById('monitorChatInput');
+            if (chatInput) chatInput.value = '';
             
         } catch (error) {
             console.error('Failed to send monitor message:', error);
@@ -246,29 +562,26 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Update chat UI di monitor
     updateMonitorChatUI() {
         const messageList = document.getElementById('monitorChatMessages');
         const unreadBadge = document.getElementById('monitorUnreadBadge');
         const chatInput = document.getElementById('monitorChatInput');
         const sendBtn = document.getElementById('monitorSendBtn');
-        const unitSelect = document.getElementById('monitorChatUnitSelect');
         
         if (!messageList) return;
         
-        // Update total unread badge
-        const totalUnread = Object.values(this.monitorUnreadCounts).reduce((sum, count) => sum + count, 0);
+        let totalUnread = 0;
+        this.monitorUnreadCounts.forEach(count => totalUnread += count);
+        
         if (unreadBadge) {
             unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
             unreadBadge.style.display = totalUnread > 0 ? 'block' : 'none';
         }
         
-        // Enable/disable input based on active unit
         const hasActiveUnit = !!this.activeChatUnit;
         if (chatInput) chatInput.disabled = !hasActiveUnit;
         if (sendBtn) sendBtn.disabled = !hasActiveUnit;
         
-        // Render messages untuk unit aktif
         messageList.innerHTML = '';
         
         if (!this.activeChatUnit) {
@@ -280,7 +593,7 @@ class SAGMGpsTracking {
             return;
         }
         
-        const activeMessages = this.monitorChatMessages[this.activeChatUnit] || [];
+        const activeMessages = this.monitorChatMessages.get(this.activeChatUnit) || [];
         
         if (activeMessages.length === 0) {
             messageList.innerHTML = `
@@ -308,13 +621,10 @@ class SAGMGpsTracking {
             messageList.appendChild(messageElement);
         });
         
-        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ METHOD BARU: Setup chat event handlers
     setupChatEventHandlers() {
-        // Handle unit selection change
         const unitSelect = document.getElementById('monitorChatUnitSelect');
         if (unitSelect) {
             unitSelect.addEventListener('change', (e) => {
@@ -323,20 +633,16 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Update method updateMonitorChatUnitSelect untuk include event handler
     updateMonitorChatUnitSelect() {
         const unitSelect = document.getElementById('monitorChatUnitSelect');
         if (!unitSelect) return;
         
-        // Simpan selected value dan event listeners
         const currentValue = unitSelect.value;
         
-        // Clear existing options (keep first option)
         unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
         
-        // Add active units
-        Object.keys(this.monitorChatRefs).forEach(unitName => {
-            const unreadCount = this.monitorUnreadCounts[unitName] || 0;
+        this.monitorChatRefs.forEach((ref, unitName) => {
+            const unreadCount = this.monitorUnreadCounts.get(unitName) || 0;
             const option = document.createElement('option');
             option.value = unitName;
             option.textContent = unreadCount > 0 ? 
@@ -344,22 +650,18 @@ class SAGMGpsTracking {
             unitSelect.appendChild(option);
         });
         
-        // Restore selected value jika masih ada
-        if (currentValue && this.monitorChatRefs[currentValue]) {
+        if (currentValue && this.monitorChatRefs.has(currentValue)) {
             unitSelect.value = currentValue;
         }
         
-        // Setup event handler jika belum ada
         this.setupChatEventHandlers();
     }
 
-    // ✅ METHOD BARU: Pilih unit untuk chat
     selectChatUnit(unitName) {
         this.activeChatUnit = unitName;
         
-        // Reset unread count untuk unit ini
-        if (unitName && this.monitorUnreadCounts[unitName]) {
-            this.monitorUnreadCounts[unitName] = 0;
+        if (unitName && this.monitorUnreadCounts.has(unitName)) {
+            this.monitorUnreadCounts.set(unitName, 0);
         }
         
         this.updateMonitorChatUI();
@@ -368,7 +670,6 @@ class SAGMGpsTracking {
         console.log(`💬 Now chatting with unit: ${unitName}`);
     }
 
-    // ✅ METHOD BARU: Toggle chat window di monitor
     toggleMonitorChat() {
         this.isMonitorChatOpen = !this.isMonitorChatOpen;
         const chatWindow = document.getElementById('monitorChatWindow');
@@ -383,7 +684,6 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Handle chat input di monitor
     handleMonitorChatInput(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -391,7 +691,6 @@ class SAGMGpsTracking {
         }
     }
 
-    // ✅ METHOD BARU: Show notification di monitor
     showMonitorChatNotification(unitName, message) {
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-warning';
@@ -417,7 +716,6 @@ class SAGMGpsTracking {
         
         document.body.appendChild(notification);
         
-        // Auto remove setelah 5 detik
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -425,11 +723,116 @@ class SAGMGpsTracking {
         }, 5000);
     }
 
-    // ✅ METHOD BARU: Escape HTML untuk keamanan
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // ===== UNIT MANAGEMENT =====
+    createNewUnit(unitName, firebaseData) {
+        if (!this.validateUnitData(unitName, firebaseData)) {
+            return null;
+        }
+
+        const initialFuel = 100;
+        
+        const unit = {
+            id: this.getUnitId(unitName),
+            name: unitName,
+            afdeling: this.determineAfdeling(unitName),
+            status: this.determineStatus(firebaseData.journeyStatus),
+            latitude: parseFloat(firebaseData.lat),
+            longitude: parseFloat(firebaseData.lng),
+            speed: parseFloat(firebaseData.speed) || 0,
+            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+            distance: parseFloat(firebaseData.distance) || 0,
+            fuelLevel: this.computeFuelLevel(initialFuel, firebaseData.distance, firebaseData.journeyStatus),
+            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
+            driver: firebaseData.driver || 'Unknown',
+            accuracy: parseFloat(firebaseData.accuracy) || 0,
+            batteryLevel: firebaseData.batteryLevel || null,
+            lastLat: parseFloat(firebaseData.lat),
+            lastLng: parseFloat(firebaseData.lng),
+            isOnline: true,
+            sessionId: firebaseData.sessionId,
+            lastFuelUpdate: Date.now()
+        };
+
+        this.initializeUnitHistory(unit);
+        return unit;
+    }
+
+    getUnitId(unitName) {
+        const unitIdMap = {
+            'DT-06': 1, 'DT-07': 2, 'DT-12': 3, 'DT-13': 4, 'DT-15': 5, 'DT-16': 6,
+            'DT-17': 7, 'DT-18': 8, 'DT-23': 9, 'DT-24': 10, 'DT-25': 11, 'DT-26': 12,
+            'DT-27': 13, 'DT-28': 14, 'DT-29': 15, 'DT-32': 16, 'DT-33': 17, 'DT-34': 18,
+            'DT-35': 19, 'DT-36': 20, 'DT-37': 21, 'DT-38': 22, 'DT-39': 23
+        };
+        return unitIdMap[unitName] || Date.now();
+    }
+
+    determineAfdeling(unitName) {
+        const afdelingMap = {
+            'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
+            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
+            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-25': 'KKPA', 'DT-26': 'KKPA',
+            'DT-27': 'KKPA', 'DT-28': 'AFD II', 'DT-29': 'AFD III', 'DT-32': 'AFD I',
+            'DT-33': 'AFD IV', 'DT-34': 'AFD V', 'DT-35': 'KKPA', 'DT-36': 'AFD II',
+            'DT-37': 'AFD III', 'DT-38': 'AFD I', 'DT-39': 'AFD IV'
+        };
+        return afdelingMap[unitName] || 'AFD I';
+    }
+
+    determineStatus(journeyStatus) {
+        const statusMap = {
+            'started': 'moving',
+            'moving': 'moving', 
+            'active': 'active',
+            'paused': 'active',
+            'ended': 'inactive',
+            'ready': 'inactive'
+        };
+        return statusMap[journeyStatus] || 'active';
+    }
+
+    refreshUnitData(unit, firebaseData) {
+        const now = Date.now();
+        const timeDiff = (now - unit.lastFuelUpdate) / 1000 / 60;
+        
+        if (unit.lastLat && unit.lastLng && firebaseData.lat && firebaseData.lng) {
+            const distance = this.computeDistance(
+                unit.lastLat, unit.lastLng, 
+                firebaseData.lat, firebaseData.lng
+            );
+            
+            if (distance > 0.01) {
+                unit.distance += distance;
+                unit.fuelUsed += this.computeFuelConsumption(distance, unit.status);
+            }
+        }
+
+        if (unit.status === 'active' && timeDiff > 1) {
+            const idleConsumption = timeDiff * this.vehicleConfig.idleFuelConsumptionPerMin;
+            unit.fuelUsed += idleConsumption;
+        }
+
+        unit.latitude = firebaseData.lat || unit.latitude;
+        unit.longitude = firebaseData.lng || unit.longitude;
+        unit.speed = firebaseData.speed || unit.speed;
+        unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
+        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
+        unit.driver = firebaseData.driver || unit.driver;
+        unit.accuracy = firebaseData.accuracy || unit.accuracy;
+        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
+        unit.fuelLevel = this.computeFuelLevel(100, unit.distance, unit.status);
+        unit.lastLat = firebaseData.lat;
+        unit.lastLng = firebaseData.lng;
+        unit.isOnline = true;
+        unit.lastFuelUpdate = now;
+
+        this.addHistoryPoint(unit);
     }
 
     // ===== MAP METHODS =====
@@ -437,7 +840,6 @@ class SAGMGpsTracking {
         try {
             this.map = L.map('map').setView(this.config.center, this.config.zoom);
 
-            // Base maps
             const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 attribution: '© Google Satellite',
                 maxZoom: 22,
@@ -457,7 +859,6 @@ class SAGMGpsTracking {
 
             googleSatellite.addTo(this.map);
 
-            // Map controls
             const baseMaps = {
                 "🛰️ Google Satellite": googleSatellite,
                 "🛰️ Google Hybrid": googleHybrid,
@@ -479,7 +880,6 @@ class SAGMGpsTracking {
 
     addLocationMarkers() {
         try {
-            // Clear existing markers
             this.importantMarkers.forEach(marker => {
                 if (marker && this.map) {
                     this.map.removeLayer(marker);
@@ -487,7 +887,6 @@ class SAGMGpsTracking {
             });
             this.importantMarkers = [];
 
-            // PKS SAGM Marker
             const pksIcon = L.divIcon({
                 className: 'custom-marker',
                 html: `<div class="marker-icon pks" title="PKS SAGM">🏭</div>`,
@@ -499,7 +898,6 @@ class SAGMGpsTracking {
                 .bindPopup(this.createLocationInfo('PKS SAGM', 'pks'))
                 .addTo(this.map);
 
-            // Kantor Kebun Marker
             const officeIcon = L.divIcon({
                 className: 'custom-marker',
                 html: `<div class="marker-icon office" title="Kantor Kebun">🏢</div>`,
@@ -586,430 +984,31 @@ class SAGMGpsTracking {
         this.routeControls = routeControl;
     }
 
-    // ===== EVENT HANDLERS =====
-    setupEventHandlers() {
-        // Search input
-        const searchInput = document.getElementById('searchUnit');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.applyFilters());
-        }
-
-        // Filter dropdowns
-        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
-        filters.forEach(filterId => {
-            const filter = document.getElementById(filterId);
-            if (filter) {
-                filter.addEventListener('change', () => this.applyFilters());
-            }
-        });
-
-        // Firebase connection status
-        database.ref('.info/connected').on('value', (snapshot) => {
-            this.updateConnectionStatus(snapshot.val());
-        });
-    }
-
-    updateConnectionStatus(connected) {
-        const statusElement = document.getElementById('firebaseStatus');
-        if (statusElement) {
-            if (connected) {
-                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
-                statusElement.className = 'text-success';
-            } else {
-                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'text-danger';
-            }
-        }
-    }
-
-    // ===== FIREBASE METHODS ===== - DIKOREKSI
-    connectToFirebase() {
+    // ===== ROUTE VISUALIZATION METHODS =====
+    createRoutePolyline(unit, routePoints, routeColor) {
         try {
-            console.log('🟡 Connecting to Firebase...');
+            const style = this.getRouteStyle(unit.status, routeColor);
+            this.unitPolylines.set(unit.name, L.polyline(routePoints, style));
             
-            // 1. Check connection status
-            database.ref('.info/connected').on('value', (snapshot) => {
-                const connected = snapshot.val();
-                console.log('📡 Firebase Connection Status:', connected);
-                this.updateConnectionStatus(connected);
+            if (this.showRoutes) {
+                this.unitPolylines.get(unit.name).addTo(this.map);
+            }
+
+            this.unitPolylines.get(unit.name).bindPopup(this.createRoutePopup(unit));
+            this.unitPolylines.get(unit.name).on('click', () => {
+                this.centerOnUnit(unit);
             });
 
-            // 2. Setup real-time listener dengan error handling - DIKOREKSI
-            this.firebaseListener = database.ref('/units').on('value', 
-                (snapshot) => {
-                    try {
-                        const data = snapshot.val();
-                        console.log('🔥 REAL-TIME DATA:', data);
-                        
-                        if (data) {
-                            console.log(`📊 Processing ${Object.keys(data).length} units`);
-                            this.processRealTimeData(data);
-                        } else {
-                            console.log('⚠️ No data received from Firebase');
-                            this.clearAllData();
-                        }
-                    } catch (processError) {
-                        console.error('❌ Error processing data:', processError);
-                    }
-                }, 
-                (error) => {
-                    console.error('❌ Firebase listener error:', error);
-                    this.logData('Firebase listener error', 'error', { 
-                        error: error.message,
-                        code: error.code,
-                        details: error.details
-                    });
-                    
-                    // Auto-retry setelah 3 detik
-                    setTimeout(() => {
-                        console.log('🔄 Retrying Firebase connection...');
-                        this.connectToFirebase();
-                    }, 3000);
-                }
-            );
-
-            console.log('✅ Firebase listener setup completed');
-            
+            this.logData(`Route polyline created for ${unit.name}`, 'system', {
+                unit: unit.name,
+                points: routePoints.length
+            });
         } catch (error) {
-            console.error('🔥 Critical Firebase error:', error);
-            this.logData('Critical Firebase error', 'error', { error: error.message });
-            
-            // Retry connection
-            setTimeout(() => this.connectToFirebase(), 5000);
-        }
-    }
-
-    testFirebaseConnection() {
-        console.log('🔍 Testing Firebase connection...');
-        
-        // Test 1: Check connection state
-        database.ref('.info/connected').on('value', (snapshot) => {
-            const connected = snapshot.val();
-            console.log('📡 Firebase Connected:', connected);
-        });
-
-        // Test 2: Try to read data directly
-        database.ref('/units').once('value')
-            .then((snapshot) => {
-                const data = snapshot.val();
-                console.log('📊 Raw Firebase Data:', data);
-                
-                if (data) {
-                    console.log('✅ Data found, units:', Object.keys(data));
-                    Object.entries(data).forEach(([key, value]) => {
-                        console.log(`   ${key}:`, value);
-                    });
-                } else {
-                    console.log('❌ No data found in /units path');
-                }
-            })
-            .catch((error) => {
-                console.error('❌ Firebase read error:', error);
+            this.logData(`Failed to create route for ${unit.name}`, 'error', {
+                unit: unit.name,
+                error: error.message
             });
-    }
-
-    // ===== PROCESS REAL-TIME DATA ===== - DIKOREKSI
-    processRealTimeData(firebaseData) {
-        console.log('🔄 Processing real-time data:', firebaseData);
-        
-        if (!firebaseData) {
-            console.log('⚠️ No data from Firebase - clearing display');
-            this.clearAllData();
-            this.logData('No real-time data from Firebase', 'warning');
-            return;
         }
-
-        const unitCount = Object.keys(firebaseData).length;
-        console.log(`📈 Processing ${unitCount} units`);
-        
-        let updates = 0;
-        const activeUnits = new Set();
-        const currentTime = Date.now();
-        
-        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            console.log(`   🔍 Unit ${unitName}:`, unitData);
-            
-            // Validasi data penting
-            if (!unitData || unitData.lat === undefined || unitData.lng === undefined) {
-                console.log(`   ⚠️ Invalid data for ${unitName}:`, unitData);
-                return;
-            }
-            
-            activeUnits.add(unitName);
-            this.lastDataTimestamps[unitName] = currentTime;
-            
-            const existingUnit = this.units.find(u => u.name === unitName);
-            
-            if (existingUnit) {
-                this.refreshUnitData(existingUnit, unitData);
-                updates++;
-            } else {
-                const newUnit = this.createNewUnit(unitName, unitData);
-                if (newUnit) {
-                    this.units.push(newUnit);
-                    updates++;
-                    console.log(`   ✅ New unit created: ${unitName}`);
-                }
-            }
-        });
-
-        // Remove inactive units
-        this.removeInactiveUnits(activeUnits);
-
-        if (updates > 0) {
-            console.log(`🎯 Refreshing display with ${updates} updates`);
-            this.refreshDisplay();
-        }
-    }
-
-    validateSession(unitName, sessionId) {
-        if (!this.unitSessions[unitName]) {
-            return true; // New unit, accept data
-        }
-        return this.unitSessions[unitName].sessionId === sessionId;
-    }
-
-    handleDataRemoval(unitName) {
-        this.logData(`Data removed for unit: ${unitName}`, 'info', {
-            unit: unitName,
-            action: 'logout'
-        });
-        
-        this.removeUnitCompletely(unitName);
-    }
-
-    // ===== UNIT MANAGEMENT =====
-    createNewUnit(unitName, firebaseData) {
-        if (!firebaseData || !firebaseData.lat || !firebaseData.lng) {
-            this.logData(`Invalid data for unit ${unitName}`, 'warning', {
-                unit: unitName,
-                data: firebaseData
-            });
-            return null;
-        }
-
-        const initialFuel = 100; // Full tank assumption
-        
-        const unit = {
-            id: this.getUnitId(unitName),
-            name: unitName,
-            afdeling: this.determineAfdeling(unitName),
-            status: this.determineStatus(firebaseData.journeyStatus),
-            latitude: parseFloat(firebaseData.lat),
-            longitude: parseFloat(firebaseData.lng),
-            speed: parseFloat(firebaseData.speed) || 0,
-            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
-            distance: parseFloat(firebaseData.distance) || 0,
-            fuelLevel: this.computeFuelLevel(initialFuel, firebaseData.distance, firebaseData.journeyStatus),
-            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
-            driver: firebaseData.driver || 'Unknown',
-            accuracy: parseFloat(firebaseData.accuracy) || 0,
-            batteryLevel: firebaseData.batteryLevel || null,
-            lastLat: parseFloat(firebaseData.lat),
-            lastLng: parseFloat(firebaseData.lng),
-            isOnline: true,
-            sessionId: firebaseData.sessionId,
-            lastFuelUpdate: Date.now()
-        };
-
-        this.initializeUnitHistory(unit);
-        return unit;
-    }
-
-    getUnitId(unitName) {
-        const unitIdMap = {
-            'DT-06': 1, 'DT-07': 2, 'DT-12': 3, 'DT-13': 4, 'DT-15': 5, 'DT-16': 6,
-            'DT-17': 7, 'DT-18': 8, 'DT-23': 9, 'DT-24': 10, 'DT-25': 11, 'DT-26': 12,
-            'DT-27': 13, 'DT-28': 14, 'DT-29': 15, 'DT-32': 16, 'DT-33': 17, 'DT-34': 18,
-            'DT-35': 19, 'DT-36': 20, 'DT-37': 21, 'DT-38': 22, 'DT-39': 23
-        };
-        return unitIdMap[unitName] || Date.now();
-    }
-
-    determineAfdeling(unitName) {
-        const afdelingMap = {
-            'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
-            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
-            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-25': 'KKPA', 'DT-26': 'KKPA',
-            'DT-27': 'KKPA', 'DT-28': 'AFD II', 'DT-29': 'AFD III', 'DT-32': 'AFD I',
-            'DT-33': 'AFD IV', 'DT-34': 'AFD V', 'DT-35': 'KKPA', 'DT-36': 'AFD II',
-            'DT-37': 'AFD III', 'DT-38': 'AFD I', 'DT-39': 'AFD IV'
-        };
-        return afdelingMap[unitName] || 'AFD I';
-    }
-
-    determineStatus(journeyStatus) {
-        const statusMap = {
-            'started': 'moving',
-            'moving': 'moving', 
-            'active': 'active',
-            'paused': 'active',
-            'ended': 'inactive',
-            'ready': 'inactive'
-        };
-        return statusMap[journeyStatus] || 'active';
-    }
-
-    refreshUnitData(unit, firebaseData) {
-        const now = Date.now();
-        const timeDiff = (now - unit.lastFuelUpdate) / 1000 / 60; // minutes
-        
-        // Calculate distance if significant movement
-        if (unit.lastLat && unit.lastLng && firebaseData.lat && firebaseData.lng) {
-            const distance = this.computeDistance(
-                unit.lastLat, unit.lastLng, 
-                firebaseData.lat, firebaseData.lng
-            );
-            
-            if (distance > 0.01) {
-                unit.distance += distance;
-                unit.fuelUsed += this.computeFuelConsumption(distance, unit.status);
-            }
-        }
-
-        // Calculate idle fuel consumption
-        if (unit.status === 'active' && timeDiff > 1) {
-            const idleConsumption = timeDiff * this.vehicleConfig.idleFuelConsumptionPerMin;
-            unit.fuelUsed += idleConsumption;
-        }
-
-        // Update unit properties
-        unit.latitude = firebaseData.lat || unit.latitude;
-        unit.longitude = firebaseData.lng || unit.longitude;
-        unit.speed = firebaseData.speed || unit.speed;
-        unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
-        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
-        unit.driver = firebaseData.driver || unit.driver;
-        unit.accuracy = firebaseData.accuracy || unit.accuracy;
-        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
-        unit.fuelLevel = this.computeFuelLevel(100, unit.distance, unit.status);
-        unit.lastLat = firebaseData.lat;
-        unit.lastLng = firebaseData.lng;
-        unit.isOnline = true;
-        unit.lastFuelUpdate = now;
-
-        this.addHistoryPoint(unit);
-    }
-
-    // ===== FUEL CALCULATION METHODS =====
-    computeFuelConsumption(distance, status) {
-        let rate;
-        switch(status) {
-            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
-            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
-            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
-        }
-        return distance * rate;
-    }
-
-    computeFuelUsage(distance, status) {
-        if (!distance) return 0;
-        
-        let rate;
-        switch(status) {
-            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
-            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
-            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
-        }
-        return distance * rate;
-    }
-
-    computeFuelLevel(initialFuel, distance, status) {
-        if (!distance) return initialFuel;
-        
-        const fuelUsed = this.computeFuelUsage(distance, status);
-        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
-        const fuelPercentage = (fuelRemaining / this.vehicleConfig.fuelTankCapacity) * 100;
-        
-        return Math.max(5, Math.min(100, fuelPercentage));
-    }
-
-    computeDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    // ===== ROUTE HISTORY METHODS =====
-    initializeUnitHistory(unit) {
-        if (!this.unitHistory[unit.name]) {
-            this.unitHistory[unit.name] = [];
-        }
-        this.addHistoryPoint(unit);
-    }
-
-    addHistoryPoint(unit) {
-        if (!this.unitHistory[unit.name]) {
-            this.unitHistory[unit.name] = [];
-        }
-
-        const history = this.unitHistory[unit.name];
-        const timestamp = new Date().toISOString();
-
-        const point = {
-            timestamp: timestamp,
-            latitude: unit.latitude,
-            longitude: unit.longitude,
-            speed: unit.speed,
-            distance: unit.distance,
-            status: unit.status,
-            fuelLevel: unit.fuelLevel
-        };
-
-        history.push(point);
-
-        if (history.length > this.maxRoutePoints) {
-            this.unitHistory[unit.name] = history.slice(-this.maxRoutePoints);
-        }
-
-        this.updateUnitRoute(unit);
-        this.saveHistory();
-    }
-
-    updateUnitRoute(unit) {
-        if (!this.unitHistory[unit.name] || this.unitHistory[unit.name].length < 1) {
-            return;
-        }
-
-        const routePoints = this.unitHistory[unit.name].map(point => [
-            point.latitude, point.longitude
-        ]);
-
-        const routeColor = this.getRouteColor(unit.name);
-
-        if (this.unitPolylines[unit.name]) {
-            try {
-                this.unitPolylines[unit.name].setLatLngs(routePoints);
-                const style = this.getRouteStyle(unit.status, routeColor);
-                this.unitPolylines[unit.name].setStyle(style);
-            } catch (error) {
-                this.map.removeLayer(this.unitPolylines[unit.name]);
-                delete this.unitPolylines[unit.name];
-                this.createRoutePolyline(unit, routePoints, routeColor);
-            }
-        } else {
-            this.createRoutePolyline(unit, routePoints, routeColor);
-        }
-    }
-
-    getRouteColor(unitName) {
-        if (!this.routeColors[unitName]) {
-            const colors = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
-                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
-                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
-            ];
-            this.routeColors[unitName] = colors[Object.keys(this.routeColors).length % colors.length];
-        }
-        return this.routeColors[unitName];
     }
 
     getRouteStyle(status, color) {
@@ -1033,34 +1032,8 @@ class SAGMGpsTracking {
         }
     }
 
-    createRoutePolyline(unit, routePoints, routeColor) {
-        try {
-            const style = this.getRouteStyle(unit.status, routeColor);
-            this.unitPolylines[unit.name] = L.polyline(routePoints, style);
-            
-            if (this.showRoutes) {
-                this.unitPolylines[unit.name].addTo(this.map);
-            }
-
-            this.unitPolylines[unit.name].bindPopup(this.createRoutePopup(unit));
-            this.unitPolylines[unit.name].on('click', () => {
-                this.centerOnUnit(unit);
-            });
-
-            this.logData(`Route polyline created for ${unit.name}`, 'system', {
-                unit: unit.name,
-                points: routePoints.length
-            });
-        } catch (error) {
-            this.logData(`Failed to create route for ${unit.name}`, 'error', {
-                unit: unit.name,
-                error: error.message
-            });
-        }
-    }
-
     createRoutePopup(unit) {
-        const routePoints = this.unitHistory[unit.name]?.length || 0;
+        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
         const totalDistance = unit.distance.toFixed(2);
         const fuelUsed = unit.fuelUsed.toFixed(2);
         const routeColor = this.getRouteColor(unit.name);
@@ -1098,63 +1071,80 @@ class SAGMGpsTracking {
         `;
     }
 
-    // ===== DATA MANAGEMENT =====
-    loadInitialData() {
-        this.loadUnitData();
-        this.loadHistoryData();
-    }
-
-    loadUnitData() {
-        this.showLoadingIndicator(true);
-        
-        database.ref('/units').once('value')
-            .then((snapshot) => {
-                const firebaseData = snapshot.val();
-                if (firebaseData && Object.keys(firebaseData).length > 0) {
-                    Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-                        const unit = this.createNewUnit(unitName, unitData);
-                        if (unit) {
-                            this.units.push(unit);
-                        }
-                    });
-                    this.logData('Initial data loaded successfully', 'success', {
-                        units: this.units.length
-                    });
-                } else {
-                    this.logData('No initial data found', 'warning');
-                }
-                
-                this.refreshDisplay();
-                this.showLoadingIndicator(false);
-                
-            })
-            .catch((error) => {
-                console.error('Failed to load initial data:', error);
-                this.logData('Failed to load initial data', 'error', { error: error.message });
-                this.showLoadingIndicator(false);
-            });
-    }
-
-    loadHistoryData() {
-        try {
-            const savedHistory = localStorage.getItem('sagm_unit_history');
-            if (savedHistory) {
-                this.unitHistory = JSON.parse(savedHistory);
-                this.logData('Route history loaded', 'system', {
-                    units: Object.keys(this.unitHistory).length
-                });
-            }
-        } catch (error) {
-            console.error('Failed to load history:', error);
-            this.unitHistory = {};
+    getRouteColor(unitName) {
+        if (!this.routeColors.has(unitName)) {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
+                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
+            ];
+            this.routeColors.set(unitName, colors[this.routeColors.size % colors.length]);
         }
+        return this.routeColors.get(unitName);
     }
 
-    saveHistory() {
-        try {
-            localStorage.setItem('sagm_unit_history', JSON.stringify(this.unitHistory));
-        } catch (error) {
-            console.error('Failed to save history:', error);
+    // ===== ROUTE HISTORY METHODS =====
+    initializeUnitHistory(unit) {
+        if (!this.unitHistory.has(unit.name)) {
+            this.unitHistory.set(unit.name, []);
+        }
+        this.addHistoryPoint(unit);
+    }
+
+    addHistoryPoint(unit) {
+        if (!this.unitHistory.has(unit.name)) {
+            this.unitHistory.set(unit.name, []);
+        }
+
+        const history = this.unitHistory.get(unit.name);
+        const timestamp = new Date().toISOString();
+
+        const point = {
+            timestamp: timestamp,
+            latitude: unit.latitude,
+            longitude: unit.longitude,
+            speed: unit.speed,
+            distance: unit.distance,
+            status: unit.status,
+            fuelLevel: unit.fuelLevel
+        };
+
+        history.push(point);
+
+        if (history.length > this.maxRoutePoints) {
+            this.unitHistory.set(unit.name, history.slice(-this.maxRoutePoints));
+        }
+
+        this.updateUnitRoute(unit);
+        this.saveHistory();
+    }
+
+    updateUnitRoute(unit) {
+        const history = this.unitHistory.get(unit.name);
+        if (!history || history.length < 1) {
+            return;
+        }
+
+        const routePoints = history.map(point => [
+            point.latitude, point.longitude
+        ]);
+
+        const routeColor = this.getRouteColor(unit.name);
+
+        if (this.unitPolylines.has(unit.name)) {
+            try {
+                this.unitPolylines.get(unit.name).setLatLngs(routePoints);
+                const style = this.getRouteStyle(unit.status, routeColor);
+                this.unitPolylines.get(unit.name).setStyle(style);
+            } catch (error) {
+                this.map.removeLayer(this.unitPolylines.get(unit.name));
+                this.unitPolylines.delete(unit.name);
+                this.createRoutePolyline(unit, routePoints, routeColor);
+            }
+        } else {
+            this.createRoutePolyline(unit, routePoints, routeColor);
         }
     }
 
@@ -1166,18 +1156,27 @@ class SAGMGpsTracking {
     }
 
     updateStatistics() {
-        const activeUnits = this.units.filter(unit => unit.status === 'active' || unit.status === 'moving').length;
-        const totalDistance = this.units.reduce((sum, unit) => sum + unit.distance, 0);
-        const totalSpeed = this.units.reduce((sum, unit) => sum + unit.speed, 0);
-        const avgSpeed = this.units.length > 0 ? totalSpeed / this.units.length : 0;
-        const totalFuel = this.units.reduce((sum, unit) => sum + unit.fuelUsed, 0);
+        let activeUnits = 0;
+        let totalDistance = 0;
+        let totalSpeed = 0;
+        let totalFuel = 0;
+
+        this.units.forEach(unit => {
+            if (unit.status === 'active' || unit.status === 'moving') {
+                activeUnits++;
+            }
+            totalDistance += unit.distance;
+            totalSpeed += unit.speed;
+            totalFuel += unit.fuelUsed;
+        });
+
+        const avgSpeed = this.units.size > 0 ? totalSpeed / this.units.size : 0;
 
         this.activeUnits = activeUnits;
         this.totalDistance = totalDistance;
         this.avgSpeed = avgSpeed;
         this.totalFuelConsumption = totalFuel;
 
-        // Update DOM elements
         const updateElement = (id, value) => {
             const element = document.getElementById(id);
             if (element) element.textContent = value;
@@ -1188,7 +1187,6 @@ class SAGMGpsTracking {
         updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
         updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
 
-        // Update fuel efficiency
         const fuelEfficiency = totalDistance > 0 ? totalDistance / totalFuel : 0;
         updateElement('fuelEfficiency', `${fuelEfficiency.toFixed(1)} km/L`);
     }
@@ -1197,7 +1195,7 @@ class SAGMGpsTracking {
         const unitList = document.getElementById('unitList');
         if (!unitList) return;
 
-        if (this.units.length === 0) {
+        if (this.units.size === 0) {
             unitList.innerHTML = `
                 <div class="text-center text-muted py-4">
                     <div class="mb-2">📭</div>
@@ -1237,18 +1235,17 @@ class SAGMGpsTracking {
     }
 
     updateMapMarkers() {
-        // Remove markers for units that no longer exist
-        Object.keys(this.markers).forEach(markerId => {
-            const unitExists = this.units.some(unit => unit.id.toString() === markerId.toString());
-            if (!unitExists && this.markers[markerId]) {
-                this.map.removeLayer(this.markers[markerId]);
-                delete this.markers[markerId];
+        this.markers.forEach((marker, unitName) => {
+            if (!this.units.has(unitName)) {
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+                this.markers.delete(unitName);
             }
         });
 
-        // Create or update markers
-        this.units.forEach(unit => {
-            if (!this.markers[unit.id]) {
+        this.units.forEach((unit, unitName) => {
+            if (!this.markers.has(unitName)) {
                 this.createUnitMarker(unit);
             } else {
                 this.refreshUnitMarker(unit);
@@ -1260,7 +1257,7 @@ class SAGMGpsTracking {
         const markerIcon = L.divIcon({
             className: 'custom-marker',
             html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
-                         title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+                     title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         });
@@ -1269,27 +1266,28 @@ class SAGMGpsTracking {
             .bindPopup(this.createUnitPopup(unit))
             .addTo(this.map);
         
-        this.markers[unit.id] = marker;
+        this.markers.set(unit.name, marker);
     }
 
     refreshUnitMarker(unit) {
-        if (this.markers[unit.id]) {
-            this.markers[unit.id].setLatLng([unit.latitude, unit.longitude]);
-            this.markers[unit.id].setPopupContent(this.createUnitPopup(unit));
+        const marker = this.markers.get(unit.name);
+        if (marker) {
+            marker.setLatLng([unit.latitude, unit.longitude]);
+            marker.setPopupContent(this.createUnitPopup(unit));
             
             const markerIcon = L.divIcon({
                 className: 'custom-marker',
                 html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
-                             title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+                         title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
-            this.markers[unit.id].setIcon(markerIcon);
+            marker.setIcon(markerIcon);
         }
     }
 
     createUnitPopup(unit) {
-        const routePoints = this.unitHistory[unit.name]?.length || 0;
+        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
         const routeInfo = routePoints > 0 ? `
             <div class="info-item">
                 <span class="info-label">Points Rute:</span>
@@ -1349,16 +1347,41 @@ class SAGMGpsTracking {
         `;
     }
 
+    // ===== DATA MANAGEMENT =====
+    loadHistoryData() {
+        try {
+            const savedHistory = localStorage.getItem('sagm_unit_history');
+            if (savedHistory) {
+                const historyData = JSON.parse(savedHistory);
+                this.unitHistory = new Map(Object.entries(historyData));
+                this.logData('Route history loaded', 'system', {
+                    units: this.unitHistory.size
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load history:', error);
+            this.unitHistory = new Map();
+        }
+    }
+
+    saveHistory() {
+        try {
+            const historyObj = Object.fromEntries(this.unitHistory);
+            localStorage.setItem('sagm_unit_history', JSON.stringify(historyObj));
+        } catch (error) {
+            console.error('Failed to save history:', error);
+        }
+    }
+
     // ===== DATA LOGGER METHODS =====
     setupDataLogger() {
         this.loadLogs();
         this.renderLogger();
         this.startAutoExport();
         
-        this.logData('GPS Monitoring System initialized', 'system', {
+        this.logData('Optimized GPS Monitoring System initialized', 'system', {
             timestamp: new Date().toISOString(),
-            units: this.units.length,
-            version: '2.0'
+            version: '3.0'
         });
     }
 
@@ -1618,31 +1641,61 @@ class SAGMGpsTracking {
         );
     }
 
+    // ===== EVENT HANDLERS =====
+    setupEventHandlers() {
+        const searchInput = document.getElementById('searchUnit');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.applyFilters());
+        }
+
+        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
+        filters.forEach(filterId => {
+            const filter = document.getElementById(filterId);
+            if (filter) {
+                filter.addEventListener('change', () => this.applyFilters());
+            }
+        });
+
+        database.ref('.info/connected').on('value', (snapshot) => {
+            this.updateConnectionStatus(snapshot.val());
+        });
+    }
+
+    updateConnectionStatus(connected) {
+        const statusElement = document.getElementById('firebaseStatus');
+        if (statusElement) {
+            if (connected) {
+                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
+                statusElement.className = 'text-success';
+            } else {
+                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                statusElement.className = 'text-danger';
+            }
+        }
+    }
+
     // ===== UTILITY METHODS =====
     startPeriodicTasks() {
-        this.autoRefreshInterval = setInterval(() => {
+        const refreshInterval = setInterval(() => {
             this.logData('Auto-refresh cycle', 'info');
         }, 30000);
+        this.intervals.add(refreshInterval);
 
-        // Online status checker
-        setInterval(() => {
+        const statusInterval = setInterval(() => {
             const now = Date.now();
-            Object.keys(this.lastDataTimestamps).forEach(unitName => {
-                const lastUpdate = this.lastDataTimestamps[unitName];
+            this.lastDataTimestamps.forEach((lastUpdate, unitName) => {
                 const timeDiff = now - lastUpdate;
-                
                 if (timeDiff > 15000) {
                     this.markUnitOffline(unitName);
                 }
             });
         }, 5000);
+        this.intervals.add(statusInterval);
     }
 
     markUnitOffline(unitName) {
-        const unitIndex = this.units.findIndex(u => u.name === unitName);
-        if (unitIndex !== -1) {
-            const unit = this.units[unitIndex];
-            
+        const unit = this.units.get(unitName);
+        if (unit) {
             this.logData(`Unit marked offline: ${unitName}`, 'warning', {
                 unit: unitName,
                 driver: unit.driver,
@@ -1654,48 +1707,25 @@ class SAGMGpsTracking {
     }
 
     removeUnitCompletely(unitName) {
-        this.units = this.units.filter(unit => unit.name !== unitName);
+        this.units.delete(unitName);
         
-        if (this.markers[unitName]) {
-            this.map.removeLayer(this.markers[unitName]);
-            delete this.markers[unitName];
+        const marker = this.markers.get(unitName);
+        if (marker && this.map) {
+            this.map.removeLayer(marker);
+            this.markers.delete(unitName);
         }
         
-        if (this.unitPolylines[unitName]) {
-            this.map.removeLayer(this.unitPolylines[unitName]);
-            delete this.unitPolylines[unitName];
+        const polyline = this.unitPolylines.get(unitName);
+        if (polyline && this.map) {
+            this.map.removeLayer(polyline);
+            this.unitPolylines.delete(unitName);
         }
         
-        delete this.driverOnlineStatus[unitName];
-        delete this.lastDataTimestamps[unitName];
-        delete this.unitSessions[unitName];
+        this.driverOnlineStatus.delete(unitName);
+        this.lastDataTimestamps.delete(unitName);
+        this.unitSessions.delete(unitName);
         
-        this.refreshDisplay();
-    }
-
-    removeInactiveUnits(activeUnits) {
-        this.units.forEach(unit => {
-            if (!activeUnits.has(unit.name)) {
-                this.logData(`Unit inactive: ${unit.name}`, 'warning', { unit: unit.name });
-                this.markUnitOffline(unit.name);
-            }
-        });
-    }
-
-    clearAllData() {
-        this.units = [];
-        this.refreshDisplay();
-        this.clearAllMarkers();
-    }
-
-    clearAllMarkers() {
-        Object.values(this.markers).forEach(marker => {
-            if (marker && this.map) {
-                this.map.removeLayer(marker);
-            }
-        });
-        this.markers = {};
-        this.logData('All markers cleared', 'system');
+        this.scheduleRender();
     }
 
     applyFilters() {
@@ -1710,15 +1740,16 @@ class SAGMGpsTracking {
     centerOnUnit(unitOrName) {
         let unit;
         if (typeof unitOrName === 'string') {
-            unit = this.units.find(u => u.name === unitOrName);
+            unit = this.units.get(unitOrName);
         } else {
             unit = unitOrName;
         }
 
         if (unit && this.map) {
             this.map.setView([unit.latitude, unit.longitude], 15);
-            if (this.markers[unit.name]) {
-                this.markers[unit.name].openPopup();
+            const marker = this.markers.get(unit.name);
+            if (marker) {
+                marker.openPopup();
             }
             this.logData(`Map centered on ${unit.name}`, 'info', {
                 unit: unit.name,
@@ -1730,7 +1761,7 @@ class SAGMGpsTracking {
     toggleRouteDisplay() {
         this.showRoutes = !this.showRoutes;
         
-        Object.entries(this.unitPolylines).forEach(([unitName, polyline]) => {
+        this.unitPolylines.forEach((polyline, unitName) => {
             if (this.showRoutes) {
                 this.map.addLayer(polyline);
             } else {
@@ -1745,11 +1776,11 @@ class SAGMGpsTracking {
     }
 
     removeAllRoutes() {
-        Object.values(this.unitPolylines).forEach(polyline => {
+        this.unitPolylines.forEach((polyline, unitName) => {
             this.map.removeLayer(polyline);
         });
-        this.unitPolylines = {};
-        this.unitHistory = {};
+        this.unitPolylines.clear();
+        this.unitHistory.clear();
         this.saveHistory();
         this.logData('All routes removed', 'system');
     }
@@ -1757,16 +1788,16 @@ class SAGMGpsTracking {
     downloadRouteData() {
         const exportData = {
             timestamp: new Date().toISOString(),
-            totalUnits: this.units.length,
+            totalUnits: this.units.size,
             routes: {}
         };
 
-        this.units.forEach(unit => {
-            exportData.routes[unit.name] = {
+        this.units.forEach((unit, unitName) => {
+            exportData.routes[unitName] = {
                 driver: unit.driver,
                 totalDistance: unit.distance,
-                routePoints: this.unitHistory[unit.name]?.length || 0,
-                history: this.unitHistory[unit.name] || []
+                routePoints: this.unitHistory.get(unitName)?.length || 0,
+                history: this.unitHistory.get(unitName) || []
             };
         });
 
@@ -1808,7 +1839,6 @@ class SAGMGpsTracking {
         }, 5000);
     }
 
-    // ✅ METHOD BARU: Debug panel untuk monitoring
     showDebugPanel() {
         const debugHtml = `
             <div class="debug-panel card position-fixed" style="bottom: 10px; right: 10px; width: 400px; z-index: 9999;">
@@ -1823,7 +1853,7 @@ class SAGMGpsTracking {
                     </div>
                     <div class="mb-2">
                         <strong>Units Loaded:</strong> 
-                        <span id="debugUnitsCount">${this.units.length}</span>
+                        <span id="debugUnitsCount">${this.units.size}</span>
                     </div>
                     <div class="mb-2">
                         <strong>Last Update:</strong> 
@@ -1838,21 +1868,20 @@ class SAGMGpsTracking {
         
         document.body.insertAdjacentHTML('beforeend', debugHtml);
         
-        // Update debug info periodically
         setInterval(() => {
             const statusElement = document.getElementById('debugFirebaseStatus');
             const unitsElement = document.getElementById('debugUnitsCount');
             const updateElement = document.getElementById('debugLastUpdate');
             
             if (statusElement) {
-                const connected = database.ref('.info/connected').on('value', (snapshot) => {
+                database.ref('.info/connected').on('value', (snapshot) => {
                     statusElement.textContent = snapshot.val() ? '🟢 CONNECTED' : '🔴 DISCONNECTED';
                     statusElement.className = snapshot.val() ? 'text-success' : 'text-danger';
                 });
             }
             
             if (unitsElement) {
-                unitsElement.textContent = this.units.length;
+                unitsElement.textContent = this.units.size;
             }
             
             if (updateElement) {
@@ -1861,34 +1890,100 @@ class SAGMGpsTracking {
         }, 2000);
     }
 
+    // 🔄 Refresh data method
+    refreshData() {
+        console.log('🔄 Manual refresh triggered');
+        this.logData('Manual refresh initiated', 'info');
+        this.loadInitialData();
+    }
+
+    // 🧹 COMPREHENSIVE CLEANUP METHOD
     cleanup() {
-        if (this.firebaseListener) {
-            database.ref('/units').off('value', this.firebaseListener);
+        console.log('🧹 Cleaning up system...');
+        
+        this.cleanupFirebaseListeners();
+        
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
+        
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
         }
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
+        
+        database.ref('/chat').off('child_added');
+        database.ref('/chat').off('child_removed');
+        this.monitorChatRefs.forEach(ref => ref.off());
+        this.monitorChatRefs.clear();
+        
+        if (this.map) {
+            this.map.remove();
         }
+        
         if (this.dataLogger.exportInterval) {
             clearInterval(this.dataLogger.exportInterval);
         }
         
-        // ✅ Cleanup chat system
-        database.ref('/chat').off('child_added');
-        database.ref('/chat').off('child_removed');
-        Object.values(this.monitorChatRefs).forEach(ref => ref.off());
+        console.log('✅ System cleanup completed');
+    }
+
+    // ===== FUEL CALCULATION METHODS =====
+    computeFuelConsumption(distance, status) {
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelUsage(distance, status) {
+        if (!distance) return 0;
+        
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelLevel(initialFuel, distance, status) {
+        if (!distance) return initialFuel;
+        
+        const fuelUsed = this.computeFuelUsage(distance, status);
+        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
+        const fuelPercentage = (fuelRemaining / this.vehicleConfig.fuelTankCapacity) * 100;
+        
+        return Math.max(5, Math.min(100, fuelPercentage));
+    }
+
+    computeDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
     }
 }
 
 // Initialize the system
 let gpsSystem;
 
-// ✅ Event listener untuk memastikan chat system terinisialisasi
+// Event listener untuk memastikan chat system terinisialisasi
 document.addEventListener('DOMContentLoaded', function() {
-    // Inisialisasi system
-    gpsSystem = new SAGMGpsTracking();
+    if (window.gpsSystem) {
+        window.gpsSystem.cleanup();
+    }
+    
+    gpsSystem = new OptimizedSAGMGpsTracking();
     window.gpsSystem = gpsSystem;
     
-    // Setup chat event handlers setelah DOM siap
     setTimeout(() => {
         if (gpsSystem.setupChatEventHandlers) {
             gpsSystem.setupChatEventHandlers();
@@ -1899,7 +1994,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global functions
 function refreshData() {
     if (window.gpsSystem) {
-        window.gpsSystem.loadUnitData();
+        window.gpsSystem.refreshData();
     }
 }
 
@@ -1911,7 +2006,9 @@ function exportData() {
 
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
-    sidebar.classList.toggle('show');
+    if (sidebar) {
+        sidebar.classList.toggle('show');
+    }
 }
 
 function toggleRoutes() {
@@ -1926,7 +2023,7 @@ function clearRoutes() {
     }
 }
 
-// ✅ Global functions untuk chat system
+// Global functions untuk chat system
 function toggleMonitorChat() {
     if (window.gpsSystem) {
         window.gpsSystem.toggleMonitorChat();
@@ -1957,3 +2054,8 @@ window.addEventListener('beforeunload', function() {
         window.gpsSystem.cleanup();
     }
 });
+
+// Prevent multiple instances
+if (window.gpsSystem) {
+    window.gpsSystem.cleanup();
+}
