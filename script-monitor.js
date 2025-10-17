@@ -1918,24 +1918,79 @@ class OptimizedSAGMGpsTracking {
     // ===== MAP METHODS =====
     setupMap() {
         try {
-            this.map = L.map('map').setView(this.config.center, this.config.zoom);
+            console.log('🗺️ Initializing map...');
+            
+            // Pastikan container map ada dan visible
+            const mapContainer = document.getElementById('map');
+            if (!mapContainer) {
+                throw new Error('Map container not found');
+            }
 
-            const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                attribution: '© Google Satellite',
-                maxZoom: 22,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-            });
+            // Force container dimensions
+            mapContainer.style.height = '500px';
+            mapContainer.style.width = '100%';
+            mapContainer.style.minHeight = '500px';
+            
+            // Beri waktu untuk render CSS
+            setTimeout(() => {
+                try {
+                    this.map = L.map('map').setView(this.config.center, this.config.zoom);
+                    console.log('✅ Map instance created');
 
-            googleSatellite.addTo(this.map);
+                    const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                        attribution: '© Google Satellite',
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+                    });
 
-            L.control.scale({ imperial: false }).addTo(this.map);
-            L.control.zoom({ position: 'topright' }).addTo(this.map);
+                    googleSatellite.addTo(this.map);
+                    console.log('✅ Tile layer added');
 
-            this.addLocationMarkers();
+                    // Add controls
+                    L.control.scale({ imperial: false }).addTo(this.map);
+                    L.control.zoom({ position: 'topright' }).addTo(this.map);
+                    console.log('✅ Map controls added');
+
+                    this.addLocationMarkers();
+                    console.log('✅ Location markers added');
+
+                    // Test map interaction
+                    this.map.whenReady(() => {
+                        console.log('🎉 Map fully loaded and ready');
+                        this.logData('Peta berhasil dimuat', 'success');
+                    });
+
+                } catch (mapError) {
+                    console.error('❌ Map initialization error:', mapError);
+                    this.showMapError();
+                }
+            }, 100);
 
         } catch (error) {
             console.error('Map setup failed:', error);
-            throw new Error('Gagal menyiapkan peta');
+            this.showMapError();
+            throw new Error('Gagal menyiapkan peta: ' + error.message);
+        }
+    }
+
+    // Tambahkan method untuk error handling
+    showMapError() {
+        const mapContainer = document.getElementById('map');
+        if (mapContainer) {
+            mapContainer.innerHTML = `
+                <div class="alert alert-danger text-center m-3">
+                    <h5>❌ Gagal Memuat Peta</h5>
+                    <p>Terjadi kesalahan saat memuat peta. Periksa:</p>
+                    <ul class="text-start">
+                        <li>Koneksi internet</li>
+                        <li>Browser support</li>
+                        <li>Console untuk error details</li>
+                    </ul>
+                    <button class="btn btn-warning btn-sm" onclick="window.gpsSystem.setupMap()">
+                        🔄 Coba Lagi
+                    </button>
+                </div>
+            `;
         }
     }
 
@@ -3117,14 +3172,3 @@ document.addEventListener('visibilitychange', function() {
         }
     }
 });
-
-// Export for module usage jika diperlukan
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        GlobalGPSInitializer,
-        OptimizedSAGMGpsTracking,
-        SmoothLiveTracking,
-        PerformanceOptimizer,
-        MonitorOfflineManager
-    };
-}
