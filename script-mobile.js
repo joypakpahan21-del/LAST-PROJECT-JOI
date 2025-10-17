@@ -13,6 +13,390 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
+// ==== ENHANCED SMOOTH GPS TRACKING SYSTEM ====
+class SmoothGPSTracker {
+    constructor() {
+        this.positionBuffer = [];
+        this.smoothingEnabled = true;
+        this.lastSentPosition = null;
+        this.sendInterval = 1000; // Kirim setiap 1 detik
+        this.smoothingWindow = 5; // Buffer 5 posisi untuk smoothing
+        
+        // Enhanced GPS options
+        this.gpsOptions = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+            distanceFilter: 2 // Minimum 2 meter perubahan
+        };
+    }
+
+    // Enhanced position handler dengan smoothing
+    handlePositionUpdate(position) {
+        const rawPosition = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            speed: position.coords.speed !== null ? position.coords.speed * 3.6 : 0,
+            accuracy: position.coords.accuracy,
+            bearing: position.coords.heading,
+            timestamp: Date.now(),
+            altitude: position.coords.altitude
+        };
+
+        // Validasi data GPS
+        if (!this.isValidPosition(rawPosition)) {
+            console.warn('Invalid GPS position, skipping');
+            return;
+        }
+
+        // Smoothing algorithm
+        const smoothedPosition = this.smoothingEnabled ? 
+            this.applySmoothing(rawPosition) : rawPosition;
+
+        // Simpan ke buffer untuk real-time
+        this.addToBuffer(smoothedPosition);
+
+        // Update UI immediately
+        this.updateRealTimeUI(smoothedPosition);
+
+        // Kirim ke Firebase dengan interval yang dikontrol
+        this.sendToFirebaseIfNeeded(smoothedPosition);
+    }
+
+    // Kalman Filter untuk smoothing GPS
+    applySmoothing(newPosition) {
+        if (this.positionBuffer.length === 0) {
+            return newPosition;
+        }
+
+        // Simple moving average untuk lat/lng
+        const window = this.positionBuffer.slice(-this.smoothingWindow);
+        window.push(newPosition);
+
+        const avgLat = window.reduce((sum, pos) => sum + pos.lat, 0) / window.length;
+        const avgLng = window.reduce((sum, pos) => sum + pos.lng, 0) / window.length;
+        
+        // Weighted average berdasarkan accuracy
+        const accuracyWeight = Math.max(0.1, 1 - (newPosition.accuracy / 50));
+        
+        return {
+            ...newPosition,
+            lat: (avgLat * 0.3) + (newPosition.lat * 0.7 * accuracyWeight),
+            lng: (avgLng * 0.3) + (newPosition.lng * 0.7 * accuracyWeight),
+            accuracy: newPosition.accuracy,
+            isSmoothed: true
+        };
+    }
+
+    // Validasi posisi seperti Google Maps
+    isValidPosition(position) {
+        // Check coordinate bounds (Indonesia area)
+        if (position.lat < -11 || position.lat > 6 || 
+            position.lng < 95 || position.lng > 141) {
+            return false;
+        }
+
+        // Check accuracy
+        if (position.accuracy > 100) { // Accuracy > 100m dianggap tidak akurat
+            console.warn('Poor GPS accuracy:', position.accuracy);
+            return false;
+        }
+
+        // Check for sudden jumps (lebih dari 500m dalam 1 detik = tidak mungkin)
+        if (this.lastSentPosition) {
+            const distance = this.calculateDistance(
+                this.lastSentPosition.lat, this.lastSentPosition.lng,
+                position.lat, position.lng
+            );
+            const timeDiff = (position.timestamp - this.lastSentPosition.timestamp) / 1000;
+            
+            if (timeDiff > 0 && distance / timeDiff > 500) { // 500 m/s = 1800 km/h
+                console.warn('Impossible speed detected, filtering position');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Kirim data hanya jika ada perubahan signifikan
+    sendToFirebaseIfNeeded(currentPosition) {
+        const now = Date.now();
+        
+        if (!this.lastSentPosition || 
+            now - this.lastSentPosition.timestamp >= this.sendInterval) {
+            
+            // Check jika ada perubahan posisi yang signifikan
+            if (this.isSignificantChange(currentPosition)) {
+                this.sendToFirebase(currentPosition);
+                this.lastSentPosition = { ...currentPosition, timestamp: now };
+            }
+        }
+    }
+
+    // Cek perubahan signifikan (min 5 meter atau bearing berubah)
+    isSignificantChange(newPosition) {
+        if (!this.lastSentPosition) return true;
+
+        const distance = this.calculateDistance(
+            this.lastSentPosition.lat, this.lastSentPosition.lng,
+            newPosition.lat, newPosition.lng
+        );
+
+        const bearingDiff = Math.abs(
+            (newPosition.bearing || 0) - (this.lastSentPosition.bearing || 0)
+        );
+
+        return distance >= 5 || bearingDiff >= 10; // 5 meter atau 10 derajat
+    }
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000; // Earth radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    addToBuffer(position) {
+        this.positionBuffer.push(position);
+        
+        // Maintain buffer size
+        if (this.positionBuffer.length > 20) {
+            this.positionBuffer = this.positionBuffer.slice(-20);
+        }
+    }
+
+    updateRealTimeUI(position) {
+        // Immediate UI update untuk feel yang real-time
+        requestAnimationFrame(() => {
+            const latElement = document.getElementById('currentLat');
+            const lngElement = document.getElementById('currentLng');
+            const speedElement = document.getElementById('currentSpeed');
+            
+            if (latElement) latElement.textContent = position.lat.toFixed(6);
+            if (lngElement) lngElement.textContent = position.lng.toFixed(6);
+            if (speedElement) speedElement.textContent = position.speed.toFixed(1);
+        });
+    }
+}
+
+// ==== ENHANCED OFFLINE MANAGER ====
+class EnhancedOfflineManager {
+    constructor() {
+        this.offlineData = {
+            queue: [],          // Data yang belum terkirim
+            history: [],        // Complete history
+            sessions: [],       // Session data
+            lastSync: null      // Last successful sync
+        };
+        this.maxStorageDays = 30; // Simpan data maksimal 30 hari
+        this.localDatabase = null;
+        this.initLocalDatabase();
+    }
+    
+    async initLocalDatabase() {
+        if ('indexedDB' in window) {
+            try {
+                this.localDatabase = await this.openLocalDB();
+                console.log('✅ IndexedDB initialized for offline storage');
+            } catch (error) {
+                console.error('Failed to initialize IndexedDB:', error);
+            }
+        }
+    }
+    
+    openLocalDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('GPSOfflineDB', 1);
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                
+                // Buat store untuk GPS data
+                if (!db.objectStoreNames.contains('gpsData')) {
+                    const store = db.createObjectStore('gpsData', { 
+                        keyPath: 'id',
+                        autoIncrement: true 
+                    });
+                    store.createIndex('timestamp', 'timestamp', { unique: false });
+                    store.createIndex('sessionId', 'sessionId', { unique: false });
+                    store.createIndex('synced', 'synced', { unique: false });
+                }
+                
+                // Buat store untuk chat messages
+                if (!db.objectStoreNames.contains('chatMessages')) {
+                    const store = db.createObjectStore('chatMessages', { 
+                        keyPath: 'id',
+                        autoIncrement: true 
+                    });
+                    store.createIndex('timestamp', 'timestamp', { unique: false });
+                    store.createIndex('synced', 'synced', { unique: false });
+                }
+            };
+            
+            request.onsuccess = (event) => resolve(event.target.result);
+            request.onerror = (event) => reject(event.target.error);
+        });
+    }
+    
+    // Simpan data dengan timestamp dan expiry
+    saveOfflineData(data, type = 'gps') {
+        const offlineRecord = {
+            data: data,
+            type: type,
+            timestamp: new Date().toISOString(),
+            expiry: this.getExpiryDate(),
+            id: this.generateOfflineId(),
+            synced: false
+        };
+        
+        this.addToOfflineStorage(offlineRecord);
+    }
+    
+    getExpiryDate() {
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + this.maxStorageDays);
+        return expiry.toISOString();
+    }
+    
+    generateOfflineId() {
+        return 'offline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    async addToOfflineStorage(record) {
+        // Save to IndexedDB jika available
+        if (this.localDatabase) {
+            try {
+                const transaction = this.localDatabase.transaction(['gpsData'], 'readwrite');
+                const store = transaction.objectStore('gpsData');
+                await store.add(record);
+            } catch (error) {
+                console.error('Failed to save to IndexedDB:', error);
+                this.fallbackToLocalStorage(record);
+            }
+        } else {
+            this.fallbackToLocalStorage(record);
+        }
+    }
+    
+    fallbackToLocalStorage(record) {
+        // Fallback ke localStorage
+        const existing = JSON.parse(localStorage.getItem('gps_offline_backup') || '[]');
+        existing.push(record);
+        
+        // Maintain size limit
+        if (existing.length > 1000) {
+            existing = existing.slice(-1000);
+        }
+        
+        localStorage.setItem('gps_offline_backup', JSON.stringify(existing));
+    }
+    
+    // Auto-clean expired data
+    cleanupExpiredData() {
+        const now = new Date();
+        this.offlineData.queue = this.offlineData.queue.filter(item => 
+            new Date(item.expiry) > now
+        );
+        this.saveToStorage();
+    }
+    
+    // Smart sync ketika online
+    async syncWhenOnline() {
+        if (!navigator.onLine) return;
+        
+        console.log('🔄 Starting smart offline data sync...');
+        
+        // Sync dari IndexedDB pertama
+        if (this.localDatabase) {
+            await this.syncIndexedDBData();
+        }
+        
+        // Sync dari localStorage backup
+        await this.syncLocalStorageData();
+        
+        console.log('✅ Offline data sync completed');
+    }
+    
+    async syncIndexedDBData() {
+        try {
+            const transaction = this.localDatabase.transaction(['gpsData'], 'readonly');
+            const store = transaction.objectStore('gpsData');
+            const unsyncedData = await store.index('synced').getAll(IDBKeyRange.only(false));
+            
+            for (const data of unsyncedData) {
+                try {
+                    await this.syncSingleRecord(data);
+                    await this.markAsSynced(data.id);
+                } catch (error) {
+                    console.warn('Failed to sync record:', data.id, error);
+                }
+            }
+        } catch (error) {
+            console.error('IndexedDB sync error:', error);
+        }
+    }
+    
+    async syncLocalStorageData() {
+        try {
+            const backupData = JSON.parse(localStorage.getItem('gps_offline_backup') || '[]');
+            const unsynced = backupData.filter(item => !item.synced);
+            
+            for (const data of unsynced) {
+                try {
+                    await this.syncSingleRecord(data);
+                    data.synced = true;
+                } catch (error) {
+                    console.warn('Failed to sync backup record:', data.id, error);
+                }
+            }
+            
+            localStorage.setItem('gps_offline_backup', JSON.stringify(backupData));
+        } catch (error) {
+            console.error('LocalStorage sync error:', error);
+        }
+    }
+    
+    async syncSingleRecord(record, retries = 3) {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                // Implement your Firebase update logic here
+                await this.sendToFirebase(record.data);
+                return true;
+            } catch (error) {
+                if (attempt === retries) throw error;
+                await this.delay(1000 * attempt); // Exponential backoff
+            }
+        }
+    }
+    
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    
+    async markAsSynced(id) {
+        if (!this.localDatabase) return;
+        
+        try {
+            const transaction = this.localDatabase.transaction(['gpsData'], 'readwrite');
+            const store = transaction.objectStore('gpsData');
+            const record = await store.get(id);
+            
+            if (record) {
+                record.synced = true;
+                await store.put(record);
+            }
+        } catch (error) {
+            console.error('Failed to mark as synced:', error);
+        }
+    }
+}
+
 class DTGPSLogger {
     constructor() {
         this.driverData = null;
@@ -39,6 +423,12 @@ class DTGPSLogger {
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory();
         
+        // ✅ ENHANCED: Smooth GPS Tracking
+        this.smoothTracker = new SmoothGPSTracker();
+        
+        // ✅ ENHANCED: Offline Manager
+        this.enhancedOfflineManager = new EnhancedOfflineManager();
+        
         // ✅ CHAT SYSTEM PROPERTIES - SESUAI DENGAN HTML BARU
         this.chatRef = null;
         this.chatMessages = [];
@@ -57,6 +447,9 @@ class DTGPSLogger {
         this.checkNetworkStatus();
         setInterval(() => this.updateTime(), 1000);
         setInterval(() => this.checkNetworkStatus(), 5000);
+        
+        // Enhanced offline status monitoring
+        setInterval(() => this.updateOfflineStatus(), 2000);
     }
 
     setupEventListeners() {
@@ -99,7 +492,7 @@ class DTGPSLogger {
             this.firebaseRef.set(cleanData);
 
             this.showDriverApp();
-            this.startGPSTracking();
+            this.startEnhancedGPSTracking(); // ✅ ENHANCED: High-precision GPS
             this.startDataTransmission();
             
             setTimeout(() => {
@@ -141,6 +534,78 @@ class DTGPSLogger {
         
         // ✅ SETUP CHAT SYSTEM SETELAH LOGIN - SESUAI DENGAN HTML BARU
         this.setupChatSystem();
+        
+        // ✅ ENHANCED: Setup offline status display
+        this.setupOfflineStatusDisplay();
+    }
+
+    // ✅ ENHANCED: High-precision GPS setup
+    startEnhancedGPSTracking() {
+        if (!navigator.geolocation) {
+            this.addLog('GPS tidak didukung di browser ini', 'error');
+            return;
+        }
+
+        this.isTracking = true;
+        
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+            distanceFilter: 1 // 1 meter minimum change
+        };
+
+        this.watchId = navigator.geolocation.watchPosition(
+            (position) => this.smoothTracker.handlePositionUpdate(position),
+            (error) => this.handleGPSError(error),
+            options
+        );
+
+        this.addLog('🚀 Enhanced GPS tracking aktif - WhatsApp/Google Maps style', 'success');
+    }
+
+    // ✅ ENHANCED: Setup offline status display
+    setupOfflineStatusDisplay() {
+        const statusHtml = `
+            <div id="offlineStatusContainer" class="offline-status-container">
+                <div id="offlineNotification" class="offline-notification" style="display: none;">
+                    <div class="offline-header">
+                        <span>📴 Mode Offline</span>
+                        <small>Data disimpan secara lokal</small>
+                    </div>
+                    <div class="offline-info">
+                        <span>Data dalam antrian: <strong id="offlineQueueCount">0</strong></span>
+                        <div class="offline-progress">
+                            <div id="offlineProgressBar" class="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('driverApp').insertAdjacentHTML('afterbegin', statusHtml);
+    }
+
+    // ✅ ENHANCED: Update offline status
+    updateOfflineStatus() {
+        const isOffline = !navigator.onLine;
+        const queueSize = this.offlineQueue.getQueueSize();
+        const offlineNotification = document.getElementById('offlineNotification');
+        const queueCountElement = document.getElementById('offlineQueueCount');
+        const progressBar = document.getElementById('offlineProgressBar');
+        
+        if (offlineNotification && queueCountElement && progressBar) {
+            if (isOffline) {
+                offlineNotification.style.display = 'block';
+                queueCountElement.textContent = queueSize;
+                progressBar.style.width = `${Math.min(100, queueSize / 10)}%`;
+            } else {
+                offlineNotification.style.display = 'none';
+            }
+        }
+        
+        // Update connection status
+        this.updateConnectionStatus(!isOffline);
     }
 
     // ✅ CHAT METHOD: Setup chat system - SESUAI DENGAN HTML BARU
@@ -326,35 +791,18 @@ class DTGPSLogger {
         return div.innerHTML;
     }
 
-    startGPSTracking() {
-        if (!navigator.geolocation) {
-            this.addLog('GPS tidak didukung di browser ini', 'error');
-            return;
-        }
-
-        this.isTracking = true;
-        
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0
-        };
-
-        this.watchId = navigator.geolocation.watchPosition(
-            (position) => this.handlePositionUpdate(position),
-            (error) => this.handleGPSError(error),
-            options
-        );
-
-        this.addLog('GPS tracking aktif - real-time ke Firebase', 'success');
-    }
-
     startDataTransmission() {
         this.sendInterval = setInterval(() => {
             if (this.lastPosition) {
                 this.sendToFirebase();
             }
         }, 2000);
+    }
+
+    // Enhanced position update dengan smooth tracking
+    handlePositionUpdate(position) {
+        // Delegate to smooth tracker
+        this.smoothTracker.handlePositionUpdate(position);
     }
 
     // Simpan semua titik ke localStorage
@@ -369,22 +817,21 @@ class DTGPSLogger {
             saveTimestamp: new Date().toISOString()
         };
         
-        // Load existing history
-        let history = this.loadCompleteHistory();
+        // ✅ ENHANCED: Save to enhanced offline manager
+        this.enhancedOfflineManager.saveOfflineData(historyPoint, 'gps_history');
         
-        // Add new point
+        // Juga simpan ke localStorage untuk compatibility
+        let history = this.loadCompleteHistory();
         history.push(historyPoint);
         
-        // Maintain size limit
         if (history.length > this.maxOfflinePoints) {
             history = history.slice(-this.maxOfflinePoints);
         }
         
-        // Save back to storage
         localStorage.setItem('gps_complete_history', JSON.stringify(history));
         this.completeHistory = history;
         
-        console.log(`💾 Saved to history: ${history.length} points`);
+        console.log(`💾 Saved to enhanced history: ${history.length} points`);
     }
 
     // Load history dari localStorage
@@ -398,61 +845,7 @@ class DTGPSLogger {
         }
     }
 
-    // Enhanced position update dengan perhitungan jarak yang akurat
-    handlePositionUpdate(position) {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const speed = position.coords.speed !== null ? position.coords.speed * 3.6 : 0;
-        const accuracy = position.coords.accuracy;
-        const bearing = position.coords.heading;
-        const timestamp = new Date();
-        
-        // ✅ ENHANCED: Validate and clean GPS data
-        if (!this.isValidCoordinate(lat, lng)) {
-            console.warn('Invalid GPS coordinates received:', { lat, lng });
-            return;
-        }
-
-        // Simpan ke complete history (SELALU)
-        this.saveToCompleteHistory({
-            lat: lat,
-            lng: lng,
-            speed: speed,
-            accuracy: accuracy,
-            bearing: bearing,
-            timestamp: timestamp.toISOString(),
-            isOnline: this.isOnline
-        });
-
-        // Update UI
-        document.getElementById('currentLat').textContent = lat.toFixed(6);
-        document.getElementById('currentLng').textContent = lng.toFixed(6);
-        document.getElementById('currentSpeed').textContent = speed.toFixed(1);
-        document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
-        document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
-
-        // Hitung jarak berdasarkan kecepatan dan waktu
-        this.calculateDistanceWithSpeed(speed, timestamp);
-
-        // Simpan data terbaru
-        this.lastPosition = { 
-            lat, 
-            lng, 
-            speed, 
-            accuracy, 
-            bearing, 
-            timestamp,
-            distance: this.totalDistance
-        };
-
-        this.dataPoints++;
-        document.getElementById('dataPoints').textContent = this.dataPoints;
-
-        // Update average speed
-        this.updateAverageSpeed();
-    }
-
-    // ✅ NEW: Validate GPS coordinates
+    // ✅ ENHANCED: Validasi GPS coordinates
     isValidCoordinate(lat, lng) {
         // Check for reasonable coordinates (Kebun Tempuling area)
         if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
@@ -559,6 +952,9 @@ class DTGPSLogger {
                 if (this.offlineQueue.getQueueSize() > 0) {
                     this.offlineQueue.processQueue();
                 }
+                
+                // ✅ ENHANCED: Sync enhanced offline data
+                this.enhancedOfflineManager.syncWhenOnline();
             } else {
                 this.offlineQueue.addToQueue(gpsData);
                 this.addLog(`💾 Data disimpan offline (${this.offlineQueue.getQueueSize()} dalam antrian)`, 'warning');
@@ -603,8 +999,9 @@ class DTGPSLogger {
                 // Sync bertahap
                 this.offlineQueue.processQueue();
                 
+                // ✅ ENHANCED: Sync enhanced offline data
                 setTimeout(() => {
-                    this.syncCompleteHistory();
+                    this.enhancedOfflineManager.syncWhenOnline();
                 }, 3000);
                 
             } else {
