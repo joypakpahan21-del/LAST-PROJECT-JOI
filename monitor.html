@@ -11,7 +11,9 @@
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚛</text></svg>">
     
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -450,7 +452,7 @@
         </button>
         
         <!-- Chat Window - FIXED POSITION & RESPONSIVE -->
-        <div id="monitorChatWindow" class="chat-window">
+        <div id="monitorChatWindow" class="chat-window" style="display: none;">
             <div class="chat-header">
                 <h6 class="mb-0">💬 Chat dengan Driver</h6>
                 <div class="input-group input-group-sm">
@@ -496,7 +498,9 @@
     <div id="notificationContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
 
     <!-- JavaScript Libraries -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- External JavaScript -->
@@ -533,16 +537,19 @@
                 // Enable input when unit is selected
                 const input = document.getElementById('monitorChatInput');
                 const sendBtn = document.getElementById('monitorSendBtn');
-                input.disabled = false;
-                sendBtn.disabled = false;
-                input.focus();
+                if (input) input.disabled = false;
+                if (sendBtn) sendBtn.disabled = false;
+                if (input) input.focus();
             }
         }
 
         // ✅ ENHANCED REAL-TIME CLOCK
         function updateClock() {
             const now = new Date();
-            document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
+            const timeElement = document.getElementById('currentTime');
+            if (timeElement) {
+                timeElement.textContent = now.toLocaleTimeString('id-ID');
+            }
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -586,7 +593,7 @@
             const chatWindow = document.getElementById('monitorChatWindow');
             const toggleBtn = document.getElementById('monitorChatToggle');
             
-            if (chatWindow.style.display === 'flex' && 
+            if (chatWindow && chatWindow.style.display === 'flex' && 
                 !chatContainer.contains(event.target) && 
                 event.target !== toggleBtn) {
                 toggleMonitorChat();
@@ -611,6 +618,20 @@
                 }
             }, 2000);
         });
+
+        // Emergency debug script
+        console.log('=== GPS SYSTEM DEBUG ===');
+        console.log('Leaflet loaded:', typeof L !== 'undefined');
+        console.log('Firebase loaded:', typeof firebase !== 'undefined');
+        console.log('Map container:', document.getElementById('map'));
+
+        // Force map initialization setelah delay
+        setTimeout(() => {
+            if (window.gpsSystem && (!window.gpsSystem.map || !document.querySelector('.leaflet-container'))) {
+                console.log('🔄 Force initializing map...');
+                window.gpsSystem.setupMap();
+            }
+        }, 3000);
     </script>
 </body>
 </html>
