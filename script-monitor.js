@@ -13,6 +13,412 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
+// ==== ENHANCED SMOOTH LIVE TRACKING SYSTEM ====
+class SmoothLiveTracking {
+    constructor() {
+        this.unitAnimations = new Map();
+        this.interpolationEnabled = true;
+        this.animationDuration = 2000; // 2 detik untuk smooth movement
+        this.lastPositions = new Map();
+        this.performanceOptimizer = new PerformanceOptimizer();
+    }
+
+    // Enhanced real-time data processing
+    processLiveData(unitName, newData) {
+        const currentTime = Date.now();
+        
+        if (!this.lastPositions.has(unitName)) {
+            // First position - langsung set
+            this.updateUnitPositionImmediately(unitName, newData);
+        } else {
+            // Interpolate between positions untuk smooth movement
+            this.animateUnitMovement(unitName, newData);
+        }
+        
+        this.lastPositions.set(unitName, {
+            ...newData,
+            timestamp: currentTime
+        });
+    }
+
+    // Smooth animation seperti Google Maps
+    animateUnitMovement(unitName, newData) {
+        const marker = this.markers.get(unitName);
+        if (!marker) return;
+
+        const lastPosition = this.lastPositions.get(unitName);
+        const newLatLng = L.latLng(newData.lat, newData.lng);
+        
+        if (!this.interpolationEnabled) {
+            // Instant movement
+            marker.setLatLng(newLatLng);
+            return;
+        }
+
+        // Cancel existing animation
+        if (this.unitAnimations.has(unitName)) {
+            cancelAnimationFrame(this.unitAnimations.get(unitName));
+        }
+
+        // Calculate animation parameters
+        const startLatLng = marker.getLatLng();
+        const startTime = Date.now();
+        const duration = this.calculateAnimationDuration(startLatLng, newLatLng);
+
+        // Animation function
+        const animate = () => {
+            if (!this.performanceOptimizer.shouldUpdate()) {
+                this.unitAnimations.set(unitName, requestAnimationFrame(animate));
+                return;
+            }
+
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing function untuk smooth movement
+            const easeProgress = this.easeInOutCubic(progress);
+            
+            // Interpolate position
+            const currentLat = startLatLng.lat + (newLatLng.lat - startLatLng.lat) * easeProgress;
+            const currentLng = startLatLng.lng + (newLatLng.lng - startLatLng.lng) * easeProgress;
+            
+            marker.setLatLng([currentLat, currentLng]);
+            
+            // Rotate marker berdasarkan bearing
+            if (newData.bearing) {
+                this.rotateMarker(marker, newData.bearing);
+            }
+            
+            // Update popup dengan data real-time
+            this.updateMarkerPopup(marker, unitName, {
+                ...newData,
+                lat: currentLat,
+                lng: currentLng
+            });
+            
+            if (progress < 1) {
+                this.unitAnimations.set(unitName, requestAnimationFrame(animate));
+            } else {
+                this.unitAnimations.delete(unitName);
+                // Final position update
+                this.updateMarkerPopup(marker, unitName, newData);
+            }
+        };
+
+        this.unitAnimations.set(unitName, requestAnimationFrame(animate));
+    }
+
+    calculateAnimationDuration(startLatLng, endLatLng) {
+        const distance = this.calculateDistance(
+            startLatLng.lat, startLatLng.lng,
+            endLatLng.lat, endLatLng.lng
+        );
+        
+        // Durasi berdasarkan jarak (max 3 detik)
+        const baseDuration = Math.min(3000, distance * 100); // 100ms per meter
+        return Math.max(500, baseDuration); // Minimum 500ms
+    }
+
+    easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    rotateMarker(marker, bearing) {
+        const icon = marker.getElement();
+        if (icon) {
+            icon.style.transform = `rotate(${bearing}deg)`;
+            icon.style.transition = 'transform 1s ease-out';
+        }
+    }
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000; // Earth radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    updateUnitPositionImmediately(unitName, data) {
+        const marker = this.markers.get(unitName);
+        if (marker) {
+            marker.setLatLng([data.lat, data.lng]);
+            
+            // Update bearing jika ada
+            if (data.bearing) {
+                this.rotateMarker(marker, data.bearing);
+            }
+            
+            // Update popup dengan info real-time
+            this.updateMarkerPopup(marker, unitName, data);
+        }
+    }
+
+    updateMarkerPopup(marker, unitName, data) {
+        const popupContent = this.createEnhancedUnitPopup(unitName, data);
+        marker.setPopupContent(popupContent);
+    }
+
+    createEnhancedUnitPopup(unitName, data) {
+        const unit = this.units.get(unitName);
+        if (!unit) return '';
+
+        const isOnline = unit.isOnline;
+        const routePoints = this.unitHistory.get(unitName)?.length || 0;
+        
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">🚛 ${unitName} ${isOnline ? '🟢' : '🔴'}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Driver:</span>
+                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-danger'}">
+                            ${unit.status === 'moving' ? '🚗 Dalam Perjalanan' : unit.status === 'active' ? '🟢 Aktif' : '🔴 Non-Aktif'}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Kecepatan:</span>
+                        <span class="info-value">${data.speed ? data.speed.toFixed(1) : '0'} km/h</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Arah:</span>
+                        <span class="info-value">${data.bearing ? data.bearing.toFixed(0) + '°' : '-'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Akurasi:</span>
+                        <span class="info-value">${data.accuracy ? data.accuracy.toFixed(1) + ' m' : '-'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Update:</span>
+                        <span class="info-value">${new Date().toLocaleTimeString('id-ID')}</span>
+                    </div>
+                </div>
+                <div class="popup-footer">
+                    <small class="text-muted">Live tracking aktif</small>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// ==== PERFORMANCE OPTIMIZER ====
+class PerformanceOptimizer {
+    constructor() {
+        this.frameRate = 60;
+        this.lastUpdateTime = 0;
+        this.updateInterval = 1000 / this.frameRate; // 60 FPS
+        this.lastUpdates = new Map();
+    }
+
+    shouldUpdate() {
+        const now = Date.now();
+        if (now - this.lastUpdateTime >= this.updateInterval) {
+            this.lastUpdateTime = now;
+            return true;
+        }
+        return false;
+    }
+
+    // Throttle Firebase updates
+    throttleFirebaseUpdate(unitName, data) {
+        const now = Date.now();
+        const lastUpdate = this.lastUpdates.get(unitName) || 0;
+        
+        if (now - lastUpdate >= 1000) { // Max 1 update per second per unit
+            this.lastUpdates.set(unitName, now);
+            return true;
+        }
+        return false;
+    }
+
+    // Debounce function
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
+// ==== ENHANCED OFFLINE DATA MANAGER FOR MONITOR ====
+class MonitorOfflineManager {
+    constructor() {
+        this.offlineUnits = new Map();
+        this.offlineData = new Map();
+        this.maxOfflineStorage = 1000;
+        this.cleanupInterval = null;
+        this.init();
+    }
+
+    init() {
+        this.startCleanupInterval();
+        this.setupOfflineUI();
+    }
+
+    setupOfflineUI() {
+        const offlineHtml = `
+            <div id="monitorOfflineContainer" class="offline-units-container">
+                <div class="offline-section-header">
+                    <h6>📴 Units Offline</h6>
+                    <small id="offlineUnitsCount">0 units</small>
+                </div>
+                <div id="offlineUnitsList" class="offline-units-list">
+                    <!-- Offline units will be populated here -->
+                </div>
+            </div>
+        `;
+        
+        // Add to sidebar or appropriate location
+        const sidebar = document.querySelector('.sidebar .p-3');
+        if (sidebar) {
+            sidebar.insertAdjacentHTML('beforeend', offlineHtml);
+        }
+    }
+
+    // Track unit yang offline
+    trackOfflineUnit(unitName, unitData) {
+        if (!this.offlineUnits.has(unitName)) {
+            this.offlineUnits.set(unitName, {
+                ...unitData,
+                wentOffline: new Date(),
+                lastKnownPosition: {
+                    lat: unitData.latitude,
+                    lng: unitData.longitude
+                }
+            });
+            
+            this.updateOfflineUI();
+            this.logOfflineEvent(unitName, 'went_offline');
+        }
+    }
+
+    // Unit kembali online
+    unitBackOnline(unitName) {
+        if (this.offlineUnits.has(unitName)) {
+            const offlineData = this.offlineUnits.get(unitName);
+            this.logOfflineEvent(unitName, 'back_online', {
+                offlineDuration: Date.now() - new Date(offlineData.wentOffline).getTime()
+            });
+            
+            this.offlineUnits.delete(unitName);
+            this.updateOfflineUI();
+        }
+    }
+
+    updateOfflineUI() {
+        const container = document.getElementById('offlineUnitsList');
+        const countElement = document.getElementById('offlineUnitsCount');
+        
+        if (!container || !countElement) return;
+
+        const offlineCount = this.offlineUnits.size;
+        countElement.textContent = `${offlineCount} units`;
+
+        if (offlineCount === 0) {
+            container.innerHTML = `
+                <div class="offline-placeholder">
+                    <small class="text-muted">Semua units online</small>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        this.offlineUnits.forEach((unit, unitName) => {
+            const offlineTime = new Date(unit.wentOffline);
+            const duration = this.formatDuration(Date.now() - offlineTime.getTime());
+            
+            html += `
+                <div class="offline-unit-item">
+                    <div class="offline-unit-header">
+                        <span class="unit-name">${unitName}</span>
+                        <span class="offline-badge">🔴</span>
+                    </div>
+                    <div class="offline-unit-details">
+                        <small>Driver: ${unit.driver || 'Unknown'}</small>
+                        <small>Offline: ${duration}</small>
+                        <small>Lokasi: ${unit.lastKnownPosition.lat.toFixed(4)}, ${unit.lastKnownPosition.lng.toFixed(4)}</small>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    formatDuration(ms) {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) return `${hours} jam ${minutes % 60} menit`;
+        if (minutes > 0) return `${minutes} menit`;
+        return `${seconds} detik`;
+    }
+
+    logOfflineEvent(unitName, event, metadata = {}) {
+        const eventData = {
+            unit: unitName,
+            event: event,
+            timestamp: new Date().toISOString(),
+            ...metadata
+        };
+        
+        console.log(`📴 Offline Event: ${unitName} - ${event}`, eventData);
+        
+        // Simpan ke localStorage untuk analytics
+        this.saveOfflineEvent(eventData);
+    }
+
+    saveOfflineEvent(eventData) {
+        const events = JSON.parse(localStorage.getItem('monitor_offline_events') || '[]');
+        events.push(eventData);
+        
+        // Maintain size limit
+        if (events.length > this.maxOfflineStorage) {
+            events = events.slice(-this.maxOfflineStorage);
+        }
+        
+        localStorage.setItem('monitor_offline_events', JSON.stringify(events));
+    }
+
+    startCleanupInterval() {
+        this.cleanupInterval = setInterval(() => {
+            this.cleanupOldOfflineData();
+        }, 30000); // Setiap 30 detik
+    }
+
+    cleanupOldOfflineData() {
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        
+        this.offlineUnits.forEach((unit, unitName) => {
+            const offlineTime = new Date(unit.wentOffline).getTime();
+            if (now - offlineTime > twentyFourHours) {
+                console.log(`🧹 Removing old offline unit: ${unitName}`);
+                this.offlineUnits.delete(unitName);
+            }
+        });
+        
+        this.updateOfflineUI();
+    }
+}
+
 // ENHANCED SAGM GPS TRACKING SYSTEM WITH SMOOTH ANIMATION CHAT
 class OptimizedSAGMGpsTracking {
     constructor() {
@@ -40,6 +446,12 @@ class OptimizedSAGMGpsTracking {
         this.updateDebounce = null;
         this.lastRenderTime = 0;
         this.renderThrottleMs = 500;
+        
+        // ✅ ENHANCED: Smooth Live Tracking
+        this.smoothTracker = new SmoothLiveTracking();
+        
+        // ✅ ENHANCED: Monitor Offline Manager
+        this.offlineManager = new MonitorOfflineManager();
         
         // System state
         this.map = null;
@@ -143,12 +555,23 @@ class OptimizedSAGMGpsTracking {
             // ✅ ENHANCED CHAT SYSTEM
             this.setupMonitorChatSystem();
             
+            // ✅ ENHANCED: Enable smooth tracking
+            this.enableSmoothTracking();
+            
             setTimeout(() => this.showDebugPanel(), 2000);
             
         } catch (error) {
             console.error('System initialization failed:', error);
             this.displayError('Gagal memulai sistem GPS');
         }
+    }
+
+    // ✅ ENHANCED: Enable smooth tracking
+    enableSmoothTracking() {
+        this.smoothTracker.interpolationEnabled = true;
+        this.smoothTracker.animationDuration = 1500;
+        console.log('🔄 Smooth tracking enabled - Google Maps style');
+        this.logData('Smooth tracking diaktifkan - Google Maps style', 'system');
     }
 
     // ===== ENHANCED FIREBASE METHODS =====
@@ -172,6 +595,7 @@ class OptimizedSAGMGpsTracking {
             });
             this.firebaseListeners.set('connection', connectionListener);
 
+            // ✅ ENHANCED: Real-time listener dengan optimasi
             const unitsListener = database.ref('/units').on('value', 
                 (snapshot) => {
                     try {
@@ -216,14 +640,9 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    debouncedProcessRealTimeData(data) {
-        if (this.updateDebounce) {
-            clearTimeout(this.updateDebounce);
-        }
-        this.updateDebounce = setTimeout(() => {
-            this.processRealTimeData(data);
-        }, 300);
-    }
+    debouncedProcessRealTimeData = this.smoothTracker.performanceOptimizer.debounce((data) => {
+        this.processRealTimeData(data);
+    }, 300);
 
     // ===== ENHANCED PROCESS REAL-TIME DATA =====
     processRealTimeData(firebaseData) {
@@ -253,10 +672,24 @@ class OptimizedSAGMGpsTracking {
             this.lastDataTimestamps.set(unitName, currentTime);
             this.driverOnlineStatus.set(unitName, true);
 
+            // ✅ ENHANCED: Track unit back online
+            this.offlineManager.unitBackOnline(unitName);
+
             const existingUnit = this.units.get(unitName);
             
             if (existingUnit) {
                 this.refreshUnitData(existingUnit, unitData);
+                
+                // ✅ ENHANCED: Process live data dengan smooth animation
+                if (unitData.lat && unitData.lng) {
+                    this.smoothTracker.processLiveData(unitName, {
+                        lat: unitData.lat,
+                        lng: unitData.lng,
+                        speed: unitData.speed || 0,
+                        bearing: unitData.bearing || null,
+                        accuracy: unitData.accuracy || 0
+                    });
+                }
             } else {
                 const newUnit = this.createNewUnit(unitName, unitData);
                 if (newUnit) {
@@ -1596,6 +2029,9 @@ class OptimizedSAGMGpsTracking {
                         unit: unitName,
                         lastUpdate: timeSinceLastUpdate
                     });
+                    
+                    // ✅ ENHANCED: Track offline unit
+                    this.offlineManager.trackOfflineUnit(unitName, unit);
                 }
                 
                 if (timeSinceLastUpdate > removalThreshold) {
@@ -1662,6 +2098,9 @@ class OptimizedSAGMGpsTracking {
         
         // Cleanup chat for this unit
         this.cleanupUnitChatListener(unitName);
+        
+        // ✅ ENHANCED: Remove from offline tracking
+        this.offlineManager.unitBackOnline(unitName);
         
         this.scheduleRender();
     }
@@ -2009,6 +2448,10 @@ class OptimizedSAGMGpsTracking {
                         <span id="debugChatUnits">${this.monitorChatRefs.size}</span>
                     </div>
                     <div class="mb-2">
+                        <strong>Offline Units:</strong> 
+                        <span id="debugOfflineUnits">${this.offlineManager.offlineUnits.size}</span>
+                    </div>
+                    <div class="mb-2">
                         <strong>Last Update:</strong> 
                         <span id="debugLastUpdate">${new Date().toLocaleTimeString()}</span>
                     </div>
@@ -2017,6 +2460,9 @@ class OptimizedSAGMGpsTracking {
                     </button>
                     <button class="btn btn-sm btn-danger w-100 mt-1" onclick="forceCleanup()">
                         🧹 Force Cleanup
+                    </button>
+                    <button class="btn btn-sm btn-info w-100 mt-1" onclick="window.gpsSystem.enableSmoothTracking()">
+                        🚀 Smooth Tracking
                     </button>
                 </div>
             </div>
@@ -2028,6 +2474,7 @@ class OptimizedSAGMGpsTracking {
             const statusElement = document.getElementById('debugFirebaseStatus');
             const unitsElement = document.getElementById('debugUnitsCount');
             const chatUnitsElement = document.getElementById('debugChatUnits');
+            const offlineUnitsElement = document.getElementById('debugOfflineUnits');
             const updateElement = document.getElementById('debugLastUpdate');
             
             if (statusElement) {
@@ -2043,6 +2490,10 @@ class OptimizedSAGMGpsTracking {
             
             if (chatUnitsElement) {
                 chatUnitsElement.textContent = this.monitorChatRefs.size;
+            }
+            
+            if (offlineUnitsElement) {
+                offlineUnitsElement.textContent = this.offlineManager.offlineUnits.size;
             }
             
             if (updateElement) {
