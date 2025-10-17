@@ -10,17 +10,451 @@ const FIREBASE_CONFIG = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(FIREBASE_CONFIG);
+try {
+    if (firebase.apps.length === 0) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        console.log('✅ Firebase initialized successfully');
+    } else {
+        console.log('✅ Firebase already initialized');
+    }
+} catch (error) {
+    console.error('❌ Firebase initialization failed:', error);
+    throw new Error(`Firebase initialization error: ${error.message}`);
+}
+
 const database = firebase.database();
+
+// ==== ENHANCED GLOBAL INITIALIZATION WITH ERROR HANDLING ====
+class GlobalGPSInitializer {
+    constructor() {
+        this.system = null;
+        this.initializationAttempts = 0;
+        this.maxAttempts = 3;
+        this.initializationState = {
+            isInitializing: false,
+            isInitialized: false,
+            lastError: null,
+            dependencies: {
+                firebase: false,
+                map: false,
+                dom: false
+            }
+        };
+    }
+
+    // ✅ ENHANCED: Safe initialization dengan comprehensive error handling
+    async initializeSystem() {
+        if (this.initializationState.isInitializing) {
+            console.warn('⚠️ Initialization already in progress');
+            return false;
+        }
+
+        if (this.initializationState.isInitialized && this.system) {
+            console.log('✅ System already initialized');
+            return true;
+        }
+
+        this.initializationState.isInitializing = true;
+        this.initializationAttempts++;
+
+        try {
+            console.log(`🚀 Initializing GPS System (Attempt ${this.initializationAttempts}/${this.maxAttempts})...`);
+
+            // ✅ Step 1: Validate dependencies
+            await this.validateDependencies();
+            
+            // ✅ Step 2: Initialize Firebase dengan error handling
+            await this.initializeFirebase();
+            
+            // ✅ Step 3: Initialize Map
+            await this.initializeMapContainer();
+            
+            // ✅ Step 4: Create system instance dengan proper dependency injection
+            this.system = this.createSystemInstance();
+            
+            // ✅ Step 5: Initialize subsystems
+            await this.initializeSubsystems();
+
+            this.initializationState.isInitialized = true;
+            this.initializationState.isInitializing = false;
+            this.initializationState.lastError = null;
+
+            console.log('✅ GPS System initialized successfully');
+            this.logInitializationSuccess();
+            
+            return true;
+
+        } catch (error) {
+            this.initializationState.isInitializing = false;
+            this.initializationState.lastError = error;
+            
+            console.error('❌ System initialization failed:', error);
+            this.handleInitializationError(error);
+            
+            // ✅ Auto-retry mechanism
+            if (this.initializationAttempts < this.maxAttempts) {
+                console.log(`🔄 Retrying initialization in 3 seconds...`);
+                setTimeout(() => this.initializeSystem(), 3000);
+            } else {
+                this.showCriticalError('System initialization failed after multiple attempts');
+            }
+            
+            return false;
+        }
+    }
+
+    // ✅ ENHANCED: Dependency validation dengan detailed reporting
+    async validateDependencies() {
+        const errors = [];
+        
+        // Check Firebase
+        if (typeof firebase === 'undefined') {
+            errors.push('Firebase SDK not loaded');
+        } else {
+            this.initializationState.dependencies.firebase = true;
+        }
+
+        // Check Leaflet
+        if (typeof L === 'undefined') {
+            errors.push('Leaflet library not loaded');
+        }
+
+        // Check DOM elements
+        const mapContainer = document.getElementById('map');
+        if (!mapContainer) {
+            errors.push('Map container not found');
+        } else {
+            this.initializationState.dependencies.dom = true;
+        }
+
+        // Check required HTML elements for chat system
+        const requiredElements = ['monitorChatWindow', 'monitorChatToggle'];
+        requiredElements.forEach(id => {
+            if (!document.getElementById(id)) {
+                errors.push(`Required element #${id} not found`);
+            }
+        });
+
+        if (errors.length > 0) {
+            throw new Error(`Dependency validation failed: ${errors.join(', ')}`);
+        }
+
+        console.log('✅ All dependencies validated successfully');
+    }
+
+    // ✅ ENHANCED: Firebase initialization dengan error handling
+    async initializeFirebase() {
+        return new Promise((resolve, reject) => {
+            try {
+                console.log('🔧 Initializing Firebase...');
+                
+                // Check if Firebase app already exists
+                if (firebase.apps.length > 0) {
+                    console.log('✅ Firebase app already initialized');
+                    resolve();
+                    return;
+                }
+
+                // Initialize Firebase dengan timeout
+                const timeout = setTimeout(() => {
+                    reject(new Error('Firebase initialization timeout'));
+                }, 10000);
+
+                // Initialize Firebase
+                try {
+                    firebase.initializeApp(FIREBASE_CONFIG);
+                    clearTimeout(timeout);
+                    
+                    // Test connection
+                    const connectedRef = firebase.database().ref(".info/connected");
+                    connectedRef.once("value")
+                        .then(snap => {
+                            if (snap.val() === true) {
+                                console.log('✅ Firebase connected successfully');
+                                resolve();
+                            } else {
+                                reject(new Error('Firebase not connected'));
+                            }
+                        })
+                        .catch(error => {
+                            reject(new Error(`Firebase connection test failed: ${error.message}`));
+                        });
+                        
+                } catch (firebaseError) {
+                    clearTimeout(timeout);
+                    reject(new Error(`Firebase initialization error: ${firebaseError.message}`));
+                }
+
+            } catch (error) {
+                reject(new Error(`Firebase setup failed: ${error.message}`));
+            }
+        });
+    }
+
+    // ✅ ENHANCED: Map container initialization
+    async initializeMapContainer() {
+        return new Promise((resolve, reject) => {
+            try {
+                const mapContainer = document.getElementById('map');
+                if (!mapContainer) {
+                    throw new Error('Map container not found');
+                }
+
+                // Check if container has dimensions
+                const styles = window.getComputedStyle(mapContainer);
+                if (styles.width === '0px' || styles.height === '0px') {
+                    console.warn('⚠️ Map container has zero dimensions, waiting for layout...');
+                    setTimeout(() => {
+                        this.initializeMapContainer().then(resolve).catch(reject);
+                    }, 500);
+                    return;
+                }
+
+                this.initializationState.dependencies.map = true;
+                console.log('✅ Map container ready');
+                resolve();
+
+            } catch (error) {
+                reject(new Error(`Map container initialization failed: ${error.message}`));
+            }
+        });
+    }
+
+    // ✅ ENHANCED: System instance creation dengan proper dependency injection
+    createSystemInstance() {
+        try {
+            console.log('🔧 Creating GPS System instance...');
+            
+            const system = new OptimizedSAGMGpsTracking();
+            
+            // ✅ FIXED: Validasi instance creation
+            if (!system || typeof system.initializeSystem !== 'function') {
+                throw new Error('Invalid system instance created');
+            }
+            
+            // ✅ FIXED: Set global reference dengan error handling
+            try {
+                window.gpsSystem = system;
+                if (window.gpsSystem !== system) {
+                    throw new Error('Failed to set global reference');
+                }
+            } catch (globalError) {
+                console.warn('⚠️ Could not set global reference, using local instance:', globalError.message);
+            }
+            
+            console.log('✅ System instance created successfully');
+            return system;
+            
+        } catch (error) {
+            throw new Error(`System instance creation failed: ${error.message}`);
+        }
+    }
+
+    // ✅ ENHANCED: Subsystem initialization
+    async initializeSubsystems() {
+        const subsystems = [
+            { name: 'Main System', method: 'initializeSystem' },
+            { name: 'Chat System', method: 'setupMonitorChatSystem' },
+            { name: 'Smooth Tracking', method: 'enableSmoothTracking' }
+        ];
+
+        for (const subsystem of subsystems) {
+            try {
+                if (typeof this.system[subsystem.method] === 'function') {
+                    await this.system[subsystem.method].call(this.system);
+                    console.log(`✅ ${subsystem.name} initialized`);
+                }
+            } catch (error) {
+                console.warn(`⚠️ ${subsystem.name} initialization warning:`, error.message);
+                // Continue with other subsystems even if one fails
+            }
+        }
+    }
+
+    // ✅ ENHANCED: Error handling dengan user feedback
+    handleInitializationError(error) {
+        console.error('🚨 Initialization Error:', error);
+        
+        const errorInfo = {
+            attempt: this.initializationAttempts,
+            maxAttempts: this.maxAttempts,
+            timestamp: new Date().toISOString(),
+            error: error.message,
+            dependencies: this.initializationState.dependencies
+        };
+
+        // Save error log
+        this.saveErrorLog(errorInfo);
+        
+        // Show user-friendly error message
+        this.showErrorMessage(this.getUserFriendlyError(error));
+    }
+
+    // ✅ ENHANCED: User-friendly error messages
+    getUserFriendlyError(error) {
+        const errorMessage = error.message.toLowerCase();
+        
+        if (errorMessage.includes('firebase')) {
+            return 'Koneksi database gagal. Periksa koneksi internet Anda.';
+        } else if (errorMessage.includes('map')) {
+            return 'Peta tidak dapat dimuat. Periksa koneksi internet Anda.';
+        } else if (errorMessage.includes('dependency')) {
+            return 'Beberapa komponen sistem tidak terload dengan benar. Refresh halaman.';
+        } else {
+            return 'Sistem mengalami gangguan. Silakan refresh halaman.';
+        }
+    }
+
+    showErrorMessage(message) {
+        // Remove existing error messages
+        const existingErrors = document.querySelectorAll('.system-error-message');
+        existingErrors.forEach(el => el.remove());
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'system-error-message alert alert-warning alert-dismissible fade show';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            min-width: 300px;
+            text-align: center;
+        `;
+        errorDiv.innerHTML = `
+            <strong>⚠️ System Notice</strong><br>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="mt-2">
+                <small>Attempt ${this.initializationAttempts}/${this.maxAttempts}</small>
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="window.globalInitializer.initializeSystem()">
+                    Try Again
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(errorDiv);
+    }
+
+    showCriticalError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'system-critical-error alert alert-danger';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 99999;
+            text-align: center;
+            border-radius: 0;
+        `;
+        errorDiv.innerHTML = `
+            <strong>🚨 Critical System Error</strong><br>
+            ${message}<br>
+            <small>Please refresh the page or contact support.</small>
+        `;
+        
+        document.body.appendChild(errorDiv);
+    }
+
+    saveErrorLog(errorInfo) {
+        try {
+            const logs = JSON.parse(localStorage.getItem('gps_system_error_logs') || '[]');
+            logs.push({
+                ...errorInfo,
+                id: 'err_' + Date.now(),
+                userAgent: navigator.userAgent
+            });
+            
+            // Keep only last 50 errors
+            if (logs.length > 50) {
+                logs.splice(0, logs.length - 50);
+            }
+            
+            localStorage.setItem('gps_system_error_logs', JSON.stringify(logs));
+        } catch (e) {
+            console.warn('Could not save error log:', e);
+        }
+    }
+
+    logInitializationSuccess() {
+        const successInfo = {
+            timestamp: new Date().toISOString(),
+            attempts: this.initializationAttempts,
+            dependencies: this.initializationState.dependencies,
+            performance: {
+                memory: performance.memory ? {
+                    used: Math.round(performance.memory.usedJSHeapSize / 1048576),
+                    total: Math.round(performance.memory.totalJSHeapSize / 1048576)
+                } : null,
+                timing: performance.timing ? {
+                    loadTime: performance.timing.loadEventEnd - performance.timing.navigationStart
+                } : null
+            }
+        };
+        
+        console.log('🎉 System initialization completed:', successInfo);
+    }
+
+    // ✅ ENHANCED: System status check
+    getSystemStatus() {
+        return {
+            ...this.initializationState,
+            system: !!this.system,
+            attempts: this.initializationAttempts,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    // ✅ ENHANCED: Safe cleanup
+    cleanup() {
+        this.initializationState.isInitializing = false;
+        
+        if (this.system && typeof this.system.cleanup === 'function') {
+            try {
+                this.system.cleanup();
+            } catch (error) {
+                console.error('Error during system cleanup:', error);
+            }
+        }
+        
+        this.system = null;
+        window.gpsSystem = null;
+        
+        // Remove error messages
+        document.querySelectorAll('.system-error-message, .system-critical-error').forEach(el => el.remove());
+        
+        console.log('🧹 Global initializer cleanup completed');
+    }
+}
 
 // ==== ENHANCED SMOOTH LIVE TRACKING SYSTEM ====
 class SmoothLiveTracking {
-    constructor() {
+    constructor(gpsSystem) {
+        // ✅ FIXED: Constructor menerima parameter gpsSystem
+        if (!gpsSystem) {
+            throw new Error('SmoothLiveTracking requires gpsSystem parameter');
+        }
+        
+        this.gpsSystem = gpsSystem; // ✅ SIMPAN REFERENCE
         this.unitAnimations = new Map();
         this.interpolationEnabled = true;
         this.animationDuration = 2000; // 2 detik untuk smooth movement
         this.lastPositions = new Map();
         this.performanceOptimizer = new PerformanceOptimizer();
+    }
+
+    // ✅ FIXED: Akses markers dan units melalui gpsSystem
+    get markers() {
+        return this.gpsSystem.markers;
+    }
+
+    get units() {
+        return this.gpsSystem.units;
+    }
+
+    get unitHistory() {
+        return this.gpsSystem.unitHistory;
     }
 
     // Enhanced real-time data processing
@@ -447,8 +881,8 @@ class OptimizedSAGMGpsTracking {
         this.lastRenderTime = 0;
         this.renderThrottleMs = 500;
         
-        // ✅ ENHANCED: Smooth Live Tracking
-        this.smoothTracker = new SmoothLiveTracking();
+        // ✅ ENHANCED: Smooth Live Tracking dengan dependency injection
+        this.smoothTracker = new SmoothLiveTracking(this); // ✅ PASS THIS KE SmoothLiveTracking
         
         // ✅ ENHANCED: Monitor Offline Manager
         this.offlineManager = new MonitorOfflineManager();
@@ -535,7 +969,7 @@ class OptimizedSAGMGpsTracking {
             zoom: 13
         };
 
-        this.initializeSystem();
+        // Initialize system nanti setelah validasi
     }
 
     // ===== INITIALIZATION METHODS =====
@@ -563,6 +997,7 @@ class OptimizedSAGMGpsTracking {
         } catch (error) {
             console.error('System initialization failed:', error);
             this.displayError('Gagal memulai sistem GPS');
+            throw error; // Re-throw untuk ditangani oleh global initializer
         }
     }
 
@@ -2573,8 +3008,8 @@ class OptimizedSAGMGpsTracking {
     }
 }
 
-// Initialize the system
-let gpsSystem;
+// ===== GLOBAL INITIALIZATION AND MANAGEMENT =====
+let globalInitializer;
 
 // Global functions
 function refreshData() {
@@ -2628,24 +3063,68 @@ function selectChatUnit(unitName) {
     }
 }
 
-// Event listener dengan enhanced cleanup
-document.addEventListener('DOMContentLoaded', function() {
+// ✅ ENHANCED: Event listener dengan global initializer
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 DOM Content Loaded - Starting Enhanced GPS System...');
+    
+    // Cleanup existing instances
     if (window.gpsSystem) {
         window.gpsSystem.cleanup();
+        window.gpsSystem = null;
     }
     
-    gpsSystem = new OptimizedSAGMGpsTracking();
-    window.gpsSystem = gpsSystem;
+    if (window.globalInitializer) {
+        window.globalInitializer.cleanup();
+        window.globalInitializer = null;
+    }
+    
+    // Initialize dengan enhanced error handling
+    try {
+        globalInitializer = new GlobalGPSInitializer();
+        window.globalInitializer = globalInitializer;
+        
+        const success = await globalInitializer.initializeSystem();
+        
+        if (success) {
+            console.log('🎉 Enhanced GPS System started successfully!');
+        } else {
+            console.error('❌ Enhanced GPS System failed to start');
+        }
+    } catch (error) {
+        console.error('💥 Critical system initialization error:', error);
+        alert('Sistem gagal dimulai. Silakan refresh halaman.');
+    }
 });
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
+    if (window.globalInitializer) {
+        window.globalInitializer.cleanup();
+    }
+    
     if (window.gpsSystem) {
         window.gpsSystem.cleanup();
     }
 });
 
-// Prevent multiple instances
-if (window.gpsSystem) {
-    window.gpsSystem.cleanup();
+// Handle page visibility changes
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        // Page became visible, check system status
+        if (window.globalInitializer && !window.globalInitializer.initializationState.isInitialized) {
+            console.log('🔄 Page visible, reinitializing system...');
+            window.globalInitializer.initializeSystem();
+        }
+    }
+});
+
+// Export for module usage jika diperlukan
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        GlobalGPSInitializer,
+        OptimizedSAGMGpsTracking,
+        SmoothLiveTracking,
+        PerformanceOptimizer,
+        MonitorOfflineManager
+    };
 }
