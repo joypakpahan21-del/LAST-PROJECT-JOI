@@ -1023,7 +1023,7 @@ class DTGPSLogger {
         this.sendToFirebase();
     }
 
-    // ✅ FIXED LOGOUT - BEDAIN LOGOUT vs NO NETWORK
+    // ✅ FIXED LOGOUT - BENAR-BENAR KEMBALI KE BERANDA
     async logout() {
         if (confirm('Yakin ingin logout? Data akan dihapus dari sistem.')) {
             try {
@@ -1032,12 +1032,12 @@ class DTGPSLogger {
                 // 1. Stop semua tracking
                 this.stopTracking();
                 
-                // 2. Kirim status LOGOUT yang EXPLICIT (BEDA DENGAN NO NETWORK)
+                // 2. Kirim status LOGOUT yang EXPLICIT
                 if (this.firebaseRef && this.driverData) {
                     const logoutData = {
                         driver: this.driverData.name,
                         unit: this.driverData.unit,
-                        status: "LOGGED_OUT", // ✅ INI BEDANYA!
+                        status: "LOGGED_OUT",
                         lastUpdate: new Date().toLocaleTimeString('id-ID'),
                         logoutTime: new Date().toISOString(),
                         isOnline: false
@@ -1077,6 +1077,11 @@ class DTGPSLogger {
                 document.getElementById('driverApp').style.display = 'none';
                 document.getElementById('loginForm').reset();
                 
+                // 6. Clear semua interval dan timeout
+                this.clearAllIntervals();
+                
+                console.log('✅ Logout completed successfully');
+                
             } catch (error) {
                 console.error('Error during logout:', error);
                 this.addLog('Error saat logout: ' + error.message, 'error');
@@ -1100,21 +1105,32 @@ class DTGPSLogger {
         this.sessionStartTime = null;
         this.journeyStatus = 'ready';
         this.isTracking = false;
-        
-        // Clear intervals
-        if (this.sendInterval) {
-            clearInterval(this.sendInterval);
-        }
+        this.isOnline = navigator.onLine;
         
         console.log('🔄 App state reset complete');
+    }
+
+    // ✅ NEW: Clear semua intervals
+    clearAllIntervals() {
+        if (this.sendInterval) {
+            clearInterval(this.sendInterval);
+            this.sendInterval = null;
+        }
+        
+        // Clear session duration interval
+        const intervals = window.intervals || [];
+        intervals.forEach(interval => clearInterval(interval));
+        window.intervals = [];
     }
 
     stopTracking() {
         if (this.watchId) {
             navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
         }
         if (this.sendInterval) {
             clearInterval(this.sendInterval);
+            this.sendInterval = null;
         }
         this.isTracking = false;
     }
