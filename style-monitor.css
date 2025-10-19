@@ -1,3 +1,103 @@
+/* ✅ FIXED MAP CONTAINER STYLES */
+#map {
+    height: 600px !important;
+    width: 100% !important;
+    border-radius: 8px;
+    z-index: 1;
+}
+
+/* ✅ FIXED SIDEBAR SYNC STYLES */
+.sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+}
+
+.unit-list {
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.unit-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.unit-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.unit-item.moving {
+    border-left: 4px solid #ffc107;
+}
+
+.unit-item.active {
+    border-left: 4px solid #198754;
+}
+
+.unit-item.inactive {
+    border-left: 4px solid #dc3545;
+}
+
+/* ✅ FIXED MARKER STYLES */
+.custom-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.marker-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.marker-icon.moving {
+    background: #ffc107;
+    animation: pulse 2s infinite;
+}
+
+.marker-icon.active {
+    background: #198754;
+}
+
+.marker-icon.inactive {
+    background: #dc3545;
+}
+
+.marker-icon.offline {
+    background: #6c757d;
+    opacity: 0.6;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* ✅ FIXED CHAT INPUT ENABLED STATE */
+#monitorChatInput:not(:disabled) {
+    background: white;
+    border-color: #198754;
+}
+
+#monitorSendBtn:not(:disabled) {
+    background: #198754;
+    border-color: #198754;
+}
+
 /* ✅ WHATSAPP-STYLE CHAT ENHANCEMENTS */
 .chat-message {
     max-width: 85%;
