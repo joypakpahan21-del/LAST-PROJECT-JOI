@@ -18,7 +18,7 @@ class GPSMonitoringSystem {
         this.markers = new Map();
         this.map = null;
         this.isInitialized = false;
-        this.currentMapType = 'street'; // 'street' or 'satellite'
+        this.currentMapType = 'street';
         
         // Important locations
         this.importantLocations = {
@@ -43,9 +43,10 @@ class GPSMonitoringSystem {
 
         // Chat system
         this.chatRef = null;
-        this.chatMessages = new Map(); // unit -> messages
+        this.currentChatUnit = null;
+        this.currentChatDriver = null;
+        this.chatMessages = new Map();
         this.unreadCounts = new Map();
-        this.typingStatus = new Map();
     }
 
     // ===== MAIN INITIALIZATION =====
@@ -54,16 +55,9 @@ class GPSMonitoringSystem {
             console.log('🔧 Starting system initialization...');
             this.showLoading(true);
             
-            // Step 1: Initialize Firebase
             this.initializeFirebase();
-            
-            // Step 2: Setup Map dengan satellite option
             this.setupMap();
-            
-            // Step 3: Connect to Firebase
             this.connectToFirebase();
-            
-            // Step 4: Setup Chat System
             this.setupChatSystem();
             
             this.isInitialized = true;
@@ -83,8 +77,6 @@ class GPSMonitoringSystem {
             if (firebase.apps.length === 0) {
                 firebase.initializeApp(FIREBASE_CONFIG);
                 console.log('✅ Firebase initialized');
-            } else {
-                console.log('✅ Firebase already initialized');
             }
         } catch (error) {
             throw new Error('Firebase initialization failed: ' + error.message);
@@ -101,9 +93,7 @@ class GPSMonitoringSystem {
                 throw new Error('Map container tidak ditemukan');
             }
 
-            // Create map instance
             this.map = L.map('map').setView(this.config.center, this.config.zoom);
-            console.log('✅ Map instance created');
 
             // Street View
             this.streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -121,13 +111,8 @@ class GPSMonitoringSystem {
             // Default layer
             this.streetLayer.addTo(this.map);
 
-            // Add map type control
             this.addMapControls();
-            console.log('✅ Map layers and controls added');
-
-            // Add important locations
             this.addLocationMarkers();
-            console.log('✅ Location markers added');
 
         } catch (error) {
             console.error('❌ Map setup failed:', error);
@@ -157,7 +142,6 @@ class GPSMonitoringSystem {
         };
         mapTypeControl.addTo(this.map);
 
-        // Add scale control
         L.control.scale({ imperial: false }).addTo(this.map);
     }
 
@@ -166,18 +150,15 @@ class GPSMonitoringSystem {
         
         this.currentMapType = type;
         
-        // Remove current layer
         this.map.removeLayer(this.streetLayer);
         this.map.removeLayer(this.satelliteLayer);
         
-        // Add new layer
         if (type === 'street') {
             this.streetLayer.addTo(this.map);
         } else {
             this.satelliteLayer.addTo(this.map);
         }
         
-        // Update button states
         document.querySelectorAll('.map-type-control .btn').forEach(btn => {
             btn.classList.remove('active');
         });
@@ -263,20 +244,16 @@ class GPSMonitoringSystem {
             
             const database = firebase.database();
 
-            // Connection status listener
             database.ref('.info/connected').on('value', (snapshot) => {
                 const connected = snapshot.val();
                 this.updateConnectionStatus(connected);
-                console.log('📡 Firebase connection:', connected);
             });
 
-            // Units data listener
             database.ref('/units').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
                     this.processRealTimeData(data);
                 } else {
-                    console.log('ℹ️ No data received from Firebase');
                     this.clearAllUnits();
                 }
             }, (error) => {
@@ -302,7 +279,7 @@ class GPSMonitoringSystem {
             // ✅ PERBEDAAN LOGOUT vs NO NETWORK
             if (unitData.status === "LOGGED_OUT") {
                 console.log(`🚪 ${unitName} sudah logout - menghapus data`);
-                database.ref('/units/' + unitName).remove();
+                firebase.database().ref('/units/' + unitName).remove();
                 return;
             }
 
@@ -311,7 +288,7 @@ class GPSMonitoringSystem {
                 const updateTime = new Date(unitData.lastUpdate).getTime();
                 const timeDiff = now - updateTime;
                 
-                if (timeDiff > 600000 && unitData.isOnline !== false) { // 10 menit
+                if (timeDiff > 600000 && unitData.isOnline !== false) {
                     console.log(`🕒 ${unitName} data stale - marking as offline`);
                     unitData.isOnline = false;
                 }
@@ -323,10 +300,7 @@ class GPSMonitoringSystem {
             }
         });
 
-        // Cleanup inactive units
         this.cleanupInactiveUnits(activeUnits);
-        
-        // Update statistics
         this.updateStatistics();
     }
 
@@ -352,23 +326,18 @@ class GPSMonitoringSystem {
             lastUpdate: unitData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
             distance: parseFloat(unitData.distance) || 0,
             fuelLevel: this.computeFuelLevel(100, unitData.distance, unitData.journeyStatus),
-            isOnline: unitData.isOnline !== false, // ✅ Bedain offline vs logout
+            isOnline: unitData.isOnline !== false,
             batteryLevel: unitData.batteryLevel || 100,
             accuracy: unitData.accuracy || 0
         };
 
         if (this.markers.has(unitName)) {
-            // Update existing marker
             const marker = this.markers.get(unitName);
             marker.setLatLng([unit.lat, unit.lng]);
             marker.setPopupContent(this.createUnitPopup(unit));
-            
-            // Update marker icon based on status
             const icon = this.createUnitIcon(unit);
             marker.setIcon(icon);
-
         } else {
-            // Create new marker
             this.createUnitMarker(unit);
         }
 
@@ -411,6 +380,9 @@ class GPSMonitoringSystem {
             unit.status === 'active' ? '🟢 AKTIF' : 
             unit.status === 'moving' ? '🟡 DALAM PERJALANAN' : '⚫ NON-AKTIF';
 
+        const unreadCount = this.unreadCounts.get(unit.name) || 0;
+        const chatBadge = unreadCount > 0 ? `<span class="badge bg-danger">${unreadCount}</span>` : '';
+
         return `
             <div class="unit-popup" style="min-width: 250px;">
                 <div class="popup-header" style="background: ${unit.isOnline ? '#28a745' : '#dc3545'}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
@@ -428,7 +400,7 @@ class GPSMonitoringSystem {
                     <div><strong>Update:</strong> ${unit.lastUpdate}</div>
                     <div class="mt-2">
                         <button class="btn btn-sm btn-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
-                            💬 Chat dengan ${unit.driver}
+                            💬 Chat dengan ${unit.driver} ${chatBadge}
                         </button>
                     </div>
                 </div>
@@ -482,8 +454,6 @@ class GPSMonitoringSystem {
         this.units.forEach((unit, unitName) => {
             if (!activeUnits.has(unitName)) {
                 unit.isOnline = false;
-                
-                // Update marker to show offline status
                 const marker = this.markers.get(unitName);
                 if (marker) {
                     const icon = this.createUnitIcon(unit);
@@ -510,7 +480,6 @@ class GPSMonitoringSystem {
         
         this.chatRef = firebase.database().ref('/chat');
         
-        // Listen untuk semua chat messages
         this.chatRef.on('child_added', (snapshot) => {
             const unitId = snapshot.key;
             snapshot.forEach((messageSnapshot) => {
@@ -519,16 +488,12 @@ class GPSMonitoringSystem {
             });
         });
 
-        // Listen untuk typing indicators
         const typingRef = firebase.database().ref('/typing');
         typingRef.on('child_added', (snapshot) => {
             const unitId = snapshot.key;
             const typingData = snapshot.val();
             this.handleTypingIndicator(unitId, typingData);
         });
-
-        // Setup chat UI
-        this.setupChatUI();
     }
 
     handleChatMessage(unitId, message) {
@@ -537,26 +502,21 @@ class GPSMonitoringSystem {
         }
         
         const messages = this.chatMessages.get(unitId);
-        
-        // Prevent duplicates
         const messageExists = messages.some(msg => msg.id === message.id);
         if (messageExists) return;
         
         messages.push(message);
         
-        // Update unread count jika chat tidak terbuka
         if (!this.isChatOpen(unitId)) {
             const currentCount = this.unreadCounts.get(unitId) || 0;
             this.unreadCounts.set(unitId, currentCount + 1);
             this.updateChatBadge(unitId);
         }
         
-        // Update chat UI jika terbuka
         if (this.isChatOpen(unitId)) {
             this.renderChatMessages(unitId);
         }
         
-        // Show notification
         if (message.sender !== 'Monitor') {
             this.showChatNotification(unitId, message);
         }
@@ -571,38 +531,6 @@ class GPSMonitoringSystem {
         }
     }
 
-    setupChatUI() {
-        // Create chat container jika belum ada
-        if (!document.getElementById('monitorChatContainer')) {
-            const chatHTML = `
-                <div id="monitorChatContainer" style="display: none;">
-                    <div class="position-fixed chat-window-monitor" style="width: 350px; height: 500px; bottom: 20px; right: 20px; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000;">
-                        <div class="chat-header bg-primary text-white p-3 rounded-top">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0" id="chatWithUser">💬 Chat</h6>
-                                <div>
-                                    <button class="btn btn-sm btn-light me-2" onclick="window.gpsSystem.minimizeChat()">➖</button>
-                                    <button class="btn btn-sm btn-light" onclick="window.gpsSystem.closeChat()">✕</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="chatMessagesMonitor" class="chat-messages p-3" style="height: 350px; overflow-y: auto; background: #f8f9fa;"></div>
-                        <div class="typing-indicator" id="typingIndicatorMonitor" style="display: none; padding: 10px; font-style: italic; color: #666;">
-                            <span id="typingText"></span>
-                        </div>
-                        <div class="chat-input-container p-3 border-top">
-                            <div class="input-group">
-                                <input type="text" id="chatInputMonitor" class="form-control" placeholder="Ketik pesan...">
-                                <button class="btn btn-primary" onclick="window.gpsSystem.sendChatMessage()">Kirim</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', chatHTML);
-        }
-    }
-
     openChat(unitId, driverName) {
         this.currentChatUnit = unitId;
         this.currentChatDriver = driverName;
@@ -610,14 +538,10 @@ class GPSMonitoringSystem {
         document.getElementById('monitorChatContainer').style.display = 'block';
         document.getElementById('chatWithUser').textContent = `💬 Chat dengan ${driverName} (${unitId})`;
         
-        // Reset unread count
         this.unreadCounts.set(unitId, 0);
         this.updateChatBadge(unitId);
-        
-        // Render messages
         this.renderChatMessages(unitId);
         
-        // Focus input
         setTimeout(() => {
             document.getElementById('chatInputMonitor').focus();
         }, 100);
@@ -709,7 +633,6 @@ class GPSMonitoringSystem {
             await this.chatRef.child(this.currentChatUnit).push(messageData);
             input.value = '';
             
-            // Add to local messages
             if (!this.chatMessages.has(this.currentChatUnit)) {
                 this.chatMessages.set(this.currentChatUnit, []);
             }
@@ -739,9 +662,8 @@ class GPSMonitoringSystem {
     }
 
     updateChatBadge(unitId) {
-        // Update badge pada unit list atau map popup
         const unreadCount = this.unreadCounts.get(unitId) || 0;
-        console.log(`💬 ${unitId} has ${unreadCount} unread messages`);
+        this.renderUnitList();
     }
 
     showChatNotification(unitId, message) {
@@ -765,7 +687,6 @@ class GPSMonitoringSystem {
                 z-index: 9999;
                 min-width: 300px;
                 max-width: 400px;
-                animation: slideInRight 0.3s ease-out;
             `;
             
             document.body.appendChild(notification);
@@ -819,7 +740,6 @@ class GPSMonitoringSystem {
 
         const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
 
-        // Update DOM elements
         this.updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
         this.updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
         this.updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
@@ -829,7 +749,6 @@ class GPSMonitoringSystem {
         this.updateElement('activeUnitsDetail', `${unitCount} units terdeteksi`);
         this.updateElement('distanceDetail', `${this.units.size} units`);
 
-        // Update unit list
         this.renderUnitList();
     }
 
@@ -984,4 +903,27 @@ document.addEventListener('keypress', function(e) {
     if (e.key === 'Enter' && document.getElementById('chatInputMonitor') === document.activeElement) {
         window.gpsSystem.sendChatMessage();
     }
+});
+
+// Real-time clock
+function updateClock() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Initialize system when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Starting GPS Tracking System...');
+    
+    setTimeout(() => {
+        if (typeof L !== 'undefined' && typeof firebase !== 'undefined') {
+            window.gpsSystem = new GPSMonitoringSystem();
+            window.gpsSystem.initialize();
+        } else {
+            console.error('❌ Dependencies not loaded properly');
+            alert('Sistem gagal dimuat. Periksa koneksi internet dan refresh halaman.');
+        }
+    }, 1000);
 });
