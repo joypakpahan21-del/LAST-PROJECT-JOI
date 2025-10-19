@@ -115,8 +115,9 @@ body {
     }
 }
 
-/* ✅ ENHANCED CHAT STYLES */
+/* ✅ ENHANCED CHAT STYLES - WHATSAPP STYLE */
 .chat-toggle-btn {
+    position: fixed;
     bottom: 90px;
     right: 20px;
     z-index: 1000;
@@ -124,6 +125,9 @@ body {
     padding: 10px 20px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     font-weight: bold;
+    background: linear-gradient(135deg, #25D366, #128C7E);
+    border: none;
+    color: white;
 }
 
 .chat-window {
@@ -138,10 +142,11 @@ body {
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     z-index: 1001;
     flex-direction: column;
+    border: 1px solid #e0e0e0;
 }
 
 .chat-header {
-    background: linear-gradient(135deg, #2c3e50, #3498db);
+    background: linear-gradient(135deg, #075E54, #128C7E);
     color: white;
     padding: 15px;
     border-radius: 15px 15px 0 0;
@@ -154,13 +159,15 @@ body {
 .chat-header h6 {
     margin: 0;
     font-weight: bold;
+    font-size: 1rem;
 }
 
 .chat-messages {
     flex: 1;
     overflow-y: auto;
     padding: 15px;
-    background: #f8f9fa;
+    background: #e5ddd5;
+    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
 }
 
 .chat-message {
@@ -182,12 +189,14 @@ body {
     padding: 10px 15px;
     border-radius: 15px;
     position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .message-sent .message-content {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    color: white;
+    background: #DCF8C6;
+    color: #000;
     border-bottom-right-radius: 5px;
+    margin-left: auto;
 }
 
 .message-received .message-content {
@@ -195,23 +204,26 @@ body {
     color: #333;
     border: 1px solid #e0e0e0;
     border-bottom-left-radius: 5px;
+    margin-right: auto;
 }
 
 .message-failed {
     opacity: 0.7;
     border: 1px solid #dc3545 !important;
+    background: #ffe6e6 !important;
 }
 
 .message-text {
     margin-bottom: 5px;
     word-wrap: break-word;
+    line-height: 1.4;
 }
 
 .message-sender {
     font-size: 0.7em;
     font-weight: bold;
     margin-bottom: 3px;
-    color: #2c3e50;
+    color: #128C7E;
 }
 
 .message-footer {
@@ -223,12 +235,14 @@ body {
 }
 
 .message-time {
-    opacity: 0.8;
+    opacity: 0.6;
+    font-size: 0.65rem;
 }
 
 .message-status {
     margin-left: 5px;
     opacity: 0.7;
+    font-size: 0.7rem;
 }
 
 .chat-input-container {
@@ -241,6 +255,8 @@ body {
 .chat-placeholder {
     color: #6c757d;
     font-style: italic;
+    text-align: center;
+    padding: 20px;
 }
 
 .chat-notification {
@@ -255,12 +271,13 @@ body {
 }
 
 .chat-date-separator span {
-    background: #f8f9fa;
+    background: rgba(255,255,255,0.9);
     padding: 5px 15px;
     border-radius: 15px;
     font-size: 0.75rem;
     color: #6c757d;
     border: 1px solid #e9ecef;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 /* Typing Indicator */
@@ -272,6 +289,10 @@ body {
     font-size: 0.8rem;
     color: #6c757d;
     font-style: italic;
+    background: rgba(255,255,255,0.8);
+    border-radius: 10px;
+    margin: 10px 0;
+    max-width: fit-content;
 }
 
 .typing-dots {
@@ -324,6 +345,25 @@ body {
     }
 }
 
+/* Scrollbar Styling */
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.3);
+}
+
 /* Mobile optimization untuk chat */
 @media (max-width: 768px) {
     .chat-window {
@@ -347,4 +387,27 @@ body {
     .chat-messages {
         padding: 10px;
     }
+}
+
+/* Badge untuk unread messages */
+.badge {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+}
+
+/* Input styling */
+.form-control:focus {
+    border-color: #128C7E;
+    box-shadow: 0 0 0 0.2rem rgba(18, 140, 126, 0.25);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #128C7E, #075E54);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #075E54, #05433a);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
