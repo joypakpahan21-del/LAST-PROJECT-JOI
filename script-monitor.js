@@ -18,6 +18,7 @@ class GPSMonitoringSystem {
         this.markers = new Map();
         this.map = null;
         this.isInitialized = false;
+        this.currentMapType = 'street'; // 'street' or 'satellite'
         
         // Important locations
         this.importantLocations = {
@@ -39,6 +40,12 @@ class GPSMonitoringSystem {
             center: [-0.396055, 102.958944],
             zoom: 13
         };
+
+        // Chat system
+        this.chatRef = null;
+        this.chatMessages = new Map(); // unit -> messages
+        this.unreadCounts = new Map();
+        this.typingStatus = new Map();
     }
 
     // ===== MAIN INITIALIZATION =====
@@ -50,11 +57,14 @@ class GPSMonitoringSystem {
             // Step 1: Initialize Firebase
             this.initializeFirebase();
             
-            // Step 2: Setup Map
+            // Step 2: Setup Map dengan satellite option
             this.setupMap();
             
             // Step 3: Connect to Firebase
             this.connectToFirebase();
+            
+            // Step 4: Setup Chat System
+            this.setupChatSystem();
             
             this.isInitialized = true;
             console.log('✅ System initialized successfully');
@@ -81,7 +91,7 @@ class GPSMonitoringSystem {
         }
     }
 
-    // ===== MAP SETUP =====
+    // ===== MAP SETUP DENGAN SATELLITE =====
     setupMap() {
         try {
             console.log('🗺️ Setting up map...');
@@ -95,16 +105,25 @@ class GPSMonitoringSystem {
             this.map = L.map('map').setView(this.config.center, this.config.zoom);
             console.log('✅ Map instance created');
 
-            // Add tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            // Street View
+            this.streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 18
-            }).addTo(this.map);
-            console.log('✅ Tile layer added');
+            });
 
-            // Add controls
-            L.control.scale({ imperial: false }).addTo(this.map);
-            console.log('✅ Map controls added');
+            // Satellite View
+            this.satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                attribution: '© Google Satellite'
+            });
+
+            // Default layer
+            this.streetLayer.addTo(this.map);
+
+            // Add map type control
+            this.addMapControls();
+            console.log('✅ Map layers and controls added');
 
             // Add important locations
             this.addLocationMarkers();
@@ -115,6 +134,56 @@ class GPSMonitoringSystem {
             this.showMapError(error.message);
             throw error;
         }
+    }
+
+    addMapControls() {
+        // Map type control
+        const mapTypeControl = L.control({ position: 'topright' });
+        mapTypeControl.onAdd = () => {
+            const div = L.DomUtil.create('div', 'map-type-control');
+            div.innerHTML = `
+                <div class="btn-group-vertical">
+                    <button class="btn btn-sm btn-light ${this.currentMapType === 'street' ? 'active' : ''}" 
+                            onclick="window.gpsSystem.switchMapType('street')">
+                        🗺️ Street
+                    </button>
+                    <button class="btn btn-sm btn-light ${this.currentMapType === 'satellite' ? 'active' : ''}" 
+                            onclick="window.gpsSystem.switchMapType('satellite')">
+                        🛰️ Satellite
+                    </button>
+                </div>
+            `;
+            return div;
+        };
+        mapTypeControl.addTo(this.map);
+
+        // Add scale control
+        L.control.scale({ imperial: false }).addTo(this.map);
+    }
+
+    switchMapType(type) {
+        if (this.currentMapType === type) return;
+        
+        this.currentMapType = type;
+        
+        // Remove current layer
+        this.map.removeLayer(this.streetLayer);
+        this.map.removeLayer(this.satelliteLayer);
+        
+        // Add new layer
+        if (type === 'street') {
+            this.streetLayer.addTo(this.map);
+        } else {
+            this.satelliteLayer.addTo(this.map);
+        }
+        
+        // Update button states
+        document.querySelectorAll('.map-type-control .btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+        
+        console.log(`🗺️ Switched to ${type} view`);
     }
 
     showMapError(message) {
@@ -227,8 +296,27 @@ class GPSMonitoringSystem {
         console.log(`🔄 Processing ${unitCount} units`);
 
         const activeUnits = new Set();
+        const now = Date.now();
 
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+            // ✅ PERBEDAAN LOGOUT vs NO NETWORK
+            if (unitData.status === "LOGGED_OUT") {
+                console.log(`🚪 ${unitName} sudah logout - menghapus data`);
+                database.ref('/units/' + unitName).remove();
+                return;
+            }
+
+            // Check jika data stale (lebih dari 10 menit)
+            if (unitData.lastUpdate) {
+                const updateTime = new Date(unitData.lastUpdate).getTime();
+                const timeDiff = now - updateTime;
+                
+                if (timeDiff > 600000 && unitData.isOnline !== false) { // 10 menit
+                    console.log(`🕒 ${unitName} data stale - marking as offline`);
+                    unitData.isOnline = false;
+                }
+            }
+
             if (this.validateUnitData(unitName, unitData)) {
                 activeUnits.add(unitName);
                 this.updateOrCreateUnit(unitName, unitData);
@@ -260,11 +348,13 @@ class GPSMonitoringSystem {
             speed: parseFloat(unitData.speed) || 0,
             driver: unitData.driver || 'Tidak diketahui',
             afdeling: this.determineAfdeling(unitName),
-            status: this.determineStatus(unitData.journeyStatus),
-            lastUpdate: new Date().toLocaleTimeString('id-ID'),
+            status: this.determineStatus(unitData.journeyStatus, unitData.isOnline),
+            lastUpdate: unitData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
             distance: parseFloat(unitData.distance) || 0,
             fuelLevel: this.computeFuelLevel(100, unitData.distance, unitData.journeyStatus),
-            isOnline: true
+            isOnline: unitData.isOnline !== false, // ✅ Bedain offline vs logout
+            batteryLevel: unitData.batteryLevel || 100,
+            accuracy: unitData.accuracy || 0
         };
 
         if (this.markers.has(unitName)) {
@@ -274,12 +364,7 @@ class GPSMonitoringSystem {
             marker.setPopupContent(this.createUnitPopup(unit));
             
             // Update marker icon based on status
-            const icon = L.divIcon({
-                className: 'custom-marker',
-                html: `<div class="marker-icon ${unit.status}">🚛</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
+            const icon = this.createUnitIcon(unit);
             marker.setIcon(icon);
 
         } else {
@@ -290,13 +375,28 @@ class GPSMonitoringSystem {
         this.units.set(unitName, unit);
     }
 
-    createUnitMarker(unit) {
-        const icon = L.divIcon({
+    createUnitIcon(unit) {
+        let html = '';
+        if (!unit.isOnline) {
+            html = '<div class="marker-icon offline">🔴</div>';
+        } else if (unit.status === 'moving') {
+            html = '<div class="marker-icon moving">🟡</div>';
+        } else if (unit.status === 'active') {
+            html = '<div class="marker-icon active">🟢</div>';
+        } else {
+            html = '<div class="marker-icon inactive">⚫</div>';
+        }
+
+        return L.divIcon({
             className: 'custom-marker',
-            html: `<div class="marker-icon ${unit.status}">🚛</div>`,
+            html: html,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         });
+    }
+
+    createUnitMarker(unit) {
+        const icon = this.createUnitIcon(unit);
 
         const marker = L.marker([unit.lat, unit.lng], { icon: icon })
             .bindPopup(this.createUnitPopup(unit))
@@ -306,19 +406,31 @@ class GPSMonitoringSystem {
     }
 
     createUnitPopup(unit) {
+        const statusInfo = !unit.isOnline ? 
+            '🔴 OFFLINE (No Network)' : 
+            unit.status === 'active' ? '🟢 AKTIF' : 
+            unit.status === 'moving' ? '🟡 DALAM PERJALANAN' : '⚫ NON-AKTIF';
+
         return `
             <div class="unit-popup" style="min-width: 250px;">
-                <div class="popup-header" style="background: #28a745; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
-                    <h6 class="mb-0">🚛 ${unit.name}</h6>
+                <div class="popup-header" style="background: ${unit.isOnline ? '#28a745' : '#dc3545'}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
+                    <h6 class="mb-0">🚛 ${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
                 </div>
                 <div style="padding: 10px;">
                     <div><strong>Driver:</strong> ${unit.driver}</div>
                     <div><strong>Afdeling:</strong> ${unit.afdeling}</div>
-                    <div><strong>Status:</strong> ${unit.status === 'moving' ? '🟡 Dalam Perjalanan' : unit.status === 'active' ? '🟢 Aktif' : '🔴 Non-Aktif'}</div>
+                    <div><strong>Status:</strong> ${statusInfo}</div>
                     <div><strong>Kecepatan:</strong> ${unit.speed} km/h</div>
                     <div><strong>Jarak:</strong> ${unit.distance.toFixed(2)} km</div>
                     <div><strong>Bahan Bakar:</strong> ${unit.fuelLevel.toFixed(1)}%</div>
+                    <div><strong>Baterai:</strong> ${unit.batteryLevel}%</div>
+                    <div><strong>Akurasi GPS:</strong> ${unit.accuracy.toFixed(1)} m</div>
                     <div><strong>Update:</strong> ${unit.lastUpdate}</div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
+                            💬 Chat dengan ${unit.driver}
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -336,7 +448,9 @@ class GPSMonitoringSystem {
         return afdelingMap[unitName] || 'AFD I';
     }
 
-    determineStatus(journeyStatus) {
+    determineStatus(journeyStatus, isOnline) {
+        if (isOnline === false) return 'offline';
+        
         const statusMap = {
             'started': 'moving',
             'moving': 'moving', 
@@ -372,12 +486,7 @@ class GPSMonitoringSystem {
                 // Update marker to show offline status
                 const marker = this.markers.get(unitName);
                 if (marker) {
-                    const icon = L.divIcon({
-                        className: 'custom-marker',
-                        html: '<div class="marker-icon inactive">🚛</div>',
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 16]
-                    });
+                    const icon = this.createUnitIcon(unit);
                     marker.setIcon(icon);
                 }
             }
@@ -393,6 +502,286 @@ class GPSMonitoringSystem {
         this.markers.clear();
         this.units.clear();
         this.renderUnitList();
+    }
+
+    // ===== CHAT SYSTEM =====
+    setupChatSystem() {
+        console.log('💬 Setting up chat system...');
+        
+        this.chatRef = firebase.database().ref('/chat');
+        
+        // Listen untuk semua chat messages
+        this.chatRef.on('child_added', (snapshot) => {
+            const unitId = snapshot.key;
+            snapshot.forEach((messageSnapshot) => {
+                const message = messageSnapshot.val();
+                this.handleChatMessage(unitId, message);
+            });
+        });
+
+        // Listen untuk typing indicators
+        const typingRef = firebase.database().ref('/typing');
+        typingRef.on('child_added', (snapshot) => {
+            const unitId = snapshot.key;
+            const typingData = snapshot.val();
+            this.handleTypingIndicator(unitId, typingData);
+        });
+
+        // Setup chat UI
+        this.setupChatUI();
+    }
+
+    handleChatMessage(unitId, message) {
+        if (!this.chatMessages.has(unitId)) {
+            this.chatMessages.set(unitId, []);
+        }
+        
+        const messages = this.chatMessages.get(unitId);
+        
+        // Prevent duplicates
+        const messageExists = messages.some(msg => msg.id === message.id);
+        if (messageExists) return;
+        
+        messages.push(message);
+        
+        // Update unread count jika chat tidak terbuka
+        if (!this.isChatOpen(unitId)) {
+            const currentCount = this.unreadCounts.get(unitId) || 0;
+            this.unreadCounts.set(unitId, currentCount + 1);
+            this.updateChatBadge(unitId);
+        }
+        
+        // Update chat UI jika terbuka
+        if (this.isChatOpen(unitId)) {
+            this.renderChatMessages(unitId);
+        }
+        
+        // Show notification
+        if (message.sender !== 'Monitor') {
+            this.showChatNotification(unitId, message);
+        }
+    }
+
+    handleTypingIndicator(unitId, typingData) {
+        const driverTyping = typingData.driver;
+        if (driverTyping && driverTyping.isTyping && this.isChatOpen(unitId)) {
+            this.showTypingIndicator(unitId, driverTyping.name);
+        } else {
+            this.hideTypingIndicator(unitId);
+        }
+    }
+
+    setupChatUI() {
+        // Create chat container jika belum ada
+        if (!document.getElementById('monitorChatContainer')) {
+            const chatHTML = `
+                <div id="monitorChatContainer" style="display: none;">
+                    <div class="position-fixed chat-window-monitor" style="width: 350px; height: 500px; bottom: 20px; right: 20px; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000;">
+                        <div class="chat-header bg-primary text-white p-3 rounded-top">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0" id="chatWithUser">💬 Chat</h6>
+                                <div>
+                                    <button class="btn btn-sm btn-light me-2" onclick="window.gpsSystem.minimizeChat()">➖</button>
+                                    <button class="btn btn-sm btn-light" onclick="window.gpsSystem.closeChat()">✕</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="chatMessagesMonitor" class="chat-messages p-3" style="height: 350px; overflow-y: auto; background: #f8f9fa;"></div>
+                        <div class="typing-indicator" id="typingIndicatorMonitor" style="display: none; padding: 10px; font-style: italic; color: #666;">
+                            <span id="typingText"></span>
+                        </div>
+                        <div class="chat-input-container p-3 border-top">
+                            <div class="input-group">
+                                <input type="text" id="chatInputMonitor" class="form-control" placeholder="Ketik pesan...">
+                                <button class="btn btn-primary" onclick="window.gpsSystem.sendChatMessage()">Kirim</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', chatHTML);
+        }
+    }
+
+    openChat(unitId, driverName) {
+        this.currentChatUnit = unitId;
+        this.currentChatDriver = driverName;
+        
+        document.getElementById('monitorChatContainer').style.display = 'block';
+        document.getElementById('chatWithUser').textContent = `💬 Chat dengan ${driverName} (${unitId})`;
+        
+        // Reset unread count
+        this.unreadCounts.set(unitId, 0);
+        this.updateChatBadge(unitId);
+        
+        // Render messages
+        this.renderChatMessages(unitId);
+        
+        // Focus input
+        setTimeout(() => {
+            document.getElementById('chatInputMonitor').focus();
+        }, 100);
+    }
+
+    closeChat() {
+        document.getElementById('monitorChatContainer').style.display = 'none';
+        this.currentChatUnit = null;
+        this.currentChatDriver = null;
+    }
+
+    minimizeChat() {
+        const chatWindow = document.querySelector('.chat-window-monitor');
+        const messages = document.getElementById('chatMessagesMonitor');
+        const input = document.querySelector('.chat-input-container');
+        
+        if (messages.style.display === 'none') {
+            messages.style.display = 'block';
+            input.style.display = 'block';
+        } else {
+            messages.style.display = 'none';
+            input.style.display = 'none';
+        }
+    }
+
+    isChatOpen(unitId) {
+        return this.currentChatUnit === unitId;
+    }
+
+    renderChatMessages(unitId) {
+        const messagesContainer = document.getElementById('chatMessagesMonitor');
+        const messages = this.chatMessages.get(unitId) || [];
+        
+        messagesContainer.innerHTML = '';
+        
+        if (messages.length === 0) {
+            messagesContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <small>Mulai percakapan dengan driver...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        messages.forEach(message => {
+            const messageElement = document.createElement('div');
+            const isSentByMonitor = message.sender === 'Monitor';
+            
+            messageElement.className = `chat-message ${isSentByMonitor ? 'message-sent' : 'message-received'}`;
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    ${!isSentByMonitor ? `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-footer">
+                        <span class="message-time">${message.timeDisplay}</span>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageElement);
+        });
+        
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    async sendChatMessage() {
+        if (!this.currentChatUnit || !this.currentChatDriver) return;
+        
+        const input = document.getElementById('chatInputMonitor');
+        const messageText = input.value.trim();
+        
+        if (!messageText) return;
+        
+        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const messageData = {
+            id: messageId,
+            text: messageText,
+            sender: 'Monitor',
+            unit: this.currentChatUnit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }),
+            type: 'monitor'
+        };
+        
+        try {
+            await this.chatRef.child(this.currentChatUnit).push(messageData);
+            input.value = '';
+            
+            // Add to local messages
+            if (!this.chatMessages.has(this.currentChatUnit)) {
+                this.chatMessages.set(this.currentChatUnit, []);
+            }
+            this.chatMessages.get(this.currentChatUnit).push(messageData);
+            this.renderChatMessages(this.currentChatUnit);
+            
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            alert('Gagal mengirim pesan: ' + error.message);
+        }
+    }
+
+    showTypingIndicator(unitId, driverName) {
+        if (this.isChatOpen(unitId)) {
+            const indicator = document.getElementById('typingIndicatorMonitor');
+            const typingText = document.getElementById('typingText');
+            
+            typingText.textContent = `${driverName} sedang mengetik...`;
+            indicator.style.display = 'block';
+        }
+    }
+
+    hideTypingIndicator(unitId) {
+        if (this.isChatOpen(unitId)) {
+            document.getElementById('typingIndicatorMonitor').style.display = 'none';
+        }
+    }
+
+    updateChatBadge(unitId) {
+        // Update badge pada unit list atau map popup
+        const unreadCount = this.unreadCounts.get(unitId) || 0;
+        console.log(`💬 ${unitId} has ${unreadCount} unread messages`);
+    }
+
+    showChatNotification(unitId, message) {
+        if (!this.isChatOpen(unitId)) {
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-info chat-notification';
+            notification.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>💬 Pesan dari ${message.sender}</strong>
+                        <div class="small">${message.text}</div>
+                    </div>
+                    <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+                </div>
+            `;
+            
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                min-width: 300px;
+                max-width: 400px;
+                animation: slideInRight 0.3s ease-out;
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // ===== UI UPDATE METHODS =====
@@ -471,11 +860,15 @@ class GPSMonitoringSystem {
         this.units.forEach(unit => {
             const unitElement = document.createElement('div');
             unitElement.className = `unit-item ${unit.status} ${unit.isOnline ? 'active' : 'inactive'}`;
+            
+            const unreadCount = this.unreadCounts.get(unit.name) || 0;
+            const chatBadge = unreadCount > 0 ? `<span class="badge bg-danger ms-1">${unreadCount}</span>` : '';
+            
             unitElement.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver}</small>
+                        <small class="text-muted">${unit.afdeling} - ${unit.driver} ${chatBadge}</small>
                     </div>
                     <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
                         ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
@@ -488,6 +881,11 @@ class GPSMonitoringSystem {
                         Bahan Bakar: ${unit.fuelLevel.toFixed(1)}%<br>
                         Update: ${unit.lastUpdate}
                     </small>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
+                        💬 Chat ${unreadCount > 0 ? `(${unreadCount})` : ''}
+                    </button>
                 </div>
             `;
             unitList.appendChild(unitElement);
@@ -505,7 +903,6 @@ class GPSMonitoringSystem {
     showError(message) {
         console.error('System Error:', message);
         
-        // Create error notification
         const notification = document.createElement('div');
         notification.className = 'alert alert-danger alert-dismissible fade show position-fixed';
         notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
@@ -556,6 +953,9 @@ class GPSMonitoringSystem {
         }
         this.markers.clear();
         this.units.clear();
+        if (this.chatRef) {
+            this.chatRef.off();
+        }
     }
 }
 
@@ -578,3 +978,10 @@ function toggleSidebar() {
         sidebar.classList.toggle('show');
     }
 }
+
+// Handle Enter key in chat
+document.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && document.getElementById('chatInputMonitor') === document.activeElement) {
+        window.gpsSystem.sendChatMessage();
+    }
+});
