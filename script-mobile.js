@@ -15,8 +15,6 @@ const database = firebase.database();
 
 class DTGPSLogger {
     constructor() {
-        console.log('🚀 Initializing GPS Logger...');
-        
         this.driverData = null;
         this.watchId = null;
         this.isTracking = false;
@@ -25,13 +23,25 @@ class DTGPSLogger {
         this.totalDistance = 0;
         this.lastPosition = null;
         this.dataPoints = 0;
-        this.isOnline = navigator.onLine;
+        this.isOnline = false;
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
-        this.lastFirebaseUpdate = 0;
         
-        // Enhanced Chat System
+        // Enhanced distance calculation
+        this.lastUpdateTime = null;
+        this.currentSpeed = 0;
+        this.movingStartTime = null;
+        this.isCurrentlyMoving = false;
+        
+        // Complete history tracking
+        this.offlineHistory = [];
+        this.maxOfflinePoints = 2000; // Increased to 2000 points
+        this.isCollectingOfflineData = false;
+        this.completeHistory = this.loadCompleteHistory();
+        
+        // ✅ ENHANCED CHAT SYSTEM PROPERTIES - WHATSAPP STYLE
         this.chatRef = null;
+        this.typingRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
         this.isChatOpen = false;
@@ -39,6 +49,7 @@ class DTGPSLogger {
         this.lastMessageId = null;
         this.isTyping = false;
         this.typingTimeout = null;
+        this.chatInputHandler = null;
         
         this.offlineQueue = new OfflineQueueManager();
         
@@ -60,7 +71,7 @@ class DTGPSLogger {
         });
     }
 
-    handleLogin() {
+    async handleLogin() {
         const driverName = document.getElementById('driverName').value;
         const unitNumber = document.getElementById('unitNumber').value;
 
@@ -74,24 +85,36 @@ class DTGPSLogger {
 
             this.firebaseRef = database.ref('/units/' + unitNumber);
             
-            // Set initial data dengan status online yang EXPLICIT
-            this.firebaseRef.set({
+            // Enhanced data format
+            const cleanData = {
                 driver: driverName,
                 unit: unitNumber,
                 sessionId: this.driverData.sessionId,
                 journeyStatus: 'ready',
                 lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                isOnline: true, // ✅ BEDAIN LOGOUT vs NO NETWORK
-                loginTime: new Date().toISOString()
-            });
+                lat: 0,
+                lng: 0,
+                speed: 0,
+                distance: 0,
+                fuel: 100,
+                accuracy: 0,
+                timestamp: new Date().toISOString(),
+                isOnline: true
+            };
 
-            this.showDriverApp();
-            this.startGPSTracking();
-            this.startDataTransmission();
-            
-            setTimeout(() => {
-                this.startJourney();
-            }, 3000);
+            try {
+                await this.firebaseRef.set(cleanData);
+                this.showDriverApp();
+                this.startGPSTracking();
+                this.startDataTransmission();
+                
+                setTimeout(() => {
+                    this.startJourney();
+                }, 3000);
+            } catch (error) {
+                console.error('Login failed:', error);
+                alert('Gagal login. Periksa koneksi internet.');
+            }
         } else {
             alert('Harap isi semua field!');
         }
@@ -123,84 +146,79 @@ class DTGPSLogger {
         document.getElementById('driverDisplayName').textContent = this.driverData.name;
         
         this.sessionStartTime = new Date();
+        this.lastUpdateTime = new Date();
         this.updateSessionDuration();
         
+        // ✅ SETUP ENHANCED CHAT SYSTEM
         this.setupChatSystem();
     }
 
-    // ✅ WHATSAPP-STYLE CHAT SYSTEM
+    // ✅ ENHANCED CHAT SYSTEM - WHATSAPP STYLE
     setupChatSystem() {
         if (!this.driverData) return;
         
-        this.chatRef = database.ref('/chat/' + this.driverData.unit);
-        this.chatRef.off();
+        console.log('💬 Setting up WhatsApp-style chat system for unit:', this.driverData.unit);
         
+        this.chatRef = database.ref('/chat/' + this.driverData.unit);
+        this.typingRef = database.ref('/typing/' + this.driverData.unit);
+        
+        // Clear previous listeners
+        this.chatRef.off();
+        this.typingRef.off();
+        
+        // Listen for new messages
         this.chatRef.on('child_added', (snapshot) => {
             const message = snapshot.val();
             if (message && message.id !== this.lastMessageId) {
                 this.handleNewMessage(message);
             }
         });
-
-        this.typingRef = database.ref('/typing/' + this.driverData.unit + '/monitor');
+        
+        // Listen for typing indicators
         this.typingRef.on('value', (snapshot) => {
             const typingData = snapshot.val();
             this.handleTypingIndicator(typingData);
         });
         
         this.chatInitialized = true;
-        this.addLog('Sistem chat aktif - bisa komunikasi real-time dengan monitor', 'success');
+        this.setupChatInputHandlers();
+        console.log('💬 WhatsApp-style chat system activated');
+        this.addLog('Sistem chat WhatsApp-style aktif', 'success');
     }
 
+    // ✅ HANDLE NEW MESSAGE
     handleNewMessage(message) {
-        if (!message || message.sender === this.driverData.name) return;
+        if (!message || message.sender === this.driverData.name || message.type === 'driver') return;
         
-        const messageExists = this.chatMessages.some(msg => msg.id === message.id);
+        // Prevent duplicates
+        const messageExists = this.chatMessages.some(msg => 
+            msg.id === message.id || 
+            (msg.timestamp === message.timestamp && msg.sender === message.sender)
+        );
+        
         if (messageExists) return;
         
         this.chatMessages.push(message);
         
+        // Update unread count if chat is closed
         if (!this.isChatOpen) {
             this.unreadCount++;
         }
         
         this.updateChatUI();
         
+        // Show notification if chat is closed
         if (!this.isChatOpen) {
             this.showChatNotification(message);
         }
         
+        // Play notification sound
         this.playNotificationSound();
-    }
-
-    handleTypingIndicator(typingData) {
-        const typingIndicator = document.getElementById('typingIndicator');
         
-        if (typingData && typingData.isTyping) {
-            if (!typingIndicator) {
-                const indicator = document.createElement('div');
-                indicator.id = 'typingIndicator';
-                indicator.className = 'typing-indicator';
-                indicator.innerHTML = `
-                    <div class="typing-indicator">
-                        <span>Monitor sedang mengetik</span>
-                        <div class="typing-dots">
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('chatMessages').appendChild(indicator);
-                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-            }
-        } else {
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
-        }
+        console.log('💬 New message received:', message);
     }
 
+    // ✅ SEND MESSAGE
     async sendMessage(messageText) {
         if (!messageText.trim() || !this.chatRef || !this.driverData) return;
         
@@ -224,28 +242,31 @@ class DTGPSLogger {
             await this.chatRef.push(messageData);
             this.lastMessageId = messageId;
             
+            // Add to local messages for instant feedback
             this.chatMessages.push(messageData);
             this.updateChatUI();
             
             this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
             
+            // Clear typing indicator
             this.stopTyping();
             
         } catch (error) {
             console.error('Failed to send message:', error);
             this.addLog('❌ Gagal mengirim pesan', 'error');
             
+            // Mark message as failed
             messageData.status = 'failed';
             this.chatMessages.push(messageData);
             this.updateChatUI();
         }
     }
 
+    // ✅ TYPING INDICATOR METHODS
     startTyping() {
-        if (!this.driverData) return;
+        if (!this.driverData || this.isTyping) return;
         
-        const typingRef = database.ref('/typing/' + this.driverData.unit + '/driver');
-        typingRef.set({
+        this.typingRef.child('driver').set({
             isTyping: true,
             name: this.driverData.name,
             timestamp: Date.now()
@@ -257,8 +278,7 @@ class DTGPSLogger {
     stopTyping() {
         if (!this.driverData || !this.isTyping) return;
         
-        const typingRef = database.ref('/typing/' + this.driverData.unit + '/driver');
-        typingRef.set({
+        this.typingRef.child('driver').set({
             isTyping: false,
             name: this.driverData.name,
             timestamp: Date.now()
@@ -267,6 +287,30 @@ class DTGPSLogger {
         this.isTyping = false;
     }
 
+    handleTypingIndicator(typingData) {
+        if (!typingData) return;
+        
+        const monitorTyping = typingData.monitor;
+        const typingIndicator = document.getElementById('typingIndicator');
+        
+        if (typingIndicator && monitorTyping && monitorTyping.isTyping) {
+            typingIndicator.style.display = 'block';
+            typingIndicator.innerHTML = `
+                <div class="typing-indicator">
+                    <span>Monitor sedang mengetik</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+        } else if (typingIndicator) {
+            typingIndicator.style.display = 'none';
+        }
+    }
+
+    // ✅ UPDATE CHAT UI - WHATSAPP STYLE
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -299,11 +343,11 @@ class DTGPSLogger {
             return;
         }
         
-        // Group messages by date (WhatsApp style)
+        // Group messages by date
         const groupedMessages = this.groupMessagesByDate(this.chatMessages);
         
         Object.keys(groupedMessages).forEach(date => {
-            // Add date separator untuk hari yang berbeda
+            // Add date separator
             if (Object.keys(groupedMessages).length > 1) {
                 const dateElement = document.createElement('div');
                 dateElement.className = 'chat-date-separator';
@@ -318,8 +362,19 @@ class DTGPSLogger {
             });
         });
         
-        // Auto scroll to bottom
-        messageList.scrollTop = messageList.scrollHeight;
+        // Add typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.id = 'typingIndicator';
+        typingIndicator.style.display = 'none';
+        messageList.appendChild(typingIndicator);
+        
+        // Auto scroll to bottom with smooth behavior
+        setTimeout(() => {
+            messageList.scrollTo({
+                top: messageList.scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 100);
     }
 
     groupMessagesByDate(messages) {
@@ -341,7 +396,7 @@ class DTGPSLogger {
             grouped[dateKey].push(message);
         });
         
-        // Sort messages within each date by timestamp
+        // Sort messages within each date
         Object.keys(grouped).forEach(date => {
             grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         });
@@ -371,67 +426,83 @@ class DTGPSLogger {
         return messageElement;
     }
 
-    toggleChat() {
-        this.isChatOpen = !this.isChatOpen;
-        const chatWindow = document.getElementById('chatWindow');
-        
-        if (chatWindow) {
-            chatWindow.style.display = this.isChatOpen ? 'block' : 'none';
-            
-            if (this.isChatOpen) {
-                this.unreadCount = 0;
-                this.updateChatUI();
-                setTimeout(() => {
-                    const chatInput = document.getElementById('chatInput');
-                    if (chatInput) {
-                        chatInput.focus();
-                        this.setupChatInputHandlers();
-                    }
-                }, 100);
-            } else {
-                this.stopTyping();
-            }
-        }
-    }
-
+    // ✅ CHAT INPUT HANDLERS
     setupChatInputHandlers() {
         const chatInput = document.getElementById('chatInput');
         if (!chatInput) return;
         
         let typingTimer;
         
-        chatInput.addEventListener('input', () => {
-            this.startTyping();
-            clearTimeout(typingTimer);
-            typingTimer = setTimeout(() => {
+        // Store the handler for cleanup
+        this.chatInputHandler = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.sendMessage(chatInput.value);
+                chatInput.value = '';
                 this.stopTyping();
-            }, 2000);
-        });
+            } else {
+                // Start typing indicator on input
+                this.startTyping();
+                
+                // Clear previous timer
+                clearTimeout(typingTimer);
+                
+                // Set timer to stop typing indicator after 2 seconds of inactivity
+                typingTimer = setTimeout(() => {
+                    this.stopTyping();
+                }, 2000);
+            }
+        };
         
-        chatInput.addEventListener('blur', () => {
-            this.stopTyping();
-        });
+        chatInput.addEventListener('keypress', this.chatInputHandler);
+        chatInput.addEventListener('blur', () => this.stopTyping());
     }
 
-    handleChatInput(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            const input = document.getElementById('chatInput');
-            if (input && input.value.trim()) {
-                this.sendMessage(input.value);
-                input.value = '';
+    // ✅ TOGGLE CHAT WINDOW
+    toggleChat() {
+        this.isChatOpen = !this.isChatOpen;
+        const chatWindow = document.getElementById('chatWindow');
+        const chatToggle = document.getElementById('chatToggle');
+        
+        if (chatWindow) {
+            if (this.isChatOpen) {
+                chatWindow.style.display = 'block';
+                this.unreadCount = 0;
+                this.updateChatUI();
+                
+                // Focus input field with smooth transition
+                setTimeout(() => {
+                    const chatInput = document.getElementById('chatInput');
+                    if (chatInput) chatInput.focus();
+                }, 300);
+                
+                // Update toggle button
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Tutup Chat';
+                }
+            } else {
+                chatWindow.style.display = 'none';
+                this.stopTyping();
+                
+                // Update toggle button
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Chat';
+                }
             }
         }
     }
 
+    // ✅ NOTIFICATION SYSTEM
     showChatNotification(message) {
+        if (!message || !message.sender) return;
+        
         const notification = document.createElement('div');
-        notification.className = 'chat-notification alert alert-info';
+        notification.className = 'alert alert-info chat-notification';
         notification.innerHTML = `
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <strong>💬 Pesan Baru dari ${message.sender}</strong>
-                    <div class="small">${message.text}</div>
+                    <strong>💬 Pesan Baru dari ${this.escapeHtml(message.sender)}</strong>
+                    <div class="small mt-1">${this.escapeHtml(message.text)}</div>
                 </div>
                 <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
             </div>
@@ -458,6 +529,7 @@ class DTGPSLogger {
 
     playNotificationSound() {
         try {
+            // Create a simple notification sound using Web Audio API
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
@@ -484,6 +556,7 @@ class DTGPSLogger {
         return div.innerHTML;
     }
 
+    // GPS TRACKING METHODS
     startGPSTracking() {
         if (!navigator.geolocation) {
             this.addLog('GPS tidak didukung di browser ini', 'error');
@@ -515,52 +588,131 @@ class DTGPSLogger {
         }, 2000);
     }
 
+    // Save all points to localStorage with 2000 points capacity
+    saveToCompleteHistory(positionData) {
+        if (!this.driverData) return;
+        
+        const historyPoint = {
+            ...positionData,
+            sessionId: this.driverData.sessionId,
+            unit: this.driverData.unit,
+            driver: this.driverData.name,
+            saveTimestamp: new Date().toISOString()
+        };
+        
+        let history = this.loadCompleteHistory();
+        history.push(historyPoint);
+        
+        // Maintain size limit - increased to 2000 points
+        if (history.length > this.maxOfflinePoints) {
+            history = history.slice(-this.maxOfflinePoints);
+        }
+        
+        localStorage.setItem('gps_complete_history', JSON.stringify(history));
+        this.completeHistory = history;
+    }
+
+    loadCompleteHistory() {
+        try {
+            const saved = localStorage.getItem('gps_complete_history');
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.error('Error loading history:', error);
+            return [];
+        }
+    }
+
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const speed = position.coords.speed !== null ? position.coords.speed * 3.6 : 0;
         const accuracy = position.coords.accuracy;
         const bearing = position.coords.heading;
-        const timestamp = new Date().toISOString();
+        const timestamp = new Date();
+        
+        // Validate coordinates
+        if (!this.isValidCoordinate(lat, lng)) {
+            console.warn('Invalid GPS coordinates received:', { lat, lng });
+            return;
+        }
 
+        // Save to complete history
+        this.saveToCompleteHistory({
+            lat: lat,
+            lng: lng,
+            speed: speed,
+            accuracy: accuracy,
+            bearing: bearing,
+            timestamp: timestamp.toISOString(),
+            isOnline: this.isOnline
+        });
+
+        // Update UI
         document.getElementById('currentLat').textContent = lat.toFixed(6);
         document.getElementById('currentLng').textContent = lng.toFixed(6);
         document.getElementById('currentSpeed').textContent = speed.toFixed(1);
         document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
 
-        if (this.lastPosition && this.journeyStatus === 'started') {
-            const distance = this.calculateDistance(
-                this.lastPosition.lat, this.lastPosition.lng,
-                lat, lng
-            );
-            if (distance > 0.01) {
-                this.totalDistance += distance;
-                document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(2);
-            }
-        }
+        // Calculate distance
+        this.calculateDistanceWithSpeed(speed, timestamp);
 
+        // Save latest position
         this.lastPosition = { 
-            lat, lng, speed, accuracy, bearing, timestamp,
+            lat, 
+            lng, 
+            speed, 
+            accuracy, 
+            bearing, 
+            timestamp,
             distance: this.totalDistance
         };
 
         this.dataPoints++;
         document.getElementById('dataPoints').textContent = this.dataPoints;
-
         this.updateAverageSpeed();
     }
 
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
+    isValidCoordinate(lat, lng) {
+        // Check for reasonable coordinates (Kebun Tempuling area)
+        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
+            return false;
+        }
+        
+        if (isNaN(lat) || isNaN(lng)) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    calculateDistanceWithSpeed(currentSpeed, currentTime) {
+        if (!this.lastUpdateTime) {
+            this.lastUpdateTime = currentTime;
+            return;
+        }
+
+        const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600;
+        
+        if (currentSpeed > 2 && this.journeyStatus === 'started') {
+            const distanceIncrement = currentSpeed * timeDiff;
+            
+            if (distanceIncrement > 0 && distanceIncrement < 1) {
+                this.totalDistance += distanceIncrement;
+                document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
+                
+                this.addLog(`📏 +${(distanceIncrement * 1000).toFixed(1)}m (${currentSpeed.toFixed(1)} km/h)`, 'info');
+            }
+            
+            this.isCurrentlyMoving = true;
+            this.movingStartTime = this.movingStartTime || currentTime;
+        } else {
+            this.isCurrentlyMoving = false;
+            this.movingStartTime = null;
+        }
+
+        this.lastUpdateTime = currentTime;
+        this.currentSpeed = currentSpeed;
     }
 
     updateAverageSpeed() {
@@ -574,27 +726,33 @@ class DTGPSLogger {
     async sendToFirebase() {
         if (!this.firebaseRef || !this.lastPosition) return;
 
-        const gpsData = {
-            driver: this.driverData.name,
-            unit: this.driverData.unit,
-            lat: this.lastPosition.lat,
-            lng: this.lastPosition.lng,
-            speed: this.lastPosition.speed,
-            accuracy: this.lastPosition.accuracy,
-            bearing: this.lastPosition.bearing,
-            timestamp: new Date().toISOString(),
-            lastUpdate: new Date().toLocaleTimeString('id-ID'),
-            distance: this.totalDistance,
-            journeyStatus: this.journeyStatus,
-            batteryLevel: this.getBatteryLevel(),
-            sessionId: this.driverData.sessionId,
-            isOnline: this.isOnline // ✅ REAL NETWORK STATUS
-        };
-
         try {
+            const gpsData = {
+                driver: this.driverData.name,
+                unit: this.driverData.unit,
+                lat: parseFloat(this.lastPosition.lat.toFixed(6)),
+                lng: parseFloat(this.lastPosition.lng.toFixed(6)),
+                speed: parseFloat(this.lastPosition.speed.toFixed(1)),
+                accuracy: parseFloat(this.lastPosition.accuracy.toFixed(1)),
+                bearing: this.lastPosition.bearing ? parseFloat(this.lastPosition.bearing.toFixed(0)) : null,
+                timestamp: new Date().toISOString(),
+                lastUpdate: new Date().toLocaleTimeString('id-ID'),
+                distance: parseFloat(this.totalDistance.toFixed(3)),
+                journeyStatus: this.journeyStatus,
+                batteryLevel: this.getBatteryLevel(),
+                sessionId: this.driverData.sessionId,
+                isOfflineData: false,
+                fuel: this.calculateFuelLevel()
+            };
+
+            if (!this.isValidCoordinate(gpsData.lat, gpsData.lng)) {
+                console.warn('Invalid coordinates, skipping Firebase update');
+                return;
+            }
+
             if (this.isOnline) {
                 await this.firebaseRef.set(gpsData);
-                this.addLog(`📡 Data terkirim: ${this.lastPosition.speed.toFixed(1)} km/h`, 'success');
+                this.addLog(`📡 Data terkirim: ${this.lastPosition.speed.toFixed(1)} km/h | ${this.totalDistance.toFixed(3)} km`, 'success');
                 this.updateConnectionStatus(true);
                 
                 if (this.offlineQueue.getQueueSize() > 0) {
@@ -608,15 +766,17 @@ class DTGPSLogger {
             
         } catch (error) {
             console.error('Error sending to Firebase:', error);
-            
-            if (this.isOnline) {
-                this.offlineQueue.addToQueue(gpsData);
-                this.addLog(`❌ Gagal kirim, disimpan offline`, 'error');
-            } else {
-                this.addLog(`❌ Offline - data dalam antrian`, 'warning');
-            }
+            this.addLog(`❌ Gagal kirim data ke Firebase`, 'error');
             this.updateConnectionStatus(false);
         }
+    }
+
+    calculateFuelLevel() {
+        const baseFuel = 100;
+        const fuelConsumptionRate = 0.25;
+        const fuelUsed = this.totalDistance * fuelConsumptionRate;
+        const remainingFuel = Math.max(0, baseFuel - fuelUsed);
+        return Math.min(100, Math.max(0, Math.round(remainingFuel)));
     }
 
     getBatteryLevel() {
@@ -629,18 +789,17 @@ class DTGPSLogger {
         
         if (wasOnline !== this.isOnline) {
             if (this.isOnline) {
-                this.addLog('📱 Koneksi pulih - sync data offline', 'success');
+                this.addLog('📱 Koneksi pulih - sync semua data', 'success');
+                this.updateConnectionStatus(true);
                 this.offlineQueue.processQueue();
-                // Update status online ke Firebase
-                if (this.firebaseRef) {
-                    this.firebaseRef.update({ isOnline: true });
-                }
+                
+                setTimeout(() => {
+                    this.syncCompleteHistory();
+                }, 3000);
+                
             } else {
                 this.addLog('📱 Koneksi terputus - menyimpan data lokal', 'warning');
-                // Update status offline ke Firebase (jika masih bisa)
-                if (this.firebaseRef && this.isOnline) {
-                    this.firebaseRef.update({ isOnline: false });
-                }
+                this.updateConnectionStatus(false);
             }
         }
         
@@ -730,9 +889,12 @@ class DTGPSLogger {
 
     startJourney() {
         this.journeyStatus = 'started';
+        this.lastUpdateTime = new Date();
         document.getElementById('vehicleStatus').textContent = 'ON TRIP';
         document.getElementById('vehicleStatus').className = 'bg-success text-white rounded px-2 py-1';
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
+        
+        this.sendToFirebase();
     }
 
     pauseJourney() {
@@ -740,97 +902,18 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'PAUSED';
         document.getElementById('vehicleStatus').className = 'bg-warning text-dark rounded px-2 py-1';
         this.addLog('Perjalanan dijeda', 'warning');
+        
+        this.sendToFirebase();
     }
 
     endJourney() {
         this.journeyStatus = 'ended';
         document.getElementById('vehicleStatus').textContent = 'COMPLETED';
         document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
-        this.addLog('Perjalanan selesai', 'info');
+        this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
         
         this.sendToFirebase();
-    }
-
-    // ✅ FIXED LOGOUT - BEDAIN LOGOUT vs NO NETWORK
-    async logout() {
-        if (confirm('Yakin ingin logout? Data akan dihapus dari sistem.')) {
-            try {
-                console.log('🚪 Starting secure logout...');
-                
-                // 1. Stop tracking
-                this.stopTracking();
-                
-                // 2. Kirim status LOGOUT yang EXPLICIT
-                if (this.firebaseRef && this.driverData) {
-                    const logoutData = {
-                        driver: this.driverData.name,
-                        unit: this.driverData.unit,
-                        status: "LOGGED_OUT", // ✅ INI BEDANYA!
-                        lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                        logoutTime: new Date().toISOString(),
-                        isOnline: false
-                    };
-                    
-                    await this.firebaseRef.set(logoutData);
-                    this.addLog('Status logout terkirim', 'info');
-                    
-                    // Tunggu sebentar lalu HAPUS data
-                    setTimeout(async () => {
-                        try {
-                            await this.firebaseRef.remove();
-                            console.log('✅ Data dihapus dari Firebase');
-                            this.addLog('Data berhasil dihapus dari sistem', 'success');
-                        } catch (error) {
-                            console.error('Gagal hapus data:', error);
-                        }
-                    }, 1000);
-                }
-                
-                // 3. Cleanup chat
-                if (this.chatRef) {
-                    this.chatRef.off();
-                }
-                if (this.typingRef) {
-                    this.typingRef.off();
-                }
-                this.stopTyping();
-                
-                // 4. Reset state
-                this.resetAppState();
-                
-                // 5. Kembali ke login
-                document.getElementById('loginScreen').style.display = 'block';
-                document.getElementById('driverApp').style.display = 'none';
-                document.getElementById('loginForm').reset();
-                
-            } catch (error) {
-                console.error('Error during logout:', error);
-                this.addLog('Error saat logout: ' + error.message, 'error');
-            }
-        }
-    }
-
-    resetAppState() {
-        this.driverData = null;
-        this.firebaseRef = null;
-        this.chatRef = null;
-        this.typingRef = null;
-        this.chatMessages = [];
-        this.unreadCount = 0;
-        this.isChatOpen = false;
-        this.chatInitialized = false;
-        this.totalDistance = 0;
-        this.dataPoints = 0;
-        this.lastPosition = null;
-        this.sessionStartTime = null;
-        this.journeyStatus = 'ready';
-        this.isTracking = false;
-        
-        if (this.sendInterval) {
-            clearInterval(this.sendInterval);
-        }
-        
-        console.log('🔄 App state reset complete');
+        this.syncCompleteHistory();
     }
 
     stopTracking() {
@@ -840,11 +923,115 @@ class DTGPSLogger {
         if (this.sendInterval) {
             clearInterval(this.sendInterval);
         }
+        if (this.firebaseRef) {
+            this.firebaseRef.remove();
+        }
+        
         this.isTracking = false;
+    }
+
+    logout() {
+        // Cleanup chat listeners
+        if (this.chatRef) {
+            this.chatRef.off();
+        }
+        if (this.typingRef) {
+            this.typingRef.off();
+        }
+        if (this.chatInputHandler) {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.removeEventListener('keypress', this.chatInputHandler);
+            }
+        }
+        
+        // Stop typing indicator
+        this.stopTyping();
+        
+        this.stopTracking();
+        this.syncCompleteHistory();
+        
+        const sessionSummary = {
+            driver: this.driverData.name,
+            unit: this.driverData.unit,
+            duration: document.getElementById('sessionDuration').textContent,
+            totalDistance: this.totalDistance.toFixed(3),
+            dataPoints: this.dataPoints,
+            avgSpeed: document.getElementById('avgSpeed').textContent,
+            sessionId: this.driverData.sessionId
+        };
+        
+        console.log('Session Summary:', sessionSummary);
+        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
+        
+        this.driverData = null;
+        this.firebaseRef = null;
+        this.chatRef = null;
+        this.typingRef = null;
+        this.chatMessages = [];
+        this.unreadCount = 0;
+        this.isChatOpen = false;
+        this.chatInitialized = false;
+        
+        document.getElementById('loginScreen').style.display = 'block';
+        document.getElementById('driverApp').style.display = 'none';
+        document.getElementById('loginForm').reset();
+        
+        // Reset all data
+        this.totalDistance = 0;
+        this.dataPoints = 0;
+        this.lastPosition = null;
+        this.lastUpdateTime = null;
+    }
+
+    // Sync all history to Firebase
+    async syncCompleteHistory() {
+        if (!this.isOnline || !this.firebaseRef || !this.driverData) {
+            console.log('❌ Cannot sync history: offline or no driver data');
+            return;
+        }
+        
+        const history = this.loadCompleteHistory();
+        const sessionHistory = history.filter(point => 
+            point.sessionId === this.driverData.sessionId
+        );
+        
+        if (sessionHistory.length === 0) {
+            console.log('ℹ️ No history to sync');
+            return;
+        }
+        
+        try {
+            const historyRef = database.ref('/history/' + this.driverData.unit + '/' + this.driverData.sessionId);
+            
+            const historyObject = {};
+            sessionHistory.forEach((point, index) => {
+                historyObject['point_' + index] = {
+                    lat: point.lat,
+                    lng: point.lng,
+                    speed: point.speed,
+                    accuracy: point.accuracy,
+                    bearing: point.bearing,
+                    timestamp: point.timestamp,
+                    isOnline: point.isOnline,
+                    driver: point.driver,
+                    unit: point.unit
+                };
+            });
+            
+            await historyRef.set(historyObject);
+            
+            console.log(`✅ History synced: ${sessionHistory.length} points`);
+            this.addLog(`📡 Sync complete: ${sessionHistory.length} data points`, 'success');
+            
+        } catch (error) {
+            console.error('History sync failed:', error);
+            this.addLog(`❌ Gagal sync history: ${error.message}`, 'error');
+        }
     }
 }
 
-// ===== OFFLINE QUEUE SYSTEM =====
+// Offline Queue Manager
 class OfflineQueueManager {
     constructor() {
         this.queue = [];
@@ -1023,7 +1210,9 @@ function reportIssue() {
 
 function logout() {
     if (window.dtLogger) {
-        window.dtLogger.logout();
+        if (confirm('Yakin ingin logout?')) {
+            window.dtLogger.logout();
+        }
     }
 }
 
