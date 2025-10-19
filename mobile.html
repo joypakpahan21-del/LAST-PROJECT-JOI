@@ -157,8 +157,8 @@
                 </button>
             </div>
             <div class="col-6">
-                <button class="btn btn-danger w-100 control-btn" onclick="logout()">
-                    ✅ LOGOUT
+                <button class="btn btn-danger w-100 control-btn" onclick="endJourney()">
+                    ✅ SELESAI
                 </button>
             </div>
         </div>
@@ -195,9 +195,16 @@
                 </div>
             </div>
         </div>
+
+        <!-- Logout Button -->
+        <div class="m-3">
+            <button class="btn btn-danger w-100 py-2 fw-bold" onclick="logout()">
+                🔓 Logout
+            </button>
+        </div>
     </div>
 
-    <!-- ✅ ENHANCED CHAT INTERFACE SEPERTI WHATSAPP -->
+    <!-- ✅ ENHANCED CHAT INTERFACE -->
     <div id="chatContainer">
         <!-- Chat Toggle Button -->
         <button id="chatToggle" class="btn btn-primary position-fixed chat-toggle-btn" 
@@ -251,8 +258,6 @@ const database = firebase.database();
 
 class DTGPSLogger {
     constructor() {
-        console.log('🚀 Initializing GPS Logger...');
-        
         this.driverData = null;
         this.watchId = null;
         this.isTracking = false;
@@ -261,13 +266,12 @@ class DTGPSLogger {
         this.totalDistance = 0;
         this.lastPosition = null;
         this.dataPoints = 0;
-        this.isOnline = navigator.onLine;
+        this.isOnline = false;
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
         
-        // ✅ WHATSAPP-STYLE CHAT SYSTEM
+        // ✅ ENHANCED CHAT SYSTEM PROPERTIES
         this.chatRef = null;
-        this.typingRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
         this.isChatOpen = false;
@@ -309,16 +313,12 @@ class DTGPSLogger {
             };
 
             this.firebaseRef = database.ref('/units/' + unitNumber);
-            
-            // Set initial data dengan status online
             this.firebaseRef.set({
                 driver: driverName,
                 unit: unitNumber,
                 sessionId: this.driverData.sessionId,
                 journeyStatus: 'ready',
-                lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                isOnline: true,
-                loginTime: new Date().toISOString()
+                lastUpdate: new Date().toLocaleTimeString('id-ID')
             });
 
             this.showDriverApp();
@@ -361,15 +361,15 @@ class DTGPSLogger {
         this.sessionStartTime = new Date();
         this.updateSessionDuration();
         
-        // Setup WhatsApp-style chat system
+        // ✅ SETUP ENHANCED CHAT SYSTEM SETELAH LOGIN
         this.setupChatSystem();
     }
 
-    // ✅ WHATSAPP-STYLE CHAT SYSTEM
+    // ✅ ENHANCED CHAT METHOD: Setup chat system
     setupChatSystem() {
         if (!this.driverData) return;
         
-        console.log('💬 Setting up WhatsApp-style chat system...');
+        console.log('💬 Setting up enhanced chat system for unit:', this.driverData.unit);
         
         this.chatRef = database.ref('/chat/' + this.driverData.unit);
         
@@ -383,37 +383,42 @@ class DTGPSLogger {
                 this.handleNewMessage(message);
             }
         });
-
-        // Listen untuk typing indicators dari monitor
-        this.typingRef = database.ref('/typing/' + this.driverData.unit + '/monitor');
-        this.typingRef.on('value', (snapshot) => {
+        
+        // Listen untuk typing indicators
+        const typingRef = database.ref('/typing/' + this.driverData.unit);
+        typingRef.on('value', (snapshot) => {
             const typingData = snapshot.val();
             this.handleTypingIndicator(typingData);
         });
         
         this.chatInitialized = true;
-        console.log('💬 WhatsApp-style chat system activated');
-        this.addLog('💬 Sistem chat aktif - bisa komunikasi real-time dengan monitor', 'success');
+        this.setupChatInputHandlers();
+        console.log('💬 Enhanced chat system activated for unit:', this.driverData.unit);
+        this.addLog('Sistem chat aktif - bisa komunikasi real-time dengan monitor', 'success');
     }
 
+    // ✅ ENHANCED CHAT METHOD: Handle pesan baru
     handleNewMessage(message) {
         if (!message || message.sender === this.driverData.name) return;
         
         // Prevent duplicates
-        const messageExists = this.chatMessages.some(msg => msg.id === message.id);
+        const messageExists = this.chatMessages.some(msg => 
+            msg.id === message.id || 
+            (msg.timestamp === message.timestamp && msg.sender === message.sender)
+        );
+        
         if (messageExists) return;
         
         this.chatMessages.push(message);
         
-        // Update unread count jika chat tertutup
-        if (!this.isChatOpen) {
+        // Update unread count hanya jika chat tertutup atau message dari monitor
+        if (!this.isChatOpen || message.sender !== this.driverData.name) {
             this.unreadCount++;
         }
         
         this.updateChatUI();
         
-        // Show notification jika chat tertutup
-        if (!this.isChatOpen) {
+        if (!this.isChatOpen && message.sender !== this.driverData.name) {
             this.showChatNotification(message);
         }
         
@@ -423,37 +428,7 @@ class DTGPSLogger {
         console.log('💬 New message received:', message);
     }
 
-    handleTypingIndicator(typingData) {
-        const typingIndicator = document.getElementById('typingIndicator');
-        
-        if (typingData && typingData.isTyping) {
-            // Show typing indicator
-            if (!typingIndicator) {
-                const indicator = document.createElement('div');
-                indicator.id = 'typingIndicator';
-                indicator.className = 'typing-indicator';
-                indicator.innerHTML = `
-                    <div class="typing-indicator">
-                        <span>Monitor sedang mengetik</span>
-                        <div class="typing-dots">
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('chatMessages').appendChild(indicator);
-                // Scroll to bottom
-                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-            }
-        } else {
-            // Hide typing indicator
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
-        }
-    }
-
+    // ✅ ENHANCED CHAT METHOD: Kirim pesan
     async sendMessage(messageText) {
         if (!messageText.trim() || !this.chatRef || !this.driverData) return;
         
@@ -497,7 +472,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ TYPING INDICATORS SEPERTI WHATSAPP
+    // ✅ TYPING INDICATOR METHODS
     startTyping() {
         if (!this.driverData) return;
         
@@ -524,6 +499,30 @@ class DTGPSLogger {
         this.isTyping = false;
     }
 
+    handleTypingIndicator(typingData) {
+        if (!typingData) return;
+        
+        const monitorTyping = typingData.monitor;
+        const typingIndicator = document.getElementById('typingIndicator');
+        
+        if (typingIndicator && monitorTyping && monitorTyping.isTyping) {
+            typingIndicator.style.display = 'block';
+            typingIndicator.innerHTML = `
+                <div class="typing-indicator">
+                    <span>Monitor sedang mengetik</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+        } else if (typingIndicator) {
+            typingIndicator.style.display = 'none';
+        }
+    }
+
+    // ✅ ENHANCED CHAT METHOD: Update chat UI
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -556,11 +555,11 @@ class DTGPSLogger {
             return;
         }
         
-        // Group messages by date (WhatsApp style)
+        // Group messages by date
         const groupedMessages = this.groupMessagesByDate(this.chatMessages);
         
         Object.keys(groupedMessages).forEach(date => {
-            // Add date separator untuk hari yang berbeda
+            // Add date separator
             if (Object.keys(groupedMessages).length > 1) {
                 const dateElement = document.createElement('div');
                 dateElement.className = 'chat-date-separator';
@@ -575,10 +574,17 @@ class DTGPSLogger {
             });
         });
         
-        // Auto scroll to bottom seperti WhatsApp
+        // Add typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.id = 'typingIndicator';
+        typingIndicator.style.display = 'none';
+        messageList.appendChild(typingIndicator);
+        
+        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
     }
 
+    // ✅ GROUP MESSAGES BY DATE
     groupMessagesByDate(messages) {
         const grouped = {};
         
@@ -606,6 +612,7 @@ class DTGPSLogger {
         return grouped;
     }
 
+    // ✅ CREATE MESSAGE ELEMENT
     createMessageElement(message) {
         const messageElement = document.createElement('div');
         const isSentMessage = message.sender === this.driverData.name;
@@ -628,30 +635,30 @@ class DTGPSLogger {
         return messageElement;
     }
 
-    toggleChat() {
-        this.isChatOpen = !this.isChatOpen;
-        const chatWindow = document.getElementById('chatWindow');
-        
-        if (chatWindow) {
-            chatWindow.style.display = this.isChatOpen ? 'block' : 'none';
+    // ✅ NOTIFICATION SOUND
+    playNotificationSound() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
             
-            if (this.isChatOpen) {
-                this.unreadCount = 0;
-                this.updateChatUI();
-                // Focus input field dan setup typing handlers
-                setTimeout(() => {
-                    const chatInput = document.getElementById('chatInput');
-                    if (chatInput) {
-                        chatInput.focus();
-                        this.setupChatInputHandlers();
-                    }
-                }, 100);
-            } else {
-                this.stopTyping();
-            }
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (error) {
+            console.log('Notification sound not supported');
         }
     }
 
+    // ✅ ENHANCED CHAT INPUT HANDLING
     setupChatInputHandlers() {
         const chatInput = document.getElementById('chatInput');
         if (!chatInput) return;
@@ -671,11 +678,41 @@ class DTGPSLogger {
             }, 2000);
         });
         
+        chatInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                this.sendMessage(chatInput.value);
+                chatInput.value = '';
+                this.stopTyping();
+            }
+        });
+        
         chatInput.addEventListener('blur', () => {
             this.stopTyping();
         });
     }
 
+    // ✅ CHAT METHOD: Toggle chat window
+    toggleChat() {
+        this.isChatOpen = !this.isChatOpen;
+        const chatWindow = document.getElementById('chatWindow');
+        
+        if (chatWindow) {
+            chatWindow.style.display = this.isChatOpen ? 'block' : 'none';
+            
+            if (this.isChatOpen) {
+                this.unreadCount = 0;
+                this.updateChatUI();
+                // Focus input field
+                setTimeout(() => {
+                    const chatInput = document.getElementById('chatInput');
+                    if (chatInput) chatInput.focus();
+                }, 100);
+            }
+        }
+    }
+
+    // ✅ CHAT METHOD: Handle chat input
     handleChatInput(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -687,17 +724,8 @@ class DTGPSLogger {
         }
     }
 
+    // ✅ CHAT METHOD: Show notification
     showChatNotification(message) {
-        // Create WhatsApp-style notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`💬 Pesan dari ${message.sender}`, {
-                body: message.text,
-                icon: '/icon.png',
-                tag: 'chat'
-            });
-        }
-        
-        // Fallback to in-app notification
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-info';
         notification.innerHTML = `
@@ -729,17 +757,7 @@ class DTGPSLogger {
         }, 5000);
     }
 
-    playNotificationSound() {
-        try {
-            // WhatsApp-like notification sound
-            const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
-            audio.volume = 0.3;
-            audio.play().catch(e => console.log('Audio play failed:', e));
-        } catch (error) {
-            console.log('Notification sound not supported');
-        }
-    }
-
+    // ✅ CHAT METHOD: Escape HTML untuk keamanan
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -860,7 +878,7 @@ class DTGPSLogger {
             journeyStatus: this.journeyStatus,
             batteryLevel: this.getBatteryLevel(),
             sessionId: this.driverData.sessionId,
-            isOnline: this.isOnline // ✅ REAL NETWORK STATUS
+            isOfflineData: false
         };
 
         try {
@@ -903,16 +921,8 @@ class DTGPSLogger {
             if (this.isOnline) {
                 this.addLog('📱 Koneksi pulih - sync data offline', 'success');
                 this.offlineQueue.processQueue();
-                // Update status online ke Firebase
-                if (this.firebaseRef) {
-                    this.firebaseRef.update({ isOnline: true });
-                }
             } else {
                 this.addLog('📱 Koneksi terputus - menyimpan data lokal', 'warning');
-                // Update status offline ke Firebase (jika masih bisa)
-                if (this.firebaseRef && this.isOnline) {
-                    this.firebaseRef.update({ isOnline: false });
-                }
             }
         }
         
@@ -1023,116 +1033,56 @@ class DTGPSLogger {
         this.sendToFirebase();
     }
 
-    // ✅ FIXED LOGOUT - BENAR-BENAR KEMBALI KE BERANDA
-    async logout() {
-        if (confirm('Yakin ingin logout? Data akan dihapus dari sistem.')) {
-            try {
-                console.log('🚪 Starting secure logout...');
-                
-                // 1. Stop semua tracking
-                this.stopTracking();
-                
-                // 2. Kirim status LOGOUT yang EXPLICIT
-                if (this.firebaseRef && this.driverData) {
-                    const logoutData = {
-                        driver: this.driverData.name,
-                        unit: this.driverData.unit,
-                        status: "LOGGED_OUT",
-                        lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                        logoutTime: new Date().toISOString(),
-                        isOnline: false
-                    };
-                    
-                    // Update status logout
-                    await this.firebaseRef.set(logoutData);
-                    this.addLog('Status logout terkirim', 'info');
-                    
-                    // Tunggu 1 detik lalu HAPUS data dari Firebase
-                    setTimeout(async () => {
-                        try {
-                            await this.firebaseRef.remove();
-                            console.log('✅ Data dihapus dari Firebase');
-                            this.addLog('Data berhasil dihapus dari sistem', 'success');
-                        } catch (error) {
-                            console.error('Gagal hapus data:', error);
-                            this.addLog('Gagal hapus data, coba refresh manual', 'error');
-                        }
-                    }, 1000);
-                }
-                
-                // 3. Cleanup chat system
-                if (this.chatRef) {
-                    this.chatRef.off();
-                }
-                if (this.typingRef) {
-                    this.typingRef.off();
-                }
-                this.stopTyping();
-                
-                // 4. Reset semua state
-                this.resetAppState();
-                
-                // 5. Kembali ke login screen
-                document.getElementById('loginScreen').style.display = 'block';
-                document.getElementById('driverApp').style.display = 'none';
-                document.getElementById('loginForm').reset();
-                
-                // 6. Clear semua interval dan timeout
-                this.clearAllIntervals();
-                
-                console.log('✅ Logout completed successfully');
-                
-            } catch (error) {
-                console.error('Error during logout:', error);
-                this.addLog('Error saat logout: ' + error.message, 'error');
-            }
+    stopTracking() {
+        if (this.watchId) {
+            navigator.geolocation.clearWatch(this.watchId);
         }
+        if (this.sendInterval) {
+            clearInterval(this.sendInterval);
+        }
+        if (this.firebaseRef) {
+            this.firebaseRef.remove();
+        }
+        
+        this.isTracking = false;
     }
 
-    // ✅ NEW: Reset app state
-    resetAppState() {
+    logout() {
+        // Cleanup chat listener
+        if (this.chatRef) {
+            this.chatRef.off();
+        }
+        
+        // Stop typing indicator
+        this.stopTyping();
+        
+        this.stopTracking();
+        
+        const sessionSummary = {
+            driver: this.driverData.name,
+            unit: this.driverData.unit,
+            duration: document.getElementById('sessionDuration').textContent,
+            totalDistance: this.totalDistance,
+            dataPoints: this.dataPoints,
+            avgSpeed: document.getElementById('avgSpeed').textContent,
+            sessionId: this.driverData.sessionId
+        };
+        
+        console.log('Session Summary:', sessionSummary);
+        
         this.driverData = null;
         this.firebaseRef = null;
         this.chatRef = null;
-        this.typingRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
         this.isChatOpen = false;
         this.chatInitialized = false;
-        this.totalDistance = 0;
-        this.dataPoints = 0;
-        this.lastPosition = null;
-        this.sessionStartTime = null;
-        this.journeyStatus = 'ready';
-        this.isTracking = false;
-        this.isOnline = navigator.onLine;
         
-        console.log('🔄 App state reset complete');
-    }
-
-    // ✅ NEW: Clear semua intervals
-    clearAllIntervals() {
-        if (this.sendInterval) {
-            clearInterval(this.sendInterval);
-            this.sendInterval = null;
-        }
+        document.getElementById('loginScreen').style.display = 'block';
+        document.getElementById('driverApp').style.display = 'none';
+        document.getElementById('loginForm').reset();
         
-        // Clear session duration interval
-        const intervals = window.intervals || [];
-        intervals.forEach(interval => clearInterval(interval));
-        window.intervals = [];
-    }
-
-    stopTracking() {
-        if (this.watchId) {
-            navigator.geolocation.clearWatch(this.watchId);
-            this.watchId = null;
-        }
-        if (this.sendInterval) {
-            clearInterval(this.sendInterval);
-            this.sendInterval = null;
-        }
-        this.isTracking = false;
+        this.addLog('Session ended - Driver logged out', 'info');
     }
 }
 
@@ -1315,7 +1265,9 @@ function reportIssue() {
 
 function logout() {
     if (window.dtLogger) {
-        window.dtLogger.logout();
+        if (confirm('Yakin ingin logout?')) {
+            window.dtLogger.logout();
+        }
     }
 }
 
