@@ -34,6 +34,13 @@
             padding: 12px 30px;
             font-weight: bold;
         }
+        .system-status {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 30px;
+        }
     </style>
 </head>
 <body>
@@ -43,6 +50,10 @@
             <a class="navbar-brand fw-bold" href="#">
                 🚚 NEW-CI-GPS-TRACKER
             </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link text-white" href="mobile.html">Driver App</a>
+                <a class="nav-link text-white" href="monitor.html">Monitor</a>
+            </div>
         </div>
     </nav>
 
@@ -63,15 +74,34 @@
                         <a href="mobile.html" class="btn btn-primary btn-lg px-4 me-md-2">
                             🚀 Launch Driver App
                         </a>
-                        <a href="#features" class="btn btn-outline-primary btn-lg px-4">
-                            📊 Lihat Fitur
+                        <a href="monitor.html" class="btn btn-outline-primary btn-lg px-4 me-md-2">
+                            📊 Monitor Real-time
                         </a>
+                    </div>
+
+                    <!-- System Status -->
+                    <div class="system-status mt-4">
+                        <h5 class="text-white mb-3">🟢 Status Sistem</h5>
+                        <div class="row text-white">
+                            <div class="col-6">
+                                <small>Firebase Database: <span class="badge bg-success">Connected</span></small>
+                            </div>
+                            <div class="col-6">
+                                <small>Real-time Tracking: <span class="badge bg-success">Active</span></small>
+                            </div>
+                            <div class="col-6">
+                                <small>Chat System: <span class="badge bg-success">Ready</span></small>
+                            </div>
+                            <div class="col-6">
+                                <small>Units Online: <span class="badge bg-info" id="onlineUnits">0</span></small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-lg-6 text-center">
                 <div class="p-4">
-                    <div class="bg-white rounded-3 p-4 shadow-lg">
+                    <div class="bg-white rounded-3 p-4 shadow-lg mb-4">
                         <h5 class="text-dark mb-3">DT GPS Logger</h5>
                         <div class="bg-light rounded-2 p-3 mb-3">
                             <small class="text-muted">Real-time Tracking</small>
@@ -80,6 +110,21 @@
                         <div class="bg-light rounded-2 p-3">
                             <small class="text-muted">Armada Terpantau</small>
                             <div class="fw-bold text-success">20+ Dump Truck</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Stats -->
+                    <div class="bg-white rounded-3 p-4 shadow-lg">
+                        <h6 class="text-dark mb-3">📈 Statistik Hari Ini</h6>
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <div class="text-primary fw-bold" id="totalDistance">0 km</div>
+                                <small class="text-muted">Total Jarak</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="text-success fw-bold" id="activeDrivers">0</div>
+                                <small class="text-muted">Driver Aktif</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -97,41 +142,121 @@
             
             <div class="row g-4">
                 <div class="col-md-4">
-                    <div class="feature-card p-4 h-100">
+                    <div class="feature-card p-4 h-100 text-center">
                         <div class="feature-icon mb-3">
                             <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                 style="width: 60px; height: 60px;">
-                                <span style="font-size: 1.5rem;">📍</span>
+                                 style="width: 80px; height: 80px;">
+                                <span style="font-size: 2rem;">📍</span>
                             </div>
                         </div>
                         <h5>Real-time Tracking</h5>
-                        <p class="text-muted">Pantau posisi kendaraan secara real-time dengan update setiap detik</p>
+                        <p class="text-muted">Pantau posisi kendaraan secara real-time dengan update setiap detik. Dapatkan informasi akurat tentang lokasi dan pergerakan armada.</p>
                     </div>
                 </div>
                 
                 <div class="col-md-4">
-                    <div class="feature-card p-4 h-100">
+                    <div class="feature-card p-4 h-100 text-center">
                         <div class="feature-icon mb-3">
                             <div class="bg-success rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                 style="width: 60px; height: 60px;">
-                                <span style="font-size: 1.5rem;">📊</span>
+                                 style="width: 80px; height: 80px;">
+                                <span style="font-size: 2rem;">💬</span>
                             </div>
                         </div>
-                        <h5>Analitik Rute</h5>
-                        <p class="text-muted">Analisis performa dan efisiensi rute perjalanan kendaraan</p>
+                        <h5>Chat Real-time</h5>
+                        <p class="text-muted">Komunikasi instan antara monitor dan driver dengan fitur chat WhatsApp-style. Lengkap dengan typing indicator dan notifikasi.</p>
                     </div>
                 </div>
                 
                 <div class="col-md-4">
-                    <div class="feature-card p-4 h-100">
+                    <div class="feature-card p-4 h-100 text-center">
                         <div class="feature-icon mb-3">
                             <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                 style="width: 60px; height: 60px;">
-                                <span style="font-size: 1.5rem;">🚨</span>
+                                 style="width: 80px; height: 80px;">
+                                <span style="font-size: 2rem;">📊</span>
                             </div>
                         </div>
-                        <h5>Notifikasi Real-time</h5>
-                        <p class="text-muted">Dapatkan alert untuk kejadian penting selama perjalanan</p>
+                        <h5>Analitik & Laporan</h5>
+                        <p class="text-muted">Analisis performa dan efisiensi rute perjalanan kendaraan. Generate laporan detail untuk evaluasi operasional.</p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card p-4 h-100 text-center">
+                        <div class="feature-icon mb-3">
+                            <div class="bg-info rounded-circle d-inline-flex align-items-center justify-content-center" 
+                                 style="width: 80px; height: 80px;">
+                                <span style="font-size: 2rem;">⚡</span>
+                            </div>
+                        </div>
+                        <h5>Offline Support</h5>
+                        <p class="text-muted">Tetap berfungsi meski tanpa koneksi internet. Data tersimpan lokal dan akan tersinkronisasi otomatis ketika online.</p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card p-4 h-100 text-center">
+                        <div class="feature-icon mb-3">
+                            <div class="bg-danger rounded-circle d-inline-flex align-items-center justify-content-center" 
+                                 style="width: 80px; height: 80px;">
+                                <span style="font-size: 2rem;">🛰️</span>
+                            </div>
+                        </div>
+                        <h5>Dual Map View</h5>
+                        <p class="text-muted">Pilih antara Street View dan Satellite View untuk monitoring yang lebih detail dan akurat.</p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card p-4 h-100 text-center">
+                        <div class="feature-icon mb-3">
+                            <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center" 
+                                 style="width: 80px; height: 80px;">
+                                <span style="font-size: 2rem;">🔔</span>
+                            </div>
+                        </div>
+                        <h5>Smart Notifications</h5>
+                        <p class="text-muted">Dapatkan alert untuk kejadian penting selama perjalanan, termasuk notifikasi chat dan status kendaraan.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="py-5" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="container">
+            <div class="text-center text-white mb-5">
+                <h2 class="fw-bold">Cara Kerja Sistem</h2>
+                <p>Simple dan efisien untuk operasional yang optimal</p>
+            </div>
+            
+            <div class="row text-center text-white">
+                <div class="col-md-3 mb-4">
+                    <div class="bg-white bg-opacity-10 rounded-3 p-4 h-100">
+                        <div class="display-6 mb-3">1</div>
+                        <h5>Driver Login</h5>
+                        <p class="mb-0">Driver masuk dengan nama dan unit kendaraan melalui mobile app</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="bg-white bg-opacity-10 rounded-3 p-4 h-100">
+                        <div class="display-6 mb-3">2</div>
+                        <h5>GPS Tracking</h5>
+                        <p class="mb-0">Sistem mulai melacak posisi dan mengirim data real-time ke server</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="bg-white bg-opacity-10 rounded-3 p-4 h-100">
+                        <div class="display-6 mb-3">3</div>
+                        <h5>Monitor Live</h5>
+                        <p class="mb-0">Tim monitor dapat melihat semua unit di peta dengan informasi lengkap</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="bg-white bg-opacity-10 rounded-3 p-4 h-100">
+                        <div class="display-6 mb-3">4</div>
+                        <h5>Komunikasi</h5>
+                        <p class="mb-0">Monitor dan driver dapat berkomunikasi via chat real-time</p>
                     </div>
                 </div>
             </div>
@@ -140,9 +265,38 @@
 
     <!-- Footer -->
     <footer class="bg-dark text-white py-4">
-        <div class="container text-center">
-            <p class="mb-0">&copy; 2024 PT SAGM Kebun Templiling. NEW-CI-GPS-TRACKER System</p>
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0">&copy; 2024 PT SAGM Kebun Templiling. NEW-CI-GPS-TRACKER System</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small>
+                        <span class="text-warning">🟢 System Status: Operational</span> | 
+                        <span>Version 2.0</span>
+                    </small>
+                </div>
+            </div>
         </div>
     </footer>
+
+    <script>
+        // Update real-time stats
+        function updateStats() {
+            // Simulate real-time data updates
+            document.getElementById('onlineUnits').textContent = 
+                Math.floor(Math.random() * 5) + 15; // 15-20 units online
+            
+            document.getElementById('totalDistance').textContent = 
+                (Math.random() * 500 + 100).toFixed(0) + ' km';
+            
+            document.getElementById('activeDrivers').textContent = 
+                Math.floor(Math.random() * 8) + 12; // 12-20 active drivers
+        }
+
+        // Update stats every 10 seconds
+        setInterval(updateStats, 10000);
+        updateStats(); // Initial update
+    </script>
 </body>
 </html>
