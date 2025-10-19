@@ -8,6 +8,7 @@
     <!-- Meta Tags -->
     <meta name="description" content="Sistem Monitoring Real-time 23 Unit Canter PS125 - Kebun Tempuling">
     <meta name="keywords" content="gps tracking, first resources, kebun tempuling, canter ps125, real-time">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚛</text></svg>">
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -19,8 +20,157 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
     
-    <!-- Custom CSS -->
+    <!-- External CSS -->
     <link href="style-monitor.css" rel="stylesheet">
+    
+    <!-- Enhanced Chat CSS -->
+    <style>
+        /* CHAT WINDOW POSITION FIX */
+        #monitorChatContainer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            z-index: 1000;
+        }
+        
+        .chat-toggle-btn {
+            position: fixed !important;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1002;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border-radius: 25px;
+            padding: 10px 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        .chat-window {
+            position: fixed;
+            bottom: 70px;
+            left: 20px;
+            width: 380px;
+            max-width: 90vw;
+            height: 500px;
+            max-height: 70vh;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #198754, #20c997);
+            color: white;
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .chat-header h6 {
+            font-weight: 600;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .chat-input-container {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            background: white;
+        }
+        
+        /* Responsive Design for Mobile */
+        @media (max-width: 768px) {
+            .chat-toggle-btn {
+                left: 10px !important;
+                right: auto !important;
+                bottom: 15px;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            
+            .chat-window {
+                left: 10px !important;
+                right: 10px !important;
+                bottom: 60px;
+                width: auto;
+                max-width: none;
+                height: 60vh;
+            }
+        }
+        
+        /* Untuk layar sangat kecil */
+        @media (max-width: 480px) {
+            .chat-window {
+                left: 5px !important;
+                right: 5px !important;
+                bottom: 55px;
+                height: 55vh;
+            }
+            
+            .chat-toggle-btn {
+                left: 5px !important;
+                bottom: 10px;
+                font-size: 13px;
+                padding: 6px 12px;
+            }
+        }
+        
+        /* Pastikan tidak overlap dengan sidebar */
+        @media (min-width: 769px) {
+            .sidebar-open .chat-window {
+                left: calc(25% + 20px) !important;
+            }
+        }
+        
+        /* Chat Message Styles */
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .message.sent {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.received {
+            background: #e9ecef;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+        
+        .chat-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -41,8 +191,8 @@
                 <span class="text-warning fw-bold me-3">
                     🏭 PT. SAGM - <span class="real-time-indicator"></span> LIVE
                 </span>
-                <span id="firebaseStatus" class="connection-status">
-                    🔵 MENYAMBUNG KE FIREBASE...
+                <span id="firebaseStatus" class="connection-status connection-online">
+                    🔵 FIREBASE TERHUBUNG
                 </span>
             </div>
         </div>
@@ -59,7 +209,7 @@
                             <i>🕒</i> <span id="currentTime">--:--:--</span>
                         </div>
                         <div class="status-item">
-                            <i>📡</i> <span id="dataCount">0</span> Units
+                            <i>📡</i> <span id="dataCount">0</span> Data Points
                         </div>
                     </div>
 
@@ -87,9 +237,9 @@
                         <div class="col-6">
                             <select id="filterStatus" class="form-select">
                                 <option value="">🔄 Semua Status</option>
-                                <option value="online">🟢 Online</option>
-                                <option value="offline">🔴 Offline</option>
-                                <option value="moving">🟡 Berjalan</option>
+                                <option value="active">🟢 Aktif</option>
+                                <option value="moving">🟡 Dalam Perjalanan</option>
+                                <option value="inactive">🔴 Non-Aktif</option>
                             </select>
                         </div>
                     </div>
@@ -183,6 +333,9 @@
                             <button class="btn btn-sm btn-outline-success d-md-none" onclick="toggleSidebar()">
                                 <i>📋</i> Daftar Unit
                             </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="forceCleanup()" title="Force Cleanup Data Lengket">
+                                <i>🧹</i> Force Cleanup
+                            </button>
                         </div>
                     </div>
                     <div class="card-body p-0 position-relative">
@@ -219,11 +372,7 @@
                                 </div>
                                 <div class="d-flex align-items-center mb-2">
                                     <div class="legend-color bg-danger me-2"></div>
-                                    <small>🔴 Offline/No Network</small>
-                                </div>
-                                <div class="d-flex align-items-center mb-2">
-                                    <div class="legend-color bg-secondary me-2"></div>
-                                    <small>⚫ Logged Out</small>
+                                    <small>🔴 Non-Aktif</small>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -253,14 +402,16 @@
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <h6 class="legend-title">Map View</h6>
+                                <h6 class="legend-title">Info Baru</h6>
                                 <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-light text-dark me-2">🗺️</span>
-                                    <small>Street View</small>
+                                    <span class="battery-indicator me-2">
+                                        <div class="battery-level battery-high" style="width: 80%"></div>
+                                    </span>
+                                    <small>🔋 Level Baterai</small>
                                 </div>
                                 <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-light text-dark me-2">🛰️</span>
-                                    <small>Satellite View</small>
+                                    <span class="accuracy-badge me-2">±5m</span>
+                                    <small>🎯 Akurasi GPS</small>
                                 </div>
                                 <div class="d-flex align-items-center mb-2">
                                     <span class="real-time-indicator me-2"></span>
@@ -270,1091 +421,196 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Data Logger Section -->
+                <div class="card mt-3">
+                    <div class="card-header bg-light">
+                        <h5 class="card-title mb-0 text-success">
+                            <i>📊</i> Data Logger System - Real-time Activity Log
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="dataLoggerContainer">
+                            <div class="text-center text-muted py-4">
+                                <div class="spinner-border spinner-border-sm text-success me-2"></div>
+                                Memuat data logger...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ ENHANCED CHAT INTERFACE - POSITION FIXED & RESPONSIVE -->
+    <div id="monitorChatContainer">
+        <!-- Chat Toggle Button -->
+        <button id="monitorChatToggle" class="btn btn-primary chat-toggle-btn">
+            💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>
+        </button>
+        
+        <!-- Chat Window - FIXED POSITION & RESPONSIVE -->
+        <div id="monitorChatWindow" class="chat-window">
+            <div class="chat-header">
+                <h6 class="mb-0">💬 Chat dengan Driver</h6>
+                <div class="input-group input-group-sm">
+                    <select id="monitorChatUnitSelect" class="form-select form-select-sm">
+                        <option value="">Pilih Unit...</option>
+                    </select>
+                    <button type="button" class="btn-close btn-close-white" onclick="toggleMonitorChat()"></button>
+                </div>
+            </div>
+            
+            <div id="monitorChatMessages" class="chat-messages">
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Pilih unit untuk memulai percakapan...</small>
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div class="input-group">
+                    <input type="text" id="monitorChatInput" class="form-control" 
+                           placeholder="Ketik pesan..." disabled
+                           onkeypress="handleMonitorChatInput(event)">
+                    <button class="btn btn-primary" type="button" 
+                            onclick="sendMonitorMessage()" disabled id="monitorSendBtn">
+                        Kirim
+                    </button>
+                </div>
+                <small class="text-muted d-block mt-1">Tekan Enter untuk mengirim</small>
             </div>
         </div>
     </div>
 
     <!-- Loading Spinner -->
-    <div id="loadingSpinner" class="loading-spinner">
-        <div class="spinner-content">
-            <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;"></div>
-            <p class="mb-0 text-success">Menyambungkan ke sistem...</p>
+    <div id="loadingSpinner" class="d-none position-fixed top-50 start-50 translate-middle">
+        <div class="text-center bg-light rounded p-4 shadow">
+            <div class="spinner-border text-success mb-3" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mb-0 text-success">Menyambungkan ke Firebase...</p>
         </div>
     </div>
 
-    <!-- ✅ ENHANCED CHAT INTERFACE UNTUK MONITOR -->
-    <div id="monitorChatContainer" style="display: none;">
-        <div class="position-fixed chat-window-monitor" style="width: 350px; height: 500px; bottom: 20px; right: 20px; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000;">
-            <div class="chat-header bg-primary text-white p-3 rounded-top">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0" id="chatWithUser">💬 Chat</h6>
-                    <div>
-                        <button class="btn btn-sm btn-light me-2" onclick="window.gpsSystem.minimizeChat()">➖</button>
-                        <button class="btn btn-sm btn-light" onclick="window.gpsSystem.closeChat()">✕</button>
-                    </div>
-                </div>
-            </div>
-            <div id="chatMessagesMonitor" class="chat-messages p-3" style="height: 350px; overflow-y: auto; background: #f8f9fa;"></div>
-            <div class="typing-indicator" id="typingIndicatorMonitor" style="display: none; padding: 10px; font-style: italic; color: #666;">
-                <span id="typingText"></span>
-            </div>
-            <div class="chat-input-container p-3 border-top">
-                <div class="input-group">
-                    <input type="text" id="chatInputMonitor" class="form-control" placeholder="Ketik pesan...">
-                    <button class="btn btn-primary" onclick="window.gpsSystem.sendChatMessage()">Kirim</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
 
     <!-- JavaScript Libraries -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Main JavaScript -->
+    <!-- External JavaScript -->
+    <script src="script-monitor.js"></script>
+    
+    <!-- ✅ ENHANCED GLOBAL FUNCTIONS - IMPROVED CHAT INTERFACE -->
     <script>
-// ==== FIREBASE CONFIG ====
-const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
-    authDomain: "joi-gps-tracker.firebaseapp.com",
-    databaseURL: "https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "joi-gps-tracker",
-    storageBucket: "joi-gps-tracker.firebasestorage.app",
-    messagingSenderId: "216572191895",
-    appId: "1:216572191895:web:a4fef1794daf200a2775d2"
-};
-
-// ==== GPS MONITORING SYSTEM ====
-class GPSMonitoringSystem {
-    constructor() {
-        console.log('🚀 Initializing GPS Monitoring System...');
-        
-        this.units = new Map();
-        this.markers = new Map();
-        this.map = null;
-        this.isInitialized = false;
-        this.currentMapType = 'street'; // 'street' or 'satellite'
-        
-        // Important locations
-        this.importantLocations = {
-            PKS_SAGM: { 
-                lat: -0.43452332690449164, 
-                lng: 102.96741072417917, 
-                name: "PKS SAGM",
-                type: "pks"
-            },
-            KANTOR_KEBUN: { 
-                lat: -0.3575865859028525, 
-                lng: 102.95047687287101, 
-                name: "Kantor Kebun PT SAGM",
-                type: "office"
+        // ✅ ENHANCED CHAT TOGGLE FUNCTION - Delegated to gpsSystem
+        function toggleMonitorChat() {
+            if (window.gpsSystem) {
+                window.gpsSystem.toggleMonitorChat();
             }
-        };
-
-        this.config = {
-            center: [-0.396055, 102.958944],
-            zoom: 13
-        };
-
-        // Chat system
-        this.chatRef = null;
-        this.currentChatUnit = null;
-        this.currentChatDriver = null;
-        this.chatMessages = new Map(); // unit -> messages
-        this.unreadCounts = new Map();
-        this.typingStatus = new Map();
-        this.isChatMinimized = false;
-    }
-
-    // ===== MAIN INITIALIZATION =====
-    initialize() {
-        try {
-            console.log('🔧 Starting system initialization...');
-            this.showLoading(true);
-            
-            // Step 1: Initialize Firebase
-            this.initializeFirebase();
-            
-            // Step 2: Setup Map dengan satellite option
-            this.setupMap();
-            
-            // Step 3: Connect to Firebase
-            this.connectToFirebase();
-            
-            // Step 4: Setup Chat System
-            this.setupChatSystem();
-            
-            this.isInitialized = true;
-            console.log('✅ System initialized successfully');
-            
-        } catch (error) {
-            console.error('❌ System initialization failed:', error);
-            this.showError('Gagal memulai sistem: ' + error.message);
-        } finally {
-            this.showLoading(false);
         }
-    }
 
-    // ===== FIREBASE INITIALIZATION =====
-    initializeFirebase() {
-        try {
-            if (firebase.apps.length === 0) {
-                firebase.initializeApp(FIREBASE_CONFIG);
-                console.log('✅ Firebase initialized');
-            } else {
-                console.log('✅ Firebase already initialized');
+        // ✅ ENHANCED CHAT INPUT HANDLER - Delegated to gpsSystem
+        function handleMonitorChatInput(event) {
+            if (window.gpsSystem) {
+                window.gpsSystem.handleMonitorChatInput(event);
             }
-        } catch (error) {
-            throw new Error('Firebase initialization failed: ' + error.message);
         }
-    }
 
-    // ===== MAP SETUP DENGAN SATELLITE =====
-    setupMap() {
-        try {
-            console.log('🗺️ Setting up map...');
-            
-            const mapContainer = document.getElementById('map');
-            if (!mapContainer) {
-                throw new Error('Map container tidak ditemukan');
+        // ✅ ENHANCED SEND MESSAGE FUNCTION - Delegated to gpsSystem
+        function sendMonitorMessage() {
+            if (window.gpsSystem) {
+                window.gpsSystem.sendMonitorMessage();
             }
-
-            // Create map instance
-            this.map = L.map('map').setView(this.config.center, this.config.zoom);
-            console.log('✅ Map instance created');
-
-            // Street View
-            this.streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 18
-            });
-
-            // Satellite View
-            this.satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                maxZoom: 20,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-                attribution: '© Google Satellite'
-            });
-
-            // Default layer
-            this.streetLayer.addTo(this.map);
-
-            // Add map type control
-            this.addMapControls();
-            console.log('✅ Map layers and controls added');
-
-            // Add important locations
-            this.addLocationMarkers();
-            console.log('✅ Location markers added');
-
-        } catch (error) {
-            console.error('❌ Map setup failed:', error);
-            this.showMapError(error.message);
-            throw error;
         }
-    }
 
-    addMapControls() {
-        // Map type control
-        const mapTypeControl = L.control({ position: 'topright' });
-        mapTypeControl.onAdd = () => {
-            const div = L.DomUtil.create('div', 'map-type-control');
-            div.innerHTML = `
-                <div class="btn-group-vertical">
-                    <button class="btn btn-sm btn-light ${this.currentMapType === 'street' ? 'active' : ''}" 
-                            onclick="window.gpsSystem.switchMapType('street')">
-                        🗺️ Street
-                    </button>
-                    <button class="btn btn-sm btn-light ${this.currentMapType === 'satellite' ? 'active' : ''}" 
-                            onclick="window.gpsSystem.switchMapType('satellite')">
-                        🛰️ Satellite
-                    </button>
-                </div>
-            `;
-            return div;
-        };
-        mapTypeControl.addTo(this.map);
-
-        // Add scale control
-        L.control.scale({ imperial: false }).addTo(this.map);
-    }
-
-    switchMapType(type) {
-        if (this.currentMapType === type) return;
-        
-        this.currentMapType = type;
-        
-        // Remove current layer
-        this.map.removeLayer(this.streetLayer);
-        this.map.removeLayer(this.satelliteLayer);
-        
-        // Add new layer
-        if (type === 'street') {
-            this.streetLayer.addTo(this.map);
-        } else {
-            this.satelliteLayer.addTo(this.map);
-        }
-        
-        // Update button states
-        document.querySelectorAll('.map-type-control .btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        event.target.classList.add('active');
-        
-        console.log(`🗺️ Switched to ${type} view`);
-    }
-
-    showMapError(message) {
-        const mapContainer = document.getElementById('map');
-        if (mapContainer) {
-            mapContainer.innerHTML = `
-                <div class="alert alert-danger m-3">
-                    <h5>❌ Gagal Memuat Peta</h5>
-                    <p>${message}</p>
-                    <button class="btn btn-warning btn-sm" onclick="window.gpsSystem.setupMap()">
-                        🔄 Coba Lagi
-                    </button>
-                </div>
-            `;
-        }
-    }
-
-    addLocationMarkers() {
-        try {
-            // PKS Marker
-            const pksIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div class="marker-icon pks">🏭</div>',
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { 
-                icon: pksIcon 
-            })
-            .bindPopup(`
-                <div class="unit-popup">
-                    <div class="popup-header">
-                        <h6 class="mb-0">🏭 ${this.importantLocations.PKS_SAGM.name}</h6>
-                    </div>
-                    <div class="p-2">
-                        <strong>Pabrik Kelapa Sawit</strong><br>
-                        <small>Lokasi: Kebun Tempuling</small>
-                    </div>
-                </div>
-            `)
-            .addTo(this.map);
-
-            // Office Marker
-            const officeIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div class="marker-icon office">🏢</div>',
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { 
-                icon: officeIcon 
-            })
-            .bindPopup(`
-                <div class="unit-popup">
-                    <div class="popup-header">
-                        <h6 class="mb-0">🏢 ${this.importantLocations.KANTOR_KEBUN.name}</h6>
-                    </div>
-                    <div class="p-2">
-                        <strong>Kantor Operasional</strong><br>
-                        <small>Lokasi: Kebun Tempuling</small>
-                    </div>
-                </div>
-            `)
-            .addTo(this.map);
-
-        } catch (error) {
-            console.error('Failed to add location markers:', error);
-        }
-    }
-
-    // ===== FIREBASE CONNECTION =====
-    connectToFirebase() {
-        try {
-            console.log('🔥 Connecting to Firebase...');
-            
-            const database = firebase.database();
-
-            // Connection status listener
-            database.ref('.info/connected').on('value', (snapshot) => {
-                const connected = snapshot.val();
-                this.updateConnectionStatus(connected);
-                console.log('📡 Firebase connection:', connected);
-            });
-
-            // Units data listener
-            database.ref('/units').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    this.processRealTimeData(data);
-                } else {
-                    console.log('ℹ️ No data received from Firebase');
-                    this.clearAllUnits();
-                }
-            }, (error) => {
-                console.error('❌ Firebase listener error:', error);
-                this.updateConnectionStatus(false);
-            });
-
-        } catch (error) {
-            console.error('❌ Firebase connection failed:', error);
-            setTimeout(() => this.connectToFirebase(), 5000);
-        }
-    }
-
-    // ===== DATA PROCESSING =====
-    processRealTimeData(firebaseData) {
-        const unitCount = Object.keys(firebaseData).length;
-        console.log(`🔄 Processing ${unitCount} units`);
-
-        const activeUnits = new Set();
-        const now = Date.now();
-
-        Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            // ✅ PERBEDAAN LOGOUT vs NO NETWORK
-            if (unitData.status === "LOGGED_OUT") {
-                console.log(`🚪 ${unitName} sudah logout - menghapus data`);
-                firebase.database().ref('/units/' + unitName).remove();
-                return;
-            }
-
-            // Check jika data stale (lebih dari 10 menit)
-            if (unitData.lastUpdate) {
-                const updateTime = new Date(unitData.lastUpdate).getTime();
-                const timeDiff = now - updateTime;
+        // ✅ ENHANCED UNIT SELECTION FUNCTION
+        function selectChatUnit(unitName) {
+            if (window.gpsSystem) {
+                window.gpsSystem.selectChatUnit(unitName);
                 
-                if (timeDiff > 600000 && unitData.isOnline !== false) { // 10 menit
-                    console.log(`🕒 ${unitName} data stale - marking as offline`);
-                    unitData.isOnline = false;
-                }
+                // Enable input when unit is selected
+                const input = document.getElementById('monitorChatInput');
+                const sendBtn = document.getElementById('monitorSendBtn');
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
             }
+        }
 
-            if (this.validateUnitData(unitName, unitData)) {
-                activeUnits.add(unitName);
-                this.updateOrCreateUnit(unitName, unitData);
+        // ✅ ENHANCED REAL-TIME CLOCK
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ✅ ENHANCED FORCE CLEANUP FUNCTION
+        function forceCleanup() {
+            if (window.gpsSystem) {
+                window.gpsSystem.forceCleanupAllData();
+                alert('Force cleanup executed! All sticky data removed.');
             }
-        });
+        }
 
-        // Cleanup inactive units
-        this.cleanupInactiveUnits(activeUnits);
-        
-        // Update statistics
-        this.updateStatistics();
-    }
+        // ✅ ENHANCED REFRESH FUNCTION
+        function refreshData() {
+            if (window.gpsSystem) {
+                window.gpsSystem.refreshData();
+            }
+        }
 
-    validateUnitData(unitName, unitData) {
-        if (!unitData) return false;
-        if (unitData.lat === undefined || unitData.lng === undefined) return false;
-        
-        const lat = parseFloat(unitData.lat);
-        const lng = parseFloat(unitData.lng);
-        
-        return !isNaN(lat) && !isNaN(lng);
-    }
+        // ✅ ENHANCED EXPORT FUNCTION
+        function exportData() {
+            if (window.gpsSystem) {
+                window.gpsSystem.downloadRouteData();
+            }
+        }
 
-    updateOrCreateUnit(unitName, unitData) {
-        const unit = {
-            name: unitName,
-            lat: parseFloat(unitData.lat),
-            lng: parseFloat(unitData.lng),
-            speed: parseFloat(unitData.speed) || 0,
-            driver: unitData.driver || 'Tidak diketahui',
-            afdeling: this.determineAfdeling(unitName),
-            status: this.determineStatus(unitData.journeyStatus, unitData.isOnline),
-            lastUpdate: unitData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
-            distance: parseFloat(unitData.distance) || 0,
-            fuelLevel: this.computeFuelLevel(100, unitData.distance, unitData.journeyStatus),
-            isOnline: unitData.isOnline !== false,
-            batteryLevel: unitData.batteryLevel || 100,
-            accuracy: unitData.accuracy || 0
-        };
-
-        if (this.markers.has(unitName)) {
-            // Update existing marker
-            const marker = this.markers.get(unitName);
-            marker.setLatLng([unit.lat, unit.lng]);
-            marker.setPopupContent(this.createUnitPopup(unit));
+        // ✅ ENHANCED SIDEBAR TOGGLE FUNCTION
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const body = document.body;
             
-            // Update marker icon based on status
-            const icon = this.createUnitIcon(unit);
-            marker.setIcon(icon);
-
-        } else {
-            // Create new marker
-            this.createUnitMarker(unit);
+            if (sidebar) {
+                sidebar.classList.toggle('show');
+                body.classList.toggle('sidebar-open');
+            }
         }
 
-        this.units.set(unitName, unit);
-    }
-
-    createUnitIcon(unit) {
-        let html = '';
-        if (!unit.isOnline) {
-            html = '<div class="marker-icon offline">🔴</div>';
-        } else if (unit.status === 'moving') {
-            html = '<div class="marker-icon moving">🟡</div>';
-        } else if (unit.status === 'active') {
-            html = '<div class="marker-icon active">🟢</div>';
-        } else {
-            html = '<div class="marker-icon inactive">⚫</div>';
-        }
-
-        return L.divIcon({
-            className: 'custom-marker',
-            html: html,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
-        });
-    }
-
-    createUnitMarker(unit) {
-        const icon = this.createUnitIcon(unit);
-
-        const marker = L.marker([unit.lat, unit.lng], { icon: icon })
-            .bindPopup(this.createUnitPopup(unit))
-            .addTo(this.map);
-        
-        this.markers.set(unit.name, marker);
-    }
-
-    createUnitPopup(unit) {
-        const statusInfo = !unit.isOnline ? 
-            '🔴 OFFLINE (No Network)' : 
-            unit.status === 'active' ? '🟢 AKTIF' : 
-            unit.status === 'moving' ? '🟡 DALAM PERJALANAN' : '⚫ NON-AKTIF';
-
-        const unreadCount = this.unreadCounts.get(unit.name) || 0;
-        const chatBadge = unreadCount > 0 ? `<span class="badge bg-danger">${unreadCount}</span>` : '';
-
-        return `
-            <div class="unit-popup" style="min-width: 250px;">
-                <div class="popup-header" style="background: ${unit.isOnline ? '#28a745' : '#dc3545'}; color: white; padding: 10px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
-                    <h6 class="mb-0">🚛 ${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                </div>
-                <div style="padding: 10px;">
-                    <div><strong>Driver:</strong> ${unit.driver}</div>
-                    <div><strong>Afdeling:</strong> ${unit.afdeling}</div>
-                    <div><strong>Status:</strong> ${statusInfo}</div>
-                    <div><strong>Kecepatan:</strong> ${unit.speed} km/h</div>
-                    <div><strong>Jarak:</strong> ${unit.distance.toFixed(2)} km</div>
-                    <div><strong>Bahan Bakar:</strong> ${unit.fuelLevel.toFixed(1)}%</div>
-                    <div><strong>Baterai:</strong> ${unit.batteryLevel}%</div>
-                    <div><strong>Akurasi GPS:</strong> ${unit.accuracy.toFixed(1)} m</div>
-                    <div><strong>Update:</strong> ${unit.lastUpdate}</div>
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
-                            💬 Chat dengan ${unit.driver} ${chatBadge}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    determineAfdeling(unitName) {
-        const afdelingMap = {
-            'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
-            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
-            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-25': 'KKPA', 'DT-26': 'KKPA',
-            'DT-27': 'KKPA', 'DT-28': 'AFD II', 'DT-29': 'AFD III', 'DT-32': 'AFD I',
-            'DT-33': 'AFD IV', 'DT-34': 'AFD V', 'DT-35': 'KKPA', 'DT-36': 'AFD II',
-            'DT-37': 'AFD III', 'DT-38': 'AFD I', 'DT-39': 'AFD IV'
-        };
-        return afdelingMap[unitName] || 'AFD I';
-    }
-
-    determineStatus(journeyStatus, isOnline) {
-        if (isOnline === false) return 'offline';
-        
-        const statusMap = {
-            'started': 'moving',
-            'moving': 'moving', 
-            'active': 'active',
-            'paused': 'active',
-            'ended': 'inactive',
-            'ready': 'inactive'
-        };
-        return statusMap[journeyStatus] || 'active';
-    }
-
-    computeFuelLevel(initialFuel, distance, status) {
-        if (!distance) return initialFuel;
-        
-        let consumptionRate;
-        switch(status) {
-            case 'moving': consumptionRate = 0.22; break;
-            case 'active': consumptionRate = 0.25; break;
-            default: consumptionRate = 0.12;
-        }
-        
-        const fuelUsed = distance * consumptionRate;
-        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
-        return Math.max(5, Math.min(100, fuelRemaining));
-    }
-
-    // ===== CLEANUP METHODS =====
-    cleanupInactiveUnits(activeUnits) {
-        this.units.forEach((unit, unitName) => {
-            if (!activeUnits.has(unitName)) {
-                unit.isOnline = false;
-                
-                // Update marker to show offline status
-                const marker = this.markers.get(unitName);
-                if (marker) {
-                    const icon = this.createUnitIcon(unit);
-                    marker.setIcon(icon);
-                }
+        // ✅ ENHANCED CLICK OUTSIDE HANDLER FOR CHAT
+        document.addEventListener('click', function(event) {
+            const chatContainer = document.getElementById('monitorChatContainer');
+            const chatWindow = document.getElementById('monitorChatWindow');
+            const toggleBtn = document.getElementById('monitorChatToggle');
+            
+            if (chatWindow.style.display === 'flex' && 
+                !chatContainer.contains(event.target) && 
+                event.target !== toggleBtn) {
+                toggleMonitorChat();
             }
         });
-    }
 
-    clearAllUnits() {
-        this.markers.forEach((marker, unitName) => {
-            if (this.map) {
-                this.map.removeLayer(marker);
-            }
-        });
-        this.markers.clear();
-        this.units.clear();
-        this.renderUnitList();
-    }
-
-    // ===== CHAT SYSTEM =====
-    setupChatSystem() {
-        console.log('💬 Setting up chat system...');
-        
-        this.chatRef = firebase.database().ref('/chat');
-        
-        // Listen untuk semua chat messages
-        this.chatRef.on('child_added', (snapshot) => {
-            const unitId = snapshot.key;
-            snapshot.forEach((messageSnapshot) => {
-                const message = messageSnapshot.val();
-                this.handleChatMessage(unitId, message);
-            });
-        });
-
-        // Listen untuk typing indicators
-        const typingRef = firebase.database().ref('/typing');
-        typingRef.on('child_added', (snapshot) => {
-            const unitId = snapshot.key;
-            const typingData = snapshot.val();
-            this.handleTypingIndicator(unitId, typingData);
-        });
-    }
-
-    handleChatMessage(unitId, message) {
-        if (!this.chatMessages.has(unitId)) {
-            this.chatMessages.set(unitId, []);
-        }
-        
-        const messages = this.chatMessages.get(unitId);
-        
-        // Prevent duplicates
-        const messageExists = messages.some(msg => msg.id === message.id);
-        if (messageExists) return;
-        
-        messages.push(message);
-        
-        // Update unread count jika chat tidak terbuka
-        if (!this.isChatOpen(unitId)) {
-            const currentCount = this.unreadCounts.get(unitId) || 0;
-            this.unreadCounts.set(unitId, currentCount + 1);
-            this.updateChatBadge(unitId);
-        }
-        
-        // Update chat UI jika terbuka
-        if (this.isChatOpen(unitId)) {
-            this.renderChatMessages(unitId);
-        }
-        
-        // Show notification
-        if (message.sender !== 'Monitor') {
-            this.showChatNotification(unitId, message);
-        }
-    }
-
-    handleTypingIndicator(unitId, typingData) {
-        const driverTyping = typingData.driver;
-        if (driverTyping && driverTyping.isTyping && this.isChatOpen(unitId)) {
-            this.showTypingIndicator(unitId, driverTyping.name);
-        } else {
-            this.hideTypingIndicator(unitId);
-        }
-    }
-
-    openChat(unitId, driverName) {
-        this.currentChatUnit = unitId;
-        this.currentChatDriver = driverName;
-        
-        document.getElementById('monitorChatContainer').style.display = 'block';
-        document.getElementById('chatWithUser').textContent = `💬 Chat dengan ${driverName} (${unitId})`;
-        
-        // Reset unread count
-        this.unreadCounts.set(unitId, 0);
-        this.updateChatBadge(unitId);
-        
-        // Render messages
-        this.renderChatMessages(unitId);
-        
-        // Focus input
-        setTimeout(() => {
-            document.getElementById('chatInputMonitor').focus();
-        }, 100);
-    }
-
-    closeChat() {
-        document.getElementById('monitorChatContainer').style.display = 'none';
-        this.currentChatUnit = null;
-        this.currentChatDriver = null;
-        this.isChatMinimized = false;
-    }
-
-    minimizeChat() {
-        const chatWindow = document.querySelector('.chat-window-monitor');
-        const messages = document.getElementById('chatMessagesMonitor');
-        const input = document.querySelector('.chat-input-container');
-        
-        if (this.isChatMinimized) {
-            // Restore
-            messages.style.display = 'block';
-            input.style.display = 'block';
-            chatWindow.style.height = '500px';
-            this.isChatMinimized = false;
-        } else {
-            // Minimize
-            messages.style.display = 'none';
-            input.style.display = 'none';
-            chatWindow.style.height = '60px';
-            this.isChatMinimized = true;
-        }
-    }
-
-    isChatOpen(unitId) {
-        return this.currentChatUnit === unitId;
-    }
-
-    renderChatMessages(unitId) {
-        const messagesContainer = document.getElementById('chatMessagesMonitor');
-        const messages = this.chatMessages.get(unitId) || [];
-        
-        messagesContainer.innerHTML = '';
-        
-        if (messages.length === 0) {
-            messagesContainer.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <small>Mulai percakapan dengan driver...</small>
-                </div>
-            `;
-            return;
-        }
-        
-        // Group messages by date
-        const groupedMessages = this.groupMessagesByDate(messages);
-        
-        Object.keys(groupedMessages).forEach(date => {
-            // Add date separator untuk hari yang berbeda
-            if (Object.keys(groupedMessages).length > 1) {
-                const dateElement = document.createElement('div');
-                dateElement.className = 'chat-date-separator';
-                dateElement.innerHTML = `<span>${date}</span>`;
-                messagesContainer.appendChild(dateElement);
-            }
-            
-            // Add messages for this date
-            groupedMessages[date].forEach(message => {
-                const messageElement = this.createMessageElement(message);
-                messagesContainer.appendChild(messageElement);
-            });
-        });
-        
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    groupMessagesByDate(messages) {
-        const grouped = {};
-        
-        messages.forEach(message => {
-            const messageDate = new Date(message.timestamp);
-            const dateKey = messageDate.toLocaleDateString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = [];
-            }
-            
-            grouped[dateKey].push(message);
-        });
-        
-        // Sort messages within each date by timestamp
-        Object.keys(grouped).forEach(date => {
-            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        });
-        
-        return grouped;
-    }
-
-    createMessageElement(message) {
-        const messageElement = document.createElement('div');
-        const isSentByMonitor = message.sender === 'Monitor';
-        
-        messageElement.className = `chat-message ${isSentByMonitor ? 'message-sent' : 'message-received'}`;
-        messageElement.innerHTML = `
-            <div class="message-content">
-                ${!isSentByMonitor ? `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
-                <div class="message-text">${this.escapeHtml(message.text)}</div>
-                <div class="message-footer">
-                    <span class="message-time">${message.timeDisplay}</span>
-                </div>
-            </div>
-        `;
-        
-        return messageElement;
-    }
-
-    async sendChatMessage() {
-        if (!this.currentChatUnit || !this.currentChatDriver) return;
-        
-        const input = document.getElementById('chatInputMonitor');
-        const messageText = input.value.trim();
-        
-        if (!messageText) return;
-        
-        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        const messageData = {
-            id: messageId,
-            text: messageText,
-            sender: 'Monitor',
-            unit: this.currentChatUnit,
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            }),
-            type: 'monitor'
-        };
-        
-        try {
-            await this.chatRef.child(this.currentChatUnit).push(messageData);
-            input.value = '';
-            
-            // Add to local messages
-            if (!this.chatMessages.has(this.currentChatUnit)) {
-                this.chatMessages.set(this.currentChatUnit, []);
-            }
-            this.chatMessages.get(this.currentChatUnit).push(messageData);
-            this.renderChatMessages(this.currentChatUnit);
-            
-        } catch (error) {
-            console.error('Failed to send message:', error);
-            alert('Gagal mengirim pesan: ' + error.message);
-        }
-    }
-
-    showTypingIndicator(unitId, driverName) {
-        if (this.isChatOpen(unitId)) {
-            const indicator = document.getElementById('typingIndicatorMonitor');
-            const typingText = document.getElementById('typingText');
-            
-            typingText.textContent = `${driverName} sedang mengetik...`;
-            indicator.style.display = 'block';
-        }
-    }
-
-    hideTypingIndicator(unitId) {
-        if (this.isChatOpen(unitId)) {
-            document.getElementById('typingIndicatorMonitor').style.display = 'none';
-        }
-    }
-
-    updateChatBadge(unitId) {
-        const unreadCount = this.unreadCounts.get(unitId) || 0;
-        console.log(`💬 ${unitId} has ${unreadCount} unread messages`);
-        
-        // Update badge pada unit list
-        this.renderUnitList();
-    }
-
-    showChatNotification(unitId, message) {
-        if (!this.isChatOpen(unitId)) {
-            const notification = document.createElement('div');
-            notification.className = 'alert alert-info chat-notification';
-            notification.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <strong>💬 Pesan dari ${message.sender}</strong>
-                        <div class="small">${message.text}</div>
-                    </div>
-                    <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
-                </div>
-            `;
-            
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 9999;
-                min-width: 300px;
-                max-width: 400px;
-            `;
-            
-            document.body.appendChild(notification);
-            
+        // ✅ ENHANCED ERROR HANDLING FOR MISSING GPS SYSTEM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if gpsSystem is available after a short delay
             setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
+                if (!window.gpsSystem) {
+                    console.warn('GPS System not initialized yet - functions will be delegated');
+                    
+                    // Show loading state for chat
+                    const chatInput = document.getElementById('monitorChatInput');
+                    const sendBtn = document.getElementById('monitorSendBtn');
+                    if (chatInput && sendBtn) {
+                        chatInput.placeholder = 'Sistem sedang dimuat...';
+                        chatInput.disabled = true;
+                        sendBtn.disabled = true;
+                    }
                 }
-            }, 5000);
-        }
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // ===== UI UPDATE METHODS =====
-    updateConnectionStatus(connected) {
-        const statusElement = document.getElementById('firebaseStatus');
-        if (statusElement) {
-            if (connected) {
-                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
-                statusElement.className = 'connection-status text-success';
-            } else {
-                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'connection-status text-danger';
-            }
-        }
-    }
-
-    updateStatistics() {
-        let activeUnits = 0;
-        let totalDistance = 0;
-        let totalSpeed = 0;
-        let totalFuel = 0;
-        let unitCount = 0;
-
-        this.units.forEach(unit => {
-            if (unit.isOnline) {
-                unitCount++;
-                if (unit.status === 'active' || unit.status === 'moving') {
-                    activeUnits++;
-                }
-                totalDistance += unit.distance || 0;
-                totalSpeed += unit.speed || 0;
-                totalFuel += (100 - unit.fuelLevel) || 0;
-            }
+            }, 2000);
         });
-
-        const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
-
-        // Update DOM elements
-        this.updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
-        this.updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
-        this.updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
-        this.updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
-        this.updateElement('dataCount', unitCount.toString());
-        
-        this.updateElement('activeUnitsDetail', `${unitCount} units terdeteksi`);
-        this.updateElement('distanceDetail', `${this.units.size} units`);
-
-        // Update unit list
-        this.renderUnitList();
-    }
-
-    updateElement(id, value) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    }
-
-    renderUnitList() {
-        const unitList = document.getElementById('unitList');
-        if (!unitList) return;
-
-        if (this.units.size === 0) {
-            unitList.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <div class="mb-2">📭</div>
-                    <small>Tidak ada unit aktif</small>
-                    <br>
-                    <small class="text-muted">Menunggu koneksi dari driver...</small>
-                </div>
-            `;
-            return;
-        }
-
-        unitList.innerHTML = '';
-        this.units.forEach(unit => {
-            const unitElement = document.createElement('div');
-            unitElement.className = `unit-item ${unit.status} ${unit.isOnline ? 'active' : 'inactive'}`;
-            
-            const unreadCount = this.unreadCounts.get(unit.name) || 0;
-            const chatBadge = unreadCount > 0 ? `<span class="badge bg-danger ms-1">${unreadCount}</span>` : '';
-            
-            unitElement.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver} ${chatBadge}</small>
-                    </div>
-                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
-                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
-                    </span>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted">
-                        Kecepatan: ${unit.speed} km/h<br>
-                        Jarak: ${unit.distance.toFixed(2)} km<br>
-                        Bahan Bakar: ${unit.fuelLevel.toFixed(1)}%<br>
-                        Update: ${unit.lastUpdate}
-                    </small>
-                </div>
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
-                        💬 Chat ${unreadCount > 0 ? `(${unreadCount})` : ''}
-                    </button>
-                </div>
-            `;
-            unitList.appendChild(unitElement);
-        });
-    }
-
-    // ===== UTILITY METHODS =====
-    showLoading(show) {
-        const spinner = document.getElementById('loadingSpinner');
-        if (spinner) {
-            spinner.style.display = show ? 'flex' : 'none';
-        }
-    }
-
-    showError(message) {
-        console.error('System Error:', message);
-        
-        const notification = document.createElement('div');
-        notification.className = 'alert alert-danger alert-dismissible fade show position-fixed';
-        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        notification.innerHTML = `
-            <strong>❌ System Error</strong><br>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 5000);
-    }
-
-    // ===== PUBLIC METHODS =====
-    refreshData() {
-        console.log('🔄 Manual refresh initiated');
-        this.clearAllUnits();
-        this.connectToFirebase();
-    }
-
-    exportData() {
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            totalUnits: this.units.size,
-            units: Array.from(this.units.values())
-        };
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `gps-data-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        console.log('📊 Data exported successfully');
-    }
-
-    // Cleanup
-    cleanup() {
-        if (this.map) {
-            this.map.remove();
-        }
-        this.markers.clear();
-        this.units.clear();
-        if (this.chatRef) {
-            this.chatRef.off();
-        }
-    }
-}
-
-// Global functions
-function refreshData() {
-    if (window.gpsSystem) {
-        window.gpsSystem.refreshData();
-    }
-}
-
-function exportData() {
-    if (window.gpsSystem) {
-        window.gpsSystem.exportData();
-    }
-}
-
-function toggleSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('show');
-    }
-}
-
-// Handle Enter key in chat
-document.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && document.getElementById('chatInputMonitor') === document.activeElement) {
-        window.gpsSystem.sendChatMessage();
-    }
-});
-
-// Real-time clock
-function updateClock() {
-    const now = new Date();
-    document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-// Initialize system when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Starting GPS Tracking System...');
-    
-    // Test dependencies
-    console.log('📋 Dependencies check:');
-    console.log('- Leaflet:', typeof L);
-    console.log('- Firebase:', typeof firebase);
-    console.log('- Map container:', document.getElementById('map'));
-    
-    // Initialize system after short delay
-    setTimeout(() => {
-        if (typeof L !== 'undefined' && typeof firebase !== 'undefined') {
-            window.gpsSystem = new GPSMonitoringSystem();
-            window.gpsSystem.initialize();
-        } else {
-            console.error('❌ Dependencies not loaded properly');
-            alert('Sistem gagal dimuat. Periksa koneksi internet dan refresh halaman.');
-        }
-    }, 1000);
-});
     </script>
 </body>
 </html>
