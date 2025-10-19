@@ -9,18 +9,98 @@ const FIREBASE_CONFIG = {
     appId: "1:216572191895:web:a4fef1794daf200a2775d2"
 };
 
-// ==== GPS MONITORING SYSTEM ====
-class GPSMonitoringSystem {
+// Initialize Firebase
+firebase.initializeApp(FIREBASE_CONFIG);
+const database = firebase.database();
+
+// ENHANCED SAGM GPS TRACKING SYSTEM WITH WHATSAPP-STYLE CHAT
+class OptimizedSAGMGpsTracking {
     constructor() {
-        console.log('🚀 Initializing GPS Monitoring System...');
+        console.log('🚀 Initializing Enhanced GPS Tracking System with WhatsApp-style Chat...');
         
+        // 🔄 ENHANCED MEMORY MANAGEMENT
         this.units = new Map();
         this.markers = new Map();
-        this.map = null;
-        this.isInitialized = false;
-        this.currentMapType = 'street';
-        this.dataUpdateInterval = null;
+        this.unitPolylines = new Map();
+        this.unitHistory = new Map();
+        this.unitSessions = new Map();
+        this.driverOnlineStatus = new Map();
+        this.lastDataTimestamps = new Map();
         
+        // 🧹 ENHANCED CLEANUP SYSTEM
+        this.cleanupCallbacks = [];
+        this.intervals = new Set();
+        this.firebaseListeners = new Map();
+        this.cleanupInterval = null;
+        this.lastCleanupTime = null;
+        this.inactiveUnitTracker = new Map();
+        this.dataCorrectionQueue = new Map();
+        
+        // ⚡ PERFORMANCE OPTIMIZATION
+        this.updateDebounce = null;
+        this.lastRenderTime = 0;
+        this.renderThrottleMs = 500;
+        
+        // System state
+        this.map = null;
+        this.importantMarkers = [];
+        this.activeUnits = 0;
+        this.totalDistance = 0;
+        this.avgSpeed = 0;
+        this.totalFuelConsumption = 0;
+        this.lastUpdate = new Date();
+        this.autoRefreshInterval = null;
+        this.firebaseListener = null;
+        
+        // ✅ ENHANCED CHAT SYSTEM WITH WHATSAPP-STYLE FEATURES
+        this.monitorChatRefs = new Map();
+        this.monitorTypingRefs = new Map();
+        this.monitorChatMessages = new Map();
+        this.monitorUnreadCounts = new Map();
+        this.activeChatUnit = null;
+        this.isMonitorChatOpen = false;
+        this.monitorChatInitialized = false;
+        this.isMonitorTyping = false;
+        this.monitorTypingTimeout = null;
+        this.chatInputHandler = null;
+        
+        // Chat event handlers for cleanup
+        this.chatWindowClickHandler = null;
+        this.documentClickHandler = null;
+        this.escapeKeyHandler = null;
+        
+        // Route visualization - ENHANCED with 2000 points capacity
+        this.showRoutes = true;
+        this.routeColors = new Map();
+        this.routeControls = null;
+        this.maxRoutePoints = 2000; // Increased to 2000 points
+        
+        // Data Logger System
+        this.dataLogger = {
+            logs: [],
+            maxLogs: 1000,
+            logLevels: {
+                INFO: 'info',
+                SUCCESS: 'success', 
+                WARNING: 'warning',
+                ERROR: 'error',
+                GPS: 'gps',
+                SYSTEM: 'system'
+            },
+            autoExport: false,
+            exportInterval: null
+        };
+        
+        // Vehicle configuration
+        this.vehicleConfig = {
+            fuelEfficiency: 4.5,
+            maxSpeed: 80,
+            fuelTankCapacity: 100,
+            baseFuelConsumption: 0.25,
+            movingFuelConsumption: 0.22,
+            idleFuelConsumptionPerMin: 0.013
+        };
+
         // Important locations
         this.importantLocations = {
             PKS_SAGM: { 
@@ -38,847 +118,554 @@ class GPSMonitoringSystem {
         };
 
         this.config = {
-            center: [-0.396055, 102.958944],
+            center: [
+                (this.importantLocations.PKS_SAGM.lat + this.importantLocations.KANTOR_KEBUN.lat) / 2,
+                (this.importantLocations.PKS_SAGM.lng + this.importantLocations.KANTOR_KEBUN.lng) / 2
+            ],
             zoom: 13
         };
 
-        // Chat system
-        this.chatRef = null;
-        this.typingRef = null;
-        this.currentChatUnit = null;
-        this.currentChatDriver = null;
-        this.chatMessages = new Map();
-        this.unreadCounts = new Map();
-        this.isChatMinimized = false;
-        
-        // Filter states
-        this.filters = {
-            search: '',
-            afdeling: '',
-            status: '',
-            fuel: ''
-        };
+        this.initializeSystem();
     }
 
-    // ===== MAIN INITIALIZATION =====
-    initialize() {
+    // ===== INITIALIZATION METHODS =====
+    initializeSystem() {
         try {
-            console.log('🔧 Starting system initialization...');
-            this.showLoading(true);
-            
-            // Step 1: Initialize Firebase
-            this.initializeFirebase();
-            
-            // Step 2: Setup Map dengan satellite option
+            console.log('🚀 Starting Enhanced GPS Tracking System with WhatsApp-style Chat...');
             this.setupMap();
-            
-            // Step 3: Setup UI components
-            this.setupUI();
-            
-            // Step 4: Connect to Firebase
+            this.setupEventHandlers();
             this.connectToFirebase();
+            this.startPeriodicTasks();
+            this.setupDataLogger();
+            this.testFirebaseConnection();
             
-            // Step 5: Setup Chat System
-            this.setupChatSystem();
+            // ✅ SETUP ENHANCED CHAT SYSTEM
+            this.setupMonitorChatSystem();
             
-            this.isInitialized = true;
-            console.log('✅ System initialized successfully');
+            setTimeout(() => this.showDebugPanel(), 2000);
             
         } catch (error) {
-            console.error('❌ System initialization failed:', error);
-            this.showError('Gagal memulai sistem: ' + error.message);
-        } finally {
-            this.showLoading(false);
+            console.error('System initialization failed:', error);
+            this.displayError('Gagal memulai sistem GPS');
         }
     }
 
-    // ===== FIREBASE INITIALIZATION =====
-    initializeFirebase() {
-        try {
-            if (firebase.apps.length === 0) {
-                firebase.initializeApp(FIREBASE_CONFIG);
-                console.log('✅ Firebase initialized');
-            } else {
-                firebase.app(); // Use existing app
-                console.log('✅ Firebase already initialized');
-            }
-        } catch (error) {
-            throw new Error('Firebase initialization failed: ' + error.message);
-        }
-    }
-
-    // ===== MAP SETUP DENGAN SATELLITE =====
-    setupMap() {
-        try {
-            console.log('🗺️ Setting up map...');
-            
-            const mapContainer = document.getElementById('map');
-            if (!mapContainer) {
-                throw new Error('Map container tidak ditemukan');
-            }
-
-            // Create map instance
-            this.map = L.map('map').setView(this.config.center, this.config.zoom);
-            console.log('✅ Map instance created');
-
-            // Street View
-            this.streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 18
-            });
-
-            // Satellite View
-            this.satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                maxZoom: 20,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-                attribution: '© Google Satellite'
-            });
-
-            // Default layer
-            this.streetLayer.addTo(this.map);
-
-            // Add map type control
-            this.addMapControls();
-            console.log('✅ Map layers and controls added');
-
-            // Add important locations
-            this.addLocationMarkers();
-            console.log('✅ Location markers added');
-
-        } catch (error) {
-            console.error('❌ Map setup failed:', error);
-            this.showMapError(error.message);
-            throw error;
-        }
-    }
-
-    addMapControls() {
-        // Map type control
-        const mapTypeControl = L.control({ position: 'topright' });
-        mapTypeControl.onAdd = () => {
-            const div = L.DomUtil.create('div', 'map-type-control');
-            div.innerHTML = `
-                <div class="btn-group-vertical">
-                    <button class="btn btn-sm btn-light ${this.currentMapType === 'street' ? 'active' : ''}" 
-                            onclick="window.gpsSystem.switchMapType('street')">
-                        🗺️ Street
-                    </button>
-                    <button class="btn btn-sm btn-light ${this.currentMapType === 'satellite' ? 'active' : ''}" 
-                            onclick="window.gpsSystem.switchMapType('satellite')">
-                        🛰️ Satellite
-                    </button>
-                </div>
-            `;
-            return div;
-        };
-        mapTypeControl.addTo(this.map);
-
-        // Add scale control
-        L.control.scale({ imperial: false }).addTo(this.map);
-        
-        // Add zoom control
-        L.control.zoom({ position: 'topright' }).addTo(this.map);
-    }
-
-    switchMapType(type) {
-        if (this.currentMapType === type) return;
-        
-        this.currentMapType = type;
-        
-        // Remove current layer
-        this.map.removeLayer(this.streetLayer);
-        this.map.removeLayer(this.satelliteLayer);
-        
-        // Add new layer
-        if (type === 'street') {
-            this.streetLayer.addTo(this.map);
-        } else {
-            this.satelliteLayer.addTo(this.map);
-        }
-        
-        // Update button states
-        document.querySelectorAll('.map-type-control .btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Find and activate the correct button
-        const buttons = document.querySelectorAll('.map-type-control .btn');
-        if (type === 'street') {
-            buttons[0].classList.add('active');
-        } else {
-            buttons[1].classList.add('active');
-        }
-        
-        console.log(`🗺️ Switched to ${type} view`);
-    }
-
-    showMapError(message) {
-        const mapContainer = document.getElementById('map');
-        if (mapContainer) {
-            mapContainer.innerHTML = `
-                <div class="alert alert-danger m-3">
-                    <h5>❌ Gagal Memuat Peta</h5>
-                    <p>${message}</p>
-                    <button class="btn btn-warning btn-sm" onclick="window.gpsSystem.setupMap()">
-                        🔄 Coba Lagi
-                    </button>
-                </div>
-            `;
-        }
-    }
-
-    addLocationMarkers() {
-        try {
-            // PKS Marker
-            const pksIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div class="marker-icon pks">🏭</div>',
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            const pksMarker = L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { 
-                icon: pksIcon 
-            })
-            .bindPopup(`
-                <div class="unit-popup">
-                    <div class="popup-header">
-                        <h6 class="mb-0">🏭 ${this.importantLocations.PKS_SAGM.name}</h6>
-                    </div>
-                    <div class="p-2">
-                        <strong>Pabrik Kelapa Sawit</strong><br>
-                        <small>Lokasi: Kebun Tempuling</small><br>
-                        <small>Status: Operational</small>
-                    </div>
-                </div>
-            `)
-            .addTo(this.map);
-
-            // Office Marker
-            const officeIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div class="marker-icon office">🏢</div>',
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            const officeMarker = L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { 
-                icon: officeIcon 
-            })
-            .bindPopup(`
-                <div class="unit-popup">
-                    <div class="popup-header">
-                        <h6 class="mb-0">🏢 ${this.importantLocations.KANTOR_KEBUN.name}</h6>
-                    </div>
-                    <div class="p-2">
-                        <strong>Kantor Operasional</strong><br>
-                        <small>Lokasi: Kebun Tempuling</small><br>
-                        <small>Status: Operational</small>
-                    </div>
-                </div>
-            `)
-            .addTo(this.map);
-
-            console.log('📍 Added location markers:', {
-                pks: this.importantLocations.PKS_SAGM,
-                office: this.importantLocations.KANTOR_KEBUN
-            });
-
-        } catch (error) {
-            console.error('Failed to add location markers:', error);
-        }
-    }
-
-    // ===== UI SETUP =====
-    setupUI() {
-        this.setupEventListeners();
-        this.setupFilters();
-    }
-
-    setupEventListeners() {
-        // Search input
-        const searchInput = document.getElementById('searchUnit');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.filters.search = e.target.value;
-                this.applyFilters();
-            });
-        }
-
-        // Filter selects
-        const filterAfdeling = document.getElementById('filterAfdeling');
-        const filterStatus = document.getElementById('filterStatus');
-        const filterFuel = document.getElementById('filterFuel');
-
-        if (filterAfdeling) {
-            filterAfdeling.addEventListener('change', (e) => {
-                this.filters.afdeling = e.target.value;
-                this.applyFilters();
-            });
-        }
-
-        if (filterStatus) {
-            filterStatus.addEventListener('change', (e) => {
-                this.filters.status = e.target.value;
-                this.applyFilters();
-            });
-        }
-
-        if (filterFuel) {
-            filterFuel.addEventListener('change', (e) => {
-                this.filters.fuel = e.target.value;
-                this.applyFilters();
-            });
-        }
-
-        // Chat input handler
-        const chatInput = document.getElementById('chatInputMonitor');
-        if (chatInput) {
-            chatInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.sendChatMessage();
-                }
-            });
-        }
-    }
-
-    setupFilters() {
-        console.log('🔧 Setting up filters...');
-        // Filters already setup in event listeners
-    }
-
-    applyFilters() {
-        this.renderUnitList();
-    }
-
-    // ===== FIREBASE CONNECTION =====
+    // ===== ENHANCED FIREBASE METHODS =====
     connectToFirebase() {
         try {
-            console.log('🔥 Connecting to Firebase...');
+            console.log('🟡 Connecting to Firebase...');
             
-            const database = firebase.database();
+            this.cleanupFirebaseListeners();
 
-            // Connection status listener
-            database.ref('.info/connected').on('value', (snapshot) => {
+            const connectionListener = database.ref('.info/connected').on('value', (snapshot) => {
                 const connected = snapshot.val();
                 this.updateConnectionStatus(connected);
-                console.log('📡 Firebase connection:', connected ? 'CONNECTED' : 'DISCONNECTED');
-            });
-
-            // Units data listener - REAL-TIME UPDATES
-            database.ref('/units').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    this.processRealTimeData(data);
+                
+                if (connected) {
+                    this.logData('Firebase connected', 'success');
+                    setTimeout(() => this.forceCleanupInactiveUnits(), 2000);
                 } else {
-                    console.log('ℹ️ No data received from Firebase');
-                    this.clearAllUnits();
+                    this.logData('Firebase disconnected', 'warning');
+                    this.markAllUnitsOffline();
                 }
-            }, (error) => {
-                console.error('❌ Firebase listener error:', error);
-                this.updateConnectionStatus(false);
-                this.showError('Koneksi Firebase terputus: ' + error.message);
             });
+            this.firebaseListeners.set('connection', connectionListener);
 
-            console.log('✅ Firebase listeners attached');
+            const unitsListener = database.ref('/units').on('value', 
+                (snapshot) => {
+                    try {
+                        const data = snapshot.val();
+                        if (data) {
+                            this.debouncedProcessRealTimeData(data);
+                        } else {
+                            console.log('⚠️ No data received from Firebase');
+                            this.forceCleanupInactiveUnits();
+                        }
+                    } catch (processError) {
+                        console.error('❌ Error processing data:', processError);
+                        this.logData('Data processing error', 'error', { error: processError.message });
+                    }
+                }, 
+                (error) => {
+                    console.error('❌ Firebase listener error:', error);
+                    this.logData('Firebase listener error', 'error', { 
+                        error: error.message,
+                        code: error.code
+                    });
+                    
+                    setTimeout(() => {
+                        console.log('🔄 Retrying Firebase connection...');
+                        this.connectToFirebase();
+                    }, 3000);
+                }
+            );
+            this.firebaseListeners.set('units', unitsListener);
 
+            const removalListener = database.ref('/units').on('child_removed', (snapshot) => {
+                this.handleDataRemoval(snapshot.key);
+            });
+            this.firebaseListeners.set('removal', removalListener);
+
+            console.log('✅ Firebase listeners setup completed');
+            
         } catch (error) {
-            console.error('❌ Firebase connection failed:', error);
-            this.showError('Gagal menyambung ke Firebase: ' + error.message);
+            console.error('🔥 Critical Firebase error:', error);
+            this.logData('Critical Firebase error', 'error', { error: error.message });
             setTimeout(() => this.connectToFirebase(), 5000);
         }
     }
 
-    // ===== DATA PROCESSING =====
+    debouncedProcessRealTimeData(data) {
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
+        }
+        this.updateDebounce = setTimeout(() => {
+            this.processRealTimeData(data);
+        }, 300);
+    }
+
+    // ===== ENHANCED PROCESS REAL-TIME DATA =====
     processRealTimeData(firebaseData) {
-        const unitCount = Object.keys(firebaseData || {}).length;
-        console.log(`🔄 Processing ${unitCount} units from Firebase`);
+        if (!firebaseData) {
+            this.logData('No real-time data from Firebase', 'warning');
+            this.forceCleanupInactiveUnits();
+            return;
+        }
+
+        const unitCount = Object.keys(firebaseData).length;
+        console.log(`🔄 Real-time update: ${unitCount} active units`);
 
         const activeUnits = new Set();
-        const now = Date.now();
+        const currentTime = Date.now();
+        
+        Object.keys(firebaseData).forEach(unitName => {
+            this.inactiveUnitTracker.set(unitName, 0);
+        });
 
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            // ✅ PERBEDAAN LOGOUT vs NO NETWORK
-            if (unitData.status === "LOGGED_OUT") {
-                console.log(`🚪 ${unitName} sudah logout - menghapus data`);
-                firebase.database().ref('/units/' + unitName).remove();
+            if (!this.validateUnitData(unitName, unitData)) {
+                this.correctUnitData(unitName, unitData);
                 return;
             }
 
-            // Check jika data stale (lebih dari 10 menit)
-            if (unitData.lastUpdate) {
-                const updateTime = new Date(unitData.lastUpdate).getTime();
-                const timeDiff = now - updateTime;
-                
-                if (timeDiff > 600000 && unitData.isOnline !== false) {
-                    console.log(`🕒 ${unitName} data stale - marking as offline`);
-                    unitData.isOnline = false;
-                }
-            }
+            activeUnits.add(unitName);
+            this.lastDataTimestamps.set(unitName, currentTime);
+            this.driverOnlineStatus.set(unitName, true);
 
-            if (this.validateUnitData(unitName, unitData)) {
-                activeUnits.add(unitName);
-                this.updateOrCreateUnit(unitName, unitData);
+            const existingUnit = this.units.get(unitName);
+            
+            if (existingUnit) {
+                this.refreshUnitData(existingUnit, unitData);
             } else {
-                console.warn(`⚠️ Invalid data for unit ${unitName}:`, unitData);
+                const newUnit = this.createNewUnit(unitName, unitData);
+                if (newUnit) {
+                    this.units.set(unitName, newUnit);
+                    this.unitSessions.set(unitName, {
+                        sessionId: unitData.sessionId,
+                        startTime: currentTime,
+                        lastActivity: currentTime
+                    });
+                    
+                    // Setup chat for new unit
+                    if (!this.monitorChatRefs.has(unitName)) {
+                        this.setupUnitChatListener(unitName);
+                    }
+                }
             }
         });
 
-        // Cleanup inactive units
-        this.cleanupInactiveUnits(activeUnits);
-        
-        // Update statistics
+        this.gradualCleanupInactiveUnits(activeUnits);
         this.updateStatistics();
-        
-        // Update GPS accuracy info
-        this.updateGPSAccuracyInfo();
+        this.scheduleRender();
     }
 
-    validateUnitData(unitName, unitData) {
-        if (!unitData) {
-            console.warn(`Unit ${unitName}: No data`);
-            return false;
-        }
+    // ✅ ENHANCED CHAT SYSTEM METHODS - WHATSAPP STYLE
+    setupMonitorChatSystem() {
+        console.log('💬 Initializing WhatsApp-style monitor chat system...');
         
-        if (unitData.lat === undefined || unitData.lng === undefined) {
-            console.warn(`Unit ${unitName}: Missing coordinates`);
-            return false;
-        }
+        // Clear existing listeners first
+        database.ref('/chat').off();
         
-        const lat = parseFloat(unitData.lat);
-        const lng = parseFloat(unitData.lng);
-        
-        if (isNaN(lat) || isNaN(lng)) {
-            console.warn(`Unit ${unitName}: Invalid coordinates`, { lat: unitData.lat, lng: unitData.lng });
-            return false;
-        }
-        
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            console.warn(`Unit ${unitName}: Coordinates out of range`, { lat, lng });
-            return false;
-        }
-        
-        return true;
-    }
-
-    updateOrCreateUnit(unitName, unitData) {
-        try {
-            const unit = {
-                name: unitName,
-                lat: parseFloat(unitData.lat),
-                lng: parseFloat(unitData.lng),
-                speed: parseFloat(unitData.speed) || 0,
-                driver: unitData.driver || 'Tidak diketahui',
-                afdeling: this.determineAfdeling(unitName),
-                status: this.determineStatus(unitData.journeyStatus, unitData.isOnline),
-                lastUpdate: unitData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
-                distance: parseFloat(unitData.distance) || 0,
-                fuelLevel: this.computeFuelLevel(100, unitData.distance, unitData.journeyStatus),
-                isOnline: unitData.isOnline !== false,
-                batteryLevel: unitData.batteryLevel || 100,
-                accuracy: unitData.accuracy || 0,
-                bearing: unitData.bearing || 0,
-                timestamp: unitData.timestamp || new Date().toISOString()
-            };
-
-            if (this.markers.has(unitName)) {
-                // Update existing marker
-                const marker = this.markers.get(unitName);
-                marker.setLatLng([unit.lat, unit.lng]);
-                marker.setPopupContent(this.createUnitPopup(unit));
-                
-                // Update marker icon based on status
-                const icon = this.createUnitIcon(unit);
-                marker.setIcon(icon);
-
-            } else {
-                // Create new marker
-                this.createUnitMarker(unit);
-                console.log(`📍 Created new marker for ${unitName}`);
+        // Listen for new chat units
+        database.ref('/chat').on('child_added', (snapshot) => {
+            const unitName = snapshot.key;
+            console.log(`💬 New chat unit detected: ${unitName}`);
+            if (!this.monitorChatRefs.has(unitName)) {
+                this.setupUnitChatListener(unitName);
             }
-
-            this.units.set(unitName, unit);
-
-        } catch (error) {
-            console.error(`Error updating unit ${unitName}:`, error);
-        }
-    }
-
-    createUnitIcon(unit) {
-        let html = '';
-        let className = '';
-        
-        if (!unit.isOnline) {
-            html = '<div class="marker-icon offline">🔴</div>';
-            className = 'offline';
-        } else if (unit.status === 'moving') {
-            html = '<div class="marker-icon moving">🟡</div>';
-            className = 'moving';
-        } else if (unit.status === 'active') {
-            html = '<div class="marker-icon active">🟢</div>';
-            className = 'active';
-        } else {
-            html = '<div class="marker-icon inactive">⚫</div>';
-            className = 'inactive';
-        }
-
-        return L.divIcon({
-            className: `custom-marker ${className}`,
-            html: html,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
         });
+
+        database.ref('/chat').on('child_removed', (snapshot) => {
+            const unitName = snapshot.key;
+            this.cleanupUnitChatListener(unitName);
+        });
+
+        // Listen for all units to populate chat list
+        database.ref('/units').on('value', (snapshot) => {
+            const unitsData = snapshot.val();
+            if (unitsData) {
+                Object.keys(unitsData).forEach(unitName => {
+                    if (!this.monitorChatRefs.has(unitName)) {
+                        this.setupUnitChatListener(unitName);
+                    }
+                });
+            }
+        });
+
+        this.setupChatEventHandlers();
+        this.monitorChatInitialized = true;
+        
+        console.log('💬 WhatsApp-style monitor chat system activated');
+        this.logData('Sistem chat monitor dengan fitur WhatsApp diaktifkan', 'system');
     }
 
-    createUnitMarker(unit) {
+    // ✅ IMPROVED UNIT CHAT LISTENER
+    setupUnitChatListener(unitName) {
+        if (this.monitorChatRefs.has(unitName)) {
+            // Cleanup existing listener first
+            this.cleanupUnitChatListener(unitName);
+        }
+        
+        console.log(`💬 Setting up enhanced chat listener for unit: ${unitName}`);
+        
         try {
-            const icon = this.createUnitIcon(unit);
-
-            const marker = L.marker([unit.lat, unit.lng], { 
-                icon: icon,
-                title: `${unit.name} - ${unit.driver}`
-            })
-            .bindPopup(this.createUnitPopup(unit))
-            .addTo(this.map);
+            const chatRef = database.ref('/chat/' + unitName);
+            const typingRef = database.ref('/typing/' + unitName);
             
-            // Add click event to center map on marker
-            marker.on('click', () => {
-                this.map.setView([unit.lat, unit.lng], 15);
-            });
-        
-            this.markers.set(unit.name, marker);
+            // Store the references
+            this.monitorChatRefs.set(unitName, chatRef);
+            this.monitorTypingRefs.set(unitName, typingRef);
+            this.monitorChatMessages.set(unitName, []);
+            this.monitorUnreadCounts.set(unitName, 0);
             
-        } catch (error) {
-            console.error(`Error creating marker for ${unit.name}:`, error);
-        }
-    }
-
-    createUnitPopup(unit) {
-        const statusInfo = !unit.isOnline ? 
-            '🔴 OFFLINE (No Network)' : 
-            unit.status === 'active' ? '🟢 AKTIF' : 
-            unit.status === 'moving' ? '🟡 DALAM PERJALANAN' : '⚫ NON-AKTIF';
-
-        const unreadCount = this.unreadCounts.get(unit.name) || 0;
-        const chatBadge = unreadCount > 0 ? `<span class="badge bg-danger">${unreadCount}</span>` : '';
-
-        return `
-            <div class="unit-popup" style="min-width: 280px;">
-                <div class="popup-header" style="background: ${unit.isOnline ? '#28a745' : '#dc3545'}; color: white; padding: 12px; margin: -12px -12px 10px -12px; border-radius: 8px 8px 0 0;">
-                    <h6 class="mb-0">🚛 ${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                </div>
-                <div style="padding: 12px;">
-                    <div class="row">
-                        <div class="col-6"><strong>Driver:</strong></div>
-                        <div class="col-6">${unit.driver}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Afdeling:</strong></div>
-                        <div class="col-6">${unit.afdeling}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Status:</strong></div>
-                        <div class="col-6">${statusInfo}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Kecepatan:</strong></div>
-                        <div class="col-6">${unit.speed.toFixed(1)} km/h</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Jarak:</strong></div>
-                        <div class="col-6">${unit.distance.toFixed(2)} km</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Bahan Bakar:</strong></div>
-                        <div class="col-6">${unit.fuelLevel.toFixed(1)}%</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Baterai:</strong></div>
-                        <div class="col-6">${unit.batteryLevel}%</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Akurasi GPS:</strong></div>
-                        <div class="col-6">${unit.accuracy.toFixed(1)} m</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Arah:</strong></div>
-                        <div class="col-6">${unit.bearing ? unit.bearing.toFixed(0) + '°' : '-'}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-6"><strong>Update:</strong></div>
-                        <div class="col-6">${unit.lastUpdate}</div>
-                    </div>
-                    <div class="mt-3">
-                        <button class="btn btn-sm btn-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
-                            💬 Chat dengan ${unit.driver} ${chatBadge}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    determineAfdeling(unitName) {
-        const afdelingMap = {
-            'DT-06': 'AFD I', 'DT-07': 'AFD I', 
-            'DT-12': 'AFD II', 'DT-13': 'AFD II', 'DT-28': 'AFD II', 'DT-36': 'AFD II',
-            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-29': 'AFD III', 'DT-37': 'AFD III',
-            'DT-17': 'AFD IV', 'DT-18': 'AFD IV', 'DT-33': 'AFD IV', 'DT-39': 'AFD IV',
-            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-34': 'AFD V',
-            'DT-25': 'KKPA', 'DT-26': 'KKPA', 'DT-27': 'KKPA', 'DT-35': 'KKPA',
-            'DT-32': 'AFD I', 'DT-38': 'AFD I'
-        };
-        return afdelingMap[unitName] || 'AFD I';
-    }
-
-    determineStatus(journeyStatus, isOnline) {
-        if (isOnline === false) return 'offline';
-        
-        const statusMap = {
-            'started': 'moving',
-            'moving': 'moving', 
-            'active': 'active',
-            'paused': 'active',
-            'ended': 'inactive',
-            'ready': 'inactive'
-        };
-        return statusMap[journeyStatus] || 'active';
-    }
-
-    computeFuelLevel(initialFuel, distance, status) {
-        if (!distance) return initialFuel;
-        
-        let consumptionRate;
-        switch(status) {
-            case 'moving': consumptionRate = 0.22; break;
-            case 'active': consumptionRate = 0.25; break;
-            default: consumptionRate = 0.12;
-        }
-        
-        const fuelUsed = distance * consumptionRate;
-        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
-        return Math.max(5, Math.min(100, fuelRemaining));
-    }
-
-    // ===== CLEANUP METHODS =====
-    cleanupInactiveUnits(activeUnits) {
-        const removedUnits = [];
-        
-        this.units.forEach((unit, unitName) => {
-            if (!activeUnits.has(unitName)) {
-                unit.isOnline = false;
-                
-                // Update marker to show offline status
-                const marker = this.markers.get(unitName);
-                if (marker) {
-                    const icon = this.createUnitIcon(unit);
-                    marker.setIcon(icon);
+            // Listen for new messages
+            const messageHandler = chatRef.on('child_added', (snapshot) => {
+                const message = snapshot.val();
+                if (message && message.type !== 'monitor') {
+                    this.handleMonitorChatMessage(unitName, message);
                 }
-                
-                removedUnits.push(unitName);
-            }
-        });
-        
-        if (removedUnits.length > 0) {
-            console.log(`🗑️ Marked as offline: ${removedUnits.join(', ')}`);
-        }
-    }
-
-    clearAllUnits() {
-        console.log('🧹 Clearing all units from map...');
-        
-        this.markers.forEach((marker, unitName) => {
-            if (this.map) {
-                this.map.removeLayer(marker);
-            }
-        });
-        
-        this.markers.clear();
-        this.units.clear();
-        this.renderUnitList();
-        
-        console.log('✅ All units cleared');
-    }
-
-    // ===== CHAT SYSTEM =====
-    setupChatSystem() {
-        console.log('💬 Setting up chat system...');
-        
-        this.chatRef = firebase.database().ref('/chat');
-        this.typingRef = firebase.database().ref('/typing');
-        
-        // Listen untuk semua chat messages
-        this.chatRef.on('child_added', (snapshot) => {
-            const unitId = snapshot.key;
-            snapshot.forEach((messageSnapshot) => {
-                const message = messageSnapshot.val();
-                this.handleChatMessage(unitId, message);
             });
-        });
+            
+            // Store the handler for cleanup
+            this.firebaseListeners.set(`chat_${unitName}`, messageHandler);
+            
+            // Setup typing indicator listener
+            const typingHandler = typingRef.on('value', (snapshot) => {
+                const typingData = snapshot.val();
+                this.handleMonitorTypingIndicator(unitName, typingData);
+            });
+            
+            this.firebaseListeners.set(`typing_${unitName}`, typingHandler);
 
-        // Listen untuk typing indicators
-        this.typingRef.on('child_added', (snapshot) => {
-            const unitId = snapshot.key;
-            const typingData = snapshot.val();
-            this.handleTypingIndicator(unitId, typingData);
-        });
-        
-        console.log('✅ Chat system initialized');
+            this.updateMonitorChatUnitSelect();
+            console.log(`💬 Now actively listening to chat for unit: ${unitName}`);
+            
+        } catch (error) {
+            console.error(`❌ Failed to setup chat listener for ${unitName}:`, error);
+        }
     }
 
-    handleChatMessage(unitId, message) {
-        if (!message || !message.id) return;
+    // ✅ IMPROVED MESSAGE HANDLING
+    handleMonitorChatMessage(unitName, message) {
+        if (!message || message.type === 'monitor') return;
         
-        if (!this.chatMessages.has(unitId)) {
-            this.chatMessages.set(unitId, []);
+        if (!this.monitorChatMessages.has(unitName)) {
+            this.monitorChatMessages.set(unitName, []);
         }
         
-        const messages = this.chatMessages.get(unitId);
+        const messages = this.monitorChatMessages.get(unitName);
         
         // Prevent duplicates
-        const messageExists = messages.some(msg => msg.id === message.id);
+        const messageExists = messages.some(msg => 
+            msg.id === message.id || 
+            (msg.timestamp === message.timestamp && msg.sender === message.sender)
+        );
+        
         if (messageExists) return;
         
         messages.push(message);
         
-        // Keep only last 100 messages per unit
-        if (messages.length > 100) {
-            messages.shift();
+        // Update unread count if not viewing this chat
+        if (this.activeChatUnit !== unitName || !this.isMonitorChatOpen) {
+            const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
+            this.monitorUnreadCounts.set(unitName, currentCount + 1);
         }
         
-        // Update unread count jika chat tidak terbuka
-        if (!this.isChatOpen(unitId)) {
-            const currentCount = this.unreadCounts.get(unitId) || 0;
-            this.unreadCounts.set(unitId, currentCount + 1);
-            this.updateChatBadge(unitId);
+        this.updateMonitorChatUI();
+        this.updateMonitorChatUnitSelect();
+        
+        // Show notification if not viewing this chat
+        if (this.activeChatUnit !== unitName || !this.isMonitorChatOpen) {
+            this.showMonitorChatNotification(unitName, message);
         }
         
-        // Update chat UI jika terbuka
-        if (this.isChatOpen(unitId)) {
-            this.renderChatMessages(unitId);
-        }
+        // Play notification sound
+        this.playMonitorNotificationSound();
         
-        // Show notification
-        if (message.sender !== 'Monitor') {
-            this.showChatNotification(unitId, message);
-        }
-        
-        console.log(`💬 New message from ${unitId}: ${message.text.substring(0, 50)}...`);
+        console.log(`💬 New message from ${unitName}:`, message);
     }
 
-    handleTypingIndicator(unitId, typingData) {
-        if (!typingData) return;
+    // ✅ ENHANCED TOGGLE CHAT METHOD
+    toggleMonitorChat() {
+        this.isMonitorChatOpen = !this.isMonitorChatOpen;
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatToggle = document.getElementById('monitorChatToggle');
+        
+        if (chatWindow) {
+            if (this.isMonitorChatOpen) {
+                // ✅ BUKA CHAT WINDOW DENGAN ANIMASI SMOOTH
+                chatWindow.style.display = 'flex';
+                chatWindow.style.opacity = '0';
+                chatWindow.style.transform = 'translateY(20px) scale(0.95)';
+                
+                // Trigger reflow
+                void chatWindow.offsetWidth;
+                
+                // Apply smooth animation
+                chatWindow.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                chatWindow.style.opacity = '1';
+                chatWindow.style.transform = 'translateY(0) scale(1)';
+                
+                // Update UI components
+                this.updateMonitorChatUnitSelect();
+                this.updateMonitorChatUI();
+                
+                // Auto-focus dengan delay untuk smooth experience
+                setTimeout(() => {
+                    const chatInput = document.getElementById('monitorChatInput');
+                    if (chatInput && this.activeChatUnit) {
+                        chatInput.focus();
+                        chatInput.select();
+                    }
+                }, 350);
+                
+                // Update toggle button state
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Tutup Chat';
+                    chatToggle.classList.add('btn-secondary');
+                    chatToggle.classList.remove('btn-primary');
+                }
+                
+            } else {
+                // ✅ TUTUP CHAT WINDOW DENGAN ANIMASI SMOOTH
+                chatWindow.style.transition = 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
+                chatWindow.style.opacity = '0';
+                chatWindow.style.transform = 'translateY(20px) scale(0.95)';
+                
+                // Stop typing indicator immediately
+                this.stopMonitorTyping();
+                
+                // Update toggle button state
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Chat dengan Driver';
+                    chatToggle.classList.add('btn-primary');
+                    chatToggle.classList.remove('btn-secondary');
+                }
+                
+                // Hide after animation completes
+                setTimeout(() => {
+                    if (!this.isMonitorChatOpen) {
+                        chatWindow.style.display = 'none';
+                        // Reset transform for next open
+                        chatWindow.style.transform = '';
+                        chatWindow.style.transition = '';
+                    }
+                }, 250);
+            }
+        }
+    }
+
+    // ✅ IMPROVED SEND MESSAGE METHOD
+    async sendMonitorMessage() {
+        const messageInput = document.getElementById('monitorChatInput');
+        const messageText = messageInput?.value.trim();
+        
+        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs.has(this.activeChatUnit)) {
+            return;
+        }
+        
+        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        const messageData = {
+            id: messageId,
+            text: messageText,
+            sender: 'MONITOR',
+            unit: this.activeChatUnit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }),
+            type: 'monitor',
+            status: 'sent'
+        };
+        
+        try {
+            const chatRef = this.monitorChatRefs.get(this.activeChatUnit);
+            await chatRef.push(messageData);
+            
+            // Add to local messages for instant feedback
+            if (!this.monitorChatMessages.has(this.activeChatUnit)) {
+                this.monitorChatMessages.set(this.activeChatUnit, []);
+            }
+            this.monitorChatMessages.get(this.activeChatUnit).push(messageData);
+            
+            this.updateMonitorChatUI();
+            this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
+            
+            // Clear input
+            if (messageInput) messageInput.value = '';
+            
+            // Stop typing indicator
+            this.stopMonitorTyping();
+            
+        } catch (error) {
+            console.error('Failed to send monitor message:', error);
+            this.logData('❌ Gagal mengirim pesan ke driver', 'error');
+        }
+    }
+
+    // ✅ TYPING INDICATOR METHODS FOR MONITOR
+    startMonitorTyping() {
+        if (!this.activeChatUnit || this.isMonitorTyping) return;
+        
+        const typingRef = this.monitorTypingRefs.get(this.activeChatUnit);
+        if (!typingRef) return;
+        
+        typingRef.child('monitor').set({
+            isTyping: true,
+            name: 'MONITOR',
+            timestamp: Date.now()
+        });
+        
+        this.isMonitorTyping = true;
+    }
+
+    stopMonitorTyping() {
+        if (!this.activeChatUnit || !this.isMonitorTyping) return;
+        
+        const typingRef = this.monitorTypingRefs.get(this.activeChatUnit);
+        if (!typingRef) return;
+        
+        typingRef.child('monitor').set({
+            isTyping: false,
+            name: 'MONITOR', 
+            timestamp: Date.now()
+        });
+        
+        this.isMonitorTyping = false;
+    }
+
+    handleMonitorTypingIndicator(unitName, typingData) {
+        if (!typingData || unitName !== this.activeChatUnit) return;
         
         const driverTyping = typingData.driver;
-        if (driverTyping && driverTyping.isTyping && this.isChatOpen(unitId)) {
-            this.showTypingIndicator(unitId, driverTyping.name);
-        } else {
-            this.hideTypingIndicator(unitId);
+        const typingIndicator = document.getElementById('monitorTypingIndicator');
+        
+        if (typingIndicator && driverTyping && driverTyping.isTyping) {
+            typingIndicator.style.display = 'block';
+            typingIndicator.innerHTML = `
+                <div class="typing-indicator">
+                    <span>${driverTyping.name} sedang mengetik</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+        } else if (typingIndicator) {
+            typingIndicator.style.display = 'none';
         }
     }
 
-    openChat(unitId, driverName) {
-        this.currentChatUnit = unitId;
-        this.currentChatDriver = driverName;
+    // ✅ IMPROVED CHAT UI FOR MONITOR - WHATSAPP STYLE
+    updateMonitorChatUI() {
+        const messageList = document.getElementById('monitorChatMessages');
+        const unreadBadge = document.getElementById('monitorUnreadBadge');
+        const chatInput = document.getElementById('monitorChatInput');
+        const sendBtn = document.getElementById('monitorSendBtn');
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
         
-        // Show chat container
-        document.getElementById('monitorChatContainer').style.display = 'block';
-        document.getElementById('chatWithUser').textContent = `💬 Chat dengan ${driverName} (${unitId})`;
+        if (!messageList) return;
         
-        // Reset unread count
-        this.unreadCounts.set(unitId, 0);
-        this.updateChatBadge(unitId);
+        // Calculate total unread count
+        let totalUnread = 0;
+        this.monitorUnreadCounts.forEach(count => totalUnread += count);
         
-        // Render messages
-        this.renderChatMessages(unitId);
-        
-        // Focus input
-        setTimeout(() => {
-            const chatInput = document.getElementById('chatInputMonitor');
-            if (chatInput) {
-                chatInput.focus();
-            }
-        }, 100);
-        
-        console.log(`💬 Opened chat with ${unitId} (${driverName})`);
-    }
-
-    closeChat() {
-        document.getElementById('monitorChatContainer').style.display = 'none';
-        this.currentChatUnit = null;
-        this.currentChatDriver = null;
-        this.isChatMinimized = false;
-        
-        console.log('💬 Chat closed');
-    }
-
-    minimizeChat() {
-        const chatWindow = document.querySelector('.chat-window-monitor');
-        const messages = document.getElementById('chatMessagesMonitor');
-        const input = document.querySelector('.chat-input-container');
-        
-        if (this.isChatMinimized) {
-            // Restore
-            messages.style.display = 'block';
-            input.style.display = 'block';
-            chatWindow.style.height = '500px';
-            this.isChatMinimized = false;
-        } else {
-            // Minimize
-            messages.style.display = 'none';
-            input.style.display = 'none';
-            chatWindow.style.height = '60px';
-            this.isChatMinimized = true;
+        // Update unread badge
+        if (unreadBadge) {
+            unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
+            unreadBadge.style.display = totalUnread > 0 ? 'inline' : 'none';
         }
         
-        console.log(`💬 Chat ${this.isChatMinimized ? 'minimized' : 'restored'}`);
-    }
-
-    isChatOpen(unitId) {
-        return this.currentChatUnit === unitId;
-    }
-
-    renderChatMessages(unitId) {
-        const messagesContainer = document.getElementById('chatMessagesMonitor');
-        const messages = this.chatMessages.get(unitId) || [];
+        const hasActiveUnit = !!this.activeChatUnit;
         
-        if (!messagesContainer) return;
+        // Update input and button states
+        if (chatInput) chatInput.disabled = !hasActiveUnit;
+        if (sendBtn) sendBtn.disabled = !hasActiveUnit;
+        if (unitSelect) unitSelect.value = this.activeChatUnit || '';
         
-        messagesContainer.innerHTML = '';
-        
-        if (messages.length === 0) {
-            messagesContainer.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <small>Mulai percakapan dengan driver...</small>
+        // Update placeholder based on active unit
+        if (messageList && !hasActiveUnit) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Pilih unit untuk memulai percakapan...</small>
                 </div>
             `;
             return;
         }
         
+        // Render messages for active unit
+        const activeMessages = this.monitorChatMessages.get(this.activeChatUnit) || [];
+        
+        if (activeMessages.length === 0) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan driver ${this.activeChatUnit}...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        messageList.innerHTML = '';
+        
         // Group messages by date
-        const groupedMessages = this.groupMessagesByDate(messages);
+        const groupedMessages = this.groupMonitorMessagesByDate(activeMessages);
         
         Object.keys(groupedMessages).forEach(date => {
-            // Add date separator untuk hari yang berbeda
+            // Add date separator
             if (Object.keys(groupedMessages).length > 1) {
                 const dateElement = document.createElement('div');
                 dateElement.className = 'chat-date-separator';
                 dateElement.innerHTML = `<span>${date}</span>`;
-                messagesContainer.appendChild(dateElement);
+                messageList.appendChild(dateElement);
             }
             
             // Add messages for this date
             groupedMessages[date].forEach(message => {
-                const messageElement = this.createMessageElement(message);
-                messagesContainer.appendChild(messageElement);
+                const messageElement = this.createMonitorMessageElement(message);
+                messageList.appendChild(messageElement);
             });
         });
         
-        // Auto scroll to bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // Add typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.id = 'monitorTypingIndicator';
+        typingIndicator.style.display = 'none';
+        messageList.appendChild(typingIndicator);
+        
+        // Auto scroll to bottom with smooth behavior
+        setTimeout(() => {
+            messageList.scrollTo({
+                top: messageList.scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 100);
     }
 
-    groupMessagesByDate(messages) {
+    // ✅ GROUP MESSAGES FOR MONITOR
+    groupMonitorMessagesByDate(messages) {
         const grouped = {};
         
         messages.forEach(message => {
@@ -897,7 +684,7 @@ class GPSMonitoringSystem {
             grouped[dateKey].push(message);
         });
         
-        // Sort messages within each date by timestamp
+        // Sort messages within each date
         Object.keys(grouped).forEach(date => {
             grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         });
@@ -905,17 +692,22 @@ class GPSMonitoringSystem {
         return grouped;
     }
 
-    createMessageElement(message) {
+    // ✅ CREATE MESSAGE ELEMENT FOR MONITOR - WHATSAPP STYLE
+    createMonitorMessageElement(message) {
         const messageElement = document.createElement('div');
-        const isSentByMonitor = message.sender === 'Monitor';
+        const isMonitorMessage = message.type === 'monitor';
         
-        messageElement.className = `chat-message ${isSentByMonitor ? 'message-sent' : 'message-received'}`;
+        messageElement.className = `chat-message ${isMonitorMessage ? 'message-sent' : 'message-received'}`;
+        
         messageElement.innerHTML = `
             <div class="message-content">
-                ${!isSentByMonitor ? `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                ${!isMonitorMessage ? 
+                    `<div class="message-sender">${this.escapeHtml(message.sender)} (${message.unit})</div>` : ''}
                 <div class="message-text">${this.escapeHtml(message.text)}</div>
                 <div class="message-footer">
                     <span class="message-time">${message.timeDisplay}</span>
+                    ${isMonitorMessage ? 
+                        `<span class="message-status">✓</span>` : ''}
                 </div>
             </div>
         `;
@@ -923,109 +715,253 @@ class GPSMonitoringSystem {
         return messageElement;
     }
 
-    async sendChatMessage() {
-        if (!this.currentChatUnit || !this.currentChatDriver) {
-            alert('Pilih unit terlebih dahulu untuk mengirim pesan');
-            return;
-        }
+    // ✅ IMPROVED CHAT EVENT HANDLERS
+    setupChatEventHandlers() {
+        const chatInput = document.getElementById('monitorChatInput');
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        const sendBtn = document.getElementById('monitorSendBtn');
         
-        const input = document.getElementById('chatInputMonitor');
-        const messageText = input.value.trim();
+        let typingTimer;
         
-        if (!messageText) return;
-        
-        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        const messageData = {
-            id: messageId,
-            text: messageText,
-            sender: 'Monitor',
-            unit: this.currentChatUnit,
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            }),
-            type: 'monitor'
-        };
-        
-        try {
-            await this.chatRef.child(this.currentChatUnit).push(messageData);
-            input.value = '';
-            
-            // Add to local messages
-            if (!this.chatMessages.has(this.currentChatUnit)) {
-                this.chatMessages.set(this.currentChatUnit, []);
-            }
-            this.chatMessages.get(this.currentChatUnit).push(messageData);
-            this.renderChatMessages(this.currentChatUnit);
-            
-            console.log(`💬 Sent message to ${this.currentChatUnit}: ${messageText}`);
-            
-        } catch (error) {
-            console.error('Failed to send message:', error);
-            alert('Gagal mengirim pesan: ' + error.message);
-        }
-    }
-
-    showTypingIndicator(unitId, driverName) {
-        if (this.isChatOpen(unitId)) {
-            const indicator = document.getElementById('typingIndicatorMonitor');
-            const typingText = document.getElementById('typingText');
-            
-            if (indicator && typingText) {
-                typingText.textContent = `${driverName} sedang mengetik...`;
-                indicator.style.display = 'block';
-            }
-        }
-    }
-
-    hideTypingIndicator(unitId) {
-        if (this.isChatOpen(unitId)) {
-            const indicator = document.getElementById('typingIndicatorMonitor');
-            if (indicator) {
-                indicator.style.display = 'none';
-            }
-        }
-    }
-
-    updateChatBadge(unitId) {
-        const unreadCount = this.unreadCounts.get(unitId) || 0;
-        this.renderUnitList();
-    }
-
-    showChatNotification(unitId, message) {
-        if (!this.isChatOpen(unitId)) {
-            // Create notification
-            const notification = document.createElement('div');
-            notification.className = 'alert alert-info chat-notification';
-            notification.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <strong>💬 Pesan dari ${message.sender}</strong>
-                        <div class="small">${message.text}</div>
-                    </div>
-                    <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
-                </div>
-            `;
-            
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 9999;
-                min-width: 300px;
-                max-width: 400px;
-                animation: slideInRight 0.3s ease-out;
-            `;
-            
-            document.body.appendChild(notification);
-            
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
+        // Chat input handlers
+        if (chatInput) {
+            this.chatInputHandler = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.sendMonitorMessage();
+                } else {
+                    // Start typing indicator on input
+                    if (this.activeChatUnit) {
+                        this.startMonitorTyping();
+                        
+                        // Clear previous timer
+                        clearTimeout(typingTimer);
+                        
+                        // Set timer to stop typing indicator after 2 seconds of inactivity
+                        typingTimer = setTimeout(() => {
+                            this.stopMonitorTyping();
+                        }, 2000);
+                    }
                 }
-            }, 5000);
+            };
+            
+            chatInput.addEventListener('keypress', this.chatInputHandler);
+            chatInput.addEventListener('blur', () => this.stopMonitorTyping());
+        }
+        
+        // Send button handler
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => {
+                this.sendMonitorMessage();
+            });
+        }
+        
+        // Unit select handler
+        if (unitSelect) {
+            unitSelect.addEventListener('change', (e) => {
+                this.selectChatUnit(e.target.value);
+            });
+        }
+        
+        // Setup chat window behavior
+        this.setupChatWindowBehavior();
+    }
+
+    // ✅ CHAT WINDOW BEHAVIOR
+    setupChatWindowBehavior() {
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatToggle = document.getElementById('monitorChatToggle');
+        
+        if (chatWindow && chatToggle) {
+            // Store reference to bound functions for cleanup
+            this.chatWindowClickHandler = (e) => e.stopPropagation();
+            this.documentClickHandler = (e) => {
+                if (this.isMonitorChatOpen && 
+                    !chatWindow.contains(e.target) && 
+                    !chatToggle.contains(e.target)) {
+                    this.toggleMonitorChat();
+                }
+            };
+            this.escapeKeyHandler = (e) => {
+                if (e.key === 'Escape' && this.isMonitorChatOpen) {
+                    this.toggleMonitorChat();
+                }
+            };
+            
+            // Add event listeners
+            chatWindow.addEventListener('click', this.chatWindowClickHandler);
+            document.addEventListener('click', this.documentClickHandler);
+            document.addEventListener('keydown', this.escapeKeyHandler);
+        }
+    }
+
+    // ✅ IMPROVED UNIT SELECTION
+    selectChatUnit(unitName) {
+        if (unitName === this.activeChatUnit) return;
+        
+        // Stop typing for previous unit
+        this.stopMonitorTyping();
+        
+        this.activeChatUnit = unitName;
+        
+        // Clear unread count for selected unit
+        if (unitName && this.monitorUnreadCounts.has(unitName)) {
+            this.monitorUnreadCounts.set(unitName, 0);
+        }
+        
+        this.updateMonitorChatUI();
+        this.updateMonitorChatUnitSelect();
+        
+        // Focus on input dengan smooth transition
+        const chatInput = document.getElementById('monitorChatInput');
+        if (chatInput) {
+            setTimeout(() => {
+                chatInput.focus();
+                chatInput.select();
+            }, 150);
+        }
+        
+        console.log(`💬 Now chatting with unit: ${unitName}`);
+        this.logData(`Memulai chat dengan unit ${unitName}`, 'info');
+    }
+
+    // ✅ IMPROVED UNIT SELECT UPDATE
+    updateMonitorChatUnitSelect() {
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        if (!unitSelect) return;
+        
+        const currentValue = unitSelect.value;
+        
+        unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
+        
+        // Add all units that have chat capability
+        const allUnits = new Set([
+            ...this.monitorChatRefs.keys(),
+            ...Array.from(this.units.keys())
+        ]);
+        
+        allUnits.forEach(unitName => {
+            const unreadCount = this.monitorUnreadCounts.get(unitName) || 0;
+            const option = document.createElement('option');
+            option.value = unitName;
+            option.textContent = unreadCount > 0 ? 
+                `${unitName} 💬 (${unreadCount} baru)` : unitName;
+            unitSelect.appendChild(option);
+        });
+        
+        // Restore selection if still valid
+        if (currentValue && allUnits.has(currentValue)) {
+            unitSelect.value = currentValue;
+        } else if (this.activeChatUnit && allUnits.has(this.activeChatUnit)) {
+            unitSelect.value = this.activeChatUnit;
+        }
+    }
+
+    // ✅ SHOW CHAT NOTIFICATION
+    showMonitorChatNotification(unitName, message) {
+        if (!message || !message.sender) return;
+        
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-warning chat-notification';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>💬 Pesan Baru dari ${unitName}</strong>
+                    <div class="small mt-1">${message.sender}: ${this.escapeHtml(message.text)}</div>
+                </div>
+                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    // ✅ NOTIFICATION SOUND
+    playMonitorNotificationSound() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (error) {
+            console.log('Notification sound not supported');
+        }
+    }
+
+    // ✅ CLEANUP UNIT CHAT LISTENER
+    cleanupUnitChatListener(unitName) {
+        if (this.monitorChatRefs.has(unitName)) {
+            const chatRef = this.monitorChatRefs.get(unitName);
+            chatRef.off();
+            
+            this.monitorChatRefs.delete(unitName);
+            this.monitorChatMessages.delete(unitName);
+            this.monitorUnreadCounts.delete(unitName);
+            
+            // Cleanup typing ref
+            if (this.monitorTypingRefs.has(unitName)) {
+                const typingRef = this.monitorTypingRefs.get(unitName);
+                typingRef.off();
+                this.monitorTypingRefs.delete(unitName);
+            }
+            
+            this.updateMonitorChatUnitSelect();
+            
+            if (this.activeChatUnit === unitName) {
+                this.activeChatUnit = null;
+                this.updateMonitorChatUI();
+            }
+            
+            console.log(`💬 Stopped listening to chat for unit: ${unitName}`);
+        }
+    }
+
+    // ✅ CLEANUP CHAT EVENT LISTENERS
+    cleanupChatEventListeners() {
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatInput = document.getElementById('monitorChatInput');
+        
+        if (chatWindow && this.chatWindowClickHandler) {
+            chatWindow.removeEventListener('click', this.chatWindowClickHandler);
+        }
+        
+        if (this.documentClickHandler) {
+            document.removeEventListener('click', this.documentClickHandler);
+        }
+        
+        if (this.escapeKeyHandler) {
+            document.removeEventListener('keydown', this.escapeKeyHandler);
+        }
+        
+        if (chatInput && this.chatInputHandler) {
+            chatInput.removeEventListener('keypress', this.chatInputHandler);
         }
     }
 
@@ -1035,20 +971,218 @@ class GPSMonitoringSystem {
         return div.innerHTML;
     }
 
-    // ===== UI UPDATE METHODS =====
-    updateConnectionStatus(connected) {
-        const statusElement = document.getElementById('firebaseStatus');
-        if (statusElement) {
-            if (connected) {
-                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
-                statusElement.className = 'connection-status text-success';
-            } else {
-                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'connection-status text-danger';
+    // ===== ENHANCED POLYLINE SYSTEM WITH 2000 POINTS =====
+    initializeUnitHistory(unit) {
+        if (!this.unitHistory.has(unit.name)) {
+            this.unitHistory.set(unit.name, []);
+        }
+        this.addHistoryPoint(unit);
+    }
+
+    addHistoryPoint(unit) {
+        if (!this.unitHistory.has(unit.name)) {
+            this.unitHistory.set(unit.name, []);
+        }
+
+        const history = this.unitHistory.get(unit.name);
+        const timestamp = new Date().toISOString();
+
+        const point = {
+            timestamp: timestamp,
+            latitude: unit.latitude,
+            longitude: unit.longitude,
+            speed: unit.speed,
+            distance: unit.distance,
+            status: unit.status,
+            fuelLevel: unit.fuelLevel
+        };
+
+        history.push(point);
+
+        // Maintain 2000 points limit
+        if (history.length > this.maxRoutePoints) {
+            this.unitHistory.set(unit.name, history.slice(-this.maxRoutePoints));
+        }
+
+        this.updateUnitRoute(unit);
+    }
+
+    updateUnitRoute(unit) {
+        const history = this.unitHistory.get(unit.name);
+        if (!history || history.length < 2) return;
+
+        const routePoints = history.map(point => [
+            point.latitude, point.longitude
+        ]);
+
+        const routeColor = this.getRouteColor(unit.name);
+
+        if (this.unitPolylines.has(unit.name)) {
+            try {
+                this.unitPolylines.get(unit.name).setLatLngs(routePoints);
+            } catch (error) {
+                console.error('Error updating polyline:', error);
+                this.map.removeLayer(this.unitPolylines.get(unit.name));
+                this.unitPolylines.delete(unit.name);
+                this.createRoutePolyline(unit, routePoints, routeColor);
             }
+        } else {
+            this.createRoutePolyline(unit, routePoints, routeColor);
         }
     }
 
+    createRoutePolyline(unit, routePoints, routeColor) {
+        try {
+            const style = this.getRouteStyle(unit.status, routeColor);
+            const polyline = L.polyline(routePoints, style);
+            
+            this.unitPolylines.set(unit.name, polyline);
+            
+            if (this.showRoutes) {
+                polyline.addTo(this.map);
+            }
+
+        } catch (error) {
+            this.logData(`Failed to create route for ${unit.name}`, 'error', {
+                unit: unit.name,
+                error: error.message
+            });
+        }
+    }
+
+    getRouteStyle(status, color) {
+        const baseStyle = {
+            color: color,
+            weight: 5,
+            opacity: 0.8,
+            lineCap: 'round',
+            lineJoin: 'round',
+            className: 'route-line smooth-route',
+            smoothFactor: 1.0
+        };
+
+        switch(status) {
+            case 'moving':
+                return { ...baseStyle, opacity: 0.9, weight: 6, dashArray: null };
+            case 'active':
+                return { ...baseStyle, opacity: 0.7, weight: 5, dashArray: '8, 12' };
+            case 'inactive':
+                return { ...baseStyle, opacity: 0.4, weight: 4, dashArray: '4, 8' };
+            default:
+                return baseStyle;
+        }
+    }
+
+    getRouteColor(unitName) {
+        if (!this.routeColors.has(unitName)) {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
+                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
+            ];
+            this.routeColors.set(unitName, colors[this.routeColors.size % colors.length]);
+        }
+        return this.routeColors.get(unitName);
+    }
+
+    // ===== EXISTING GPS TRACKING METHODS =====
+    validateUnitData(unitName, unitData) {
+        if (!unitData) return false;
+        if (unitData.lat === undefined || unitData.lng === undefined) return false;
+        
+        const lat = parseFloat(unitData.lat);
+        const lng = parseFloat(unitData.lng);
+        return !isNaN(lat) && !isNaN(lng);
+    }
+
+    correctUnitData(unitName, unitData) {
+        console.log(`🛠️ Correcting invalid data for ${unitName}`);
+        // Implementation for data correction
+    }
+
+    createNewUnit(unitName, firebaseData) {
+        if (!this.validateUnitData(unitName, firebaseData)) return null;
+
+        return {
+            id: this.getUnitId(unitName),
+            name: unitName,
+            afdeling: this.determineAfdeling(unitName),
+            status: this.determineStatus(firebaseData.journeyStatus),
+            latitude: parseFloat(firebaseData.lat),
+            longitude: parseFloat(firebaseData.lng),
+            speed: parseFloat(firebaseData.speed) || 0,
+            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+            distance: parseFloat(firebaseData.distance) || 0,
+            fuelLevel: this.computeFuelLevel(100, firebaseData.distance, firebaseData.journeyStatus),
+            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
+            driver: firebaseData.driver || 'Unknown',
+            accuracy: parseFloat(firebaseData.accuracy) || 0,
+            batteryLevel: firebaseData.batteryLevel || null,
+            lastLat: parseFloat(firebaseData.lat),
+            lastLng: parseFloat(firebaseData.lng),
+            isOnline: true,
+            sessionId: firebaseData.sessionId,
+            lastFuelUpdate: Date.now()
+        };
+    }
+
+    getUnitId(unitName) {
+        const unitIdMap = {
+            'DT-06': 1, 'DT-07': 2, 'DT-12': 3, 'DT-13': 4, 'DT-15': 5, 'DT-16': 6,
+            'DT-17': 7, 'DT-18': 8, 'DT-23': 9, 'DT-24': 10, 'DT-25': 11, 'DT-26': 12,
+            'DT-27': 13, 'DT-28': 14, 'DT-29': 15, 'DT-32': 16, 'DT-33': 17, 'DT-34': 18,
+            'DT-35': 19, 'DT-36': 20, 'DT-37': 21, 'DT-38': 22, 'DT-39': 23
+        };
+        return unitIdMap[unitName] || Date.now();
+    }
+
+    determineAfdeling(unitName) {
+        const afdelingMap = {
+            'DT-06': 'AFD I', 'DT-07': 'AFD I', 'DT-12': 'AFD II', 'DT-13': 'AFD II',
+            'DT-15': 'AFD III', 'DT-16': 'AFD III', 'DT-17': 'AFD IV', 'DT-18': 'AFD IV',
+            'DT-23': 'AFD V', 'DT-24': 'AFD V', 'DT-25': 'KKPA', 'DT-26': 'KKPA',
+            'DT-27': 'KKPA', 'DT-28': 'AFD II', 'DT-29': 'AFD III', 'DT-32': 'AFD I',
+            'DT-33': 'AFD IV', 'DT-34': 'AFD V', 'DT-35': 'KKPA', 'DT-36': 'AFD II',
+            'DT-37': 'AFD III', 'DT-38': 'AFD I', 'DT-39': 'AFD IV'
+        };
+        return afdelingMap[unitName] || 'AFD I';
+    }
+
+    determineStatus(journeyStatus) {
+        const statusMap = {
+            'started': 'moving',
+            'moving': 'moving', 
+            'active': 'active',
+            'paused': 'active',
+            'ended': 'inactive',
+            'ready': 'inactive'
+        };
+        return statusMap[journeyStatus] || 'active';
+    }
+
+    refreshUnitData(unit, firebaseData) {
+        const now = Date.now();
+        
+        unit.latitude = firebaseData.lat || unit.latitude;
+        unit.longitude = firebaseData.lng || unit.longitude;
+        unit.speed = firebaseData.speed || unit.speed;
+        unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
+        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
+        unit.driver = firebaseData.driver || unit.driver;
+        unit.accuracy = firebaseData.accuracy || unit.accuracy;
+        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
+        unit.fuelLevel = this.computeFuelLevel(100, unit.distance, unit.status);
+        unit.lastLat = firebaseData.lat;
+        unit.lastLng = firebaseData.lng;
+        unit.isOnline = true;
+        unit.lastFuelUpdate = now;
+
+        this.addHistoryPoint(unit);
+    }
+
+    // ===== STATISTICS METHODS =====
     updateStatistics() {
         let activeUnits = 0;
         let totalDistance = 0;
@@ -1064,54 +1198,146 @@ class GPSMonitoringSystem {
                 }
                 totalDistance += unit.distance || 0;
                 totalSpeed += unit.speed || 0;
-                totalFuel += (100 - unit.fuelLevel) || 0;
+                totalFuel += unit.fuelUsed || 0;
             }
         });
 
         const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
 
-        // Update DOM elements
-        this.updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
-        this.updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
-        this.updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
-        this.updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
-        this.updateElement('dataCount', unitCount.toString());
-        
-        this.updateElement('activeUnitsDetail', `${unitCount} units terdeteksi`);
-        this.updateElement('distanceDetail', `${this.units.size} units`);
+        this.activeUnits = activeUnits;
+        this.totalDistance = totalDistance;
+        this.avgSpeed = avgSpeed;
+        this.totalFuelConsumption = totalFuel;
 
-        // Update unit list
+        const updateElement = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+
+        updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
+        updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
+        updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
+        updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
+        
+        const activeDetail = document.getElementById('activeUnitsDetail');
+        if (activeDetail) {
+            activeDetail.textContent = `${unitCount} units terdeteksi`;
+        }
+
+        const distanceDetail = document.getElementById('distanceDetail');
+        if (distanceDetail) {
+            distanceDetail.textContent = `${this.units.size} units`;
+        }
+
+        const dataCount = document.getElementById('dataCount');
+        if (dataCount) {
+            dataCount.textContent = this.unitHistory.size;
+        }
+    }
+
+    // ===== MAP METHODS =====
+    setupMap() {
+        try {
+            this.map = L.map('map').setView(this.config.center, this.config.zoom);
+
+            const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                attribution: '© Google Satellite',
+                maxZoom: 22,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            });
+
+            googleSatellite.addTo(this.map);
+
+            L.control.scale({ imperial: false }).addTo(this.map);
+            L.control.zoom({ position: 'topright' }).addTo(this.map);
+
+            this.addLocationMarkers();
+
+        } catch (error) {
+            console.error('Map setup failed:', error);
+            throw new Error('Gagal menyiapkan peta');
+        }
+    }
+
+    addLocationMarkers() {
+        try {
+            this.importantMarkers.forEach(marker => {
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+            });
+            this.importantMarkers = [];
+
+            const pksIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon pks" title="PKS SAGM">🏭</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const pksMarker = L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { icon: pksIcon })
+                .bindPopup(this.createLocationInfo('PKS SAGM', 'pks'))
+                .addTo(this.map);
+
+            const officeIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon office" title="Kantor Kebun">🏢</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const officeMarker = L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { icon: officeIcon })
+                .bindPopup(this.createLocationInfo('Kantor Kebun PT SAGM', 'office'))
+                .addTo(this.map);
+
+            this.importantMarkers.push(pksMarker, officeMarker);
+            console.log('✅ Location markers added');
+
+        } catch (error) {
+            console.error('Failed to add location markers:', error);
+        }
+    }
+
+    createLocationInfo(name, type) {
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">${type === 'pks' ? '🏭' : '🏢'} ${name}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Tipe:</span>
+                        <span class="info-value">${type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value">Operasional</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Lokasi:</span>
+                        <span class="info-value">Kebun Tempuling</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // ===== DISPLAY METHODS =====
+    scheduleRender() {
+        const now = Date.now();
+        if (now - this.lastRenderTime < this.renderThrottleMs) {
+            return;
+        }
+        
+        this.lastRenderTime = now;
+        this.refreshDisplay();
+    }
+
+    refreshDisplay() {
+        this.cleanupOrphanedMarkers();
+        this.updateStatistics();
         this.renderUnitList();
-    }
-
-    updateGPSAccuracyInfo() {
-        let totalAccuracy = 0;
-        let accuracyCount = 0;
-
-        this.units.forEach(unit => {
-            if (unit.isOnline && unit.accuracy > 0) {
-                totalAccuracy += unit.accuracy;
-                accuracyCount++;
-            }
-        });
-
-        const avgAccuracy = accuracyCount > 0 ? totalAccuracy / accuracyCount : 0;
-        const accuracyElement = document.getElementById('gpsAccuracyInfo');
-        
-        if (accuracyElement) {
-            if (accuracyCount > 0) {
-                accuracyElement.textContent = `Rata-rata akurasi: ${avgAccuracy.toFixed(1)} m (${accuracyCount} units)`;
-            } else {
-                accuracyElement.textContent = 'Menunggu data GPS...';
-            }
-        }
-    }
-
-    updateElement(id, value) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
+        this.updateMapMarkers();
     }
 
     renderUnitList() {
@@ -1130,53 +1356,15 @@ class GPSMonitoringSystem {
             return;
         }
 
-        let filteredUnits = Array.from(this.units.values());
-        
-        // Apply filters
-        if (this.filters.search) {
-            const searchTerm = this.filters.search.toLowerCase();
-            filteredUnits = filteredUnits.filter(unit => 
-                unit.name.toLowerCase().includes(searchTerm) ||
-                unit.driver.toLowerCase().includes(searchTerm)
-            );
-        }
-        
-        if (this.filters.afdeling) {
-            filteredUnits = filteredUnits.filter(unit => unit.afdeling === this.filters.afdeling);
-        }
-        
-        if (this.filters.status) {
-            filteredUnits = filteredUnits.filter(unit => {
-                if (this.filters.status === 'online') return unit.isOnline;
-                if (this.filters.status === 'offline') return !unit.isOnline;
-                if (this.filters.status === 'moving') return unit.status === 'moving';
-                return true;
-            });
-        }
-        
-        if (this.filters.fuel) {
-            filteredUnits = filteredUnits.filter(unit => {
-                if (this.filters.fuel === 'high') return unit.fuelLevel > 70;
-                if (this.filters.fuel === 'medium') return unit.fuelLevel >= 30 && unit.fuelLevel <= 70;
-                if (this.filters.fuel === 'low') return unit.fuelLevel < 30;
-                return true;
-            });
-        }
-
         unitList.innerHTML = '';
-        
-        filteredUnits.forEach(unit => {
+        this.units.forEach(unit => {
             const unitElement = document.createElement('div');
-            unitElement.className = `unit-item ${unit.status} ${unit.isOnline ? 'active' : 'inactive'}`;
-            
-            const unreadCount = this.unreadCounts.get(unit.name) || 0;
-            const chatBadge = unreadCount > 0 ? `<span class="badge bg-danger ms-1">${unreadCount}</span>` : '';
-            
+            unitElement.className = `unit-item ${unit.status}`;
             unitElement.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver} ${chatBadge}</small>
+                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
                     </div>
                     <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
                         ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
@@ -1184,48 +1372,681 @@ class GPSMonitoringSystem {
                 </div>
                 <div class="mt-2">
                     <small class="text-muted">
-                        Kecepatan: ${unit.speed.toFixed(1)} km/h<br>
+                        Kecepatan: ${unit.speed} km/h<br>
                         Jarak: ${unit.distance.toFixed(2)} km<br>
-                        Bahan Bakar: ${unit.fuelLevel.toFixed(1)}%<br>
+                        Bahan Bakar: ${unit.fuelLevel}%<br>
                         Update: ${unit.lastUpdate}
                     </small>
                 </div>
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary w-100" onclick="window.gpsSystem.openChat('${unit.name}', '${unit.driver}')">
-                        💬 Chat ${unreadCount > 0 ? `(${unreadCount})` : ''}
-                    </button>
-                </div>
             `;
-            
-            // Add click event to center map on unit
-            unitElement.addEventListener('click', () => {
-                this.map.setView([unit.lat, unit.lng], 15);
-                const marker = this.markers.get(unit.name);
-                if (marker) {
-                    marker.openPopup();
-                }
-            });
-            
             unitList.appendChild(unitElement);
         });
     }
 
-    // ===== UTILITY METHODS =====
-    showLoading(show) {
-        const spinner = document.getElementById('loadingSpinner');
-        if (spinner) {
-            spinner.style.display = show ? 'flex' : 'none';
+    updateMapMarkers() {
+        this.markers.forEach((marker, unitName) => {
+            if (!this.units.has(unitName)) {
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+                this.markers.delete(unitName);
+            }
+        });
+
+        this.units.forEach((unit, unitName) => {
+            if (!this.markers.has(unitName)) {
+                this.createUnitMarker(unit);
+            } else {
+                this.refreshUnitMarker(unit);
+            }
+        });
+    }
+
+    createUnitMarker(unit) {
+        const markerIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                     title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
+            .bindPopup(this.createUnitPopup(unit))
+            .addTo(this.map);
+        
+        this.markers.set(unit.name, marker);
+    }
+
+    refreshUnitMarker(unit) {
+        const marker = this.markers.get(unit.name);
+        if (marker) {
+            marker.setLatLng([unit.latitude, unit.longitude]);
+            marker.setPopupContent(this.createUnitPopup(unit));
+            
+            const markerIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                         title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+            marker.setIcon(markerIcon);
         }
     }
 
-    showError(message) {
-        console.error('System Error:', message);
+    createUnitPopup(unit) {
+        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
+        const routeInfo = routePoints > 0 ? `
+            <div class="info-item">
+                <span class="info-label">Points Rute:</span>
+                <span class="info-value">${routePoints}</span>
+            </div>
+        ` : '<div class="info-item"><span class="info-value text-muted">Belum ada data rute</span></div>';
+
+        const onlineStatus = unit.isOnline ? 
+            '<span class="badge bg-success">ONLINE</span>' : 
+            '<span class="badge bg-danger">OFFLINE</span>';
+
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">🚛 ${unit.name} ${onlineStatus}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Driver:</span>
+                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Afdeling:</span>
+                        <span class="info-value">${unit.afdeling}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-danger'}">
+                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Kecepatan:</span>
+                        <span class="info-value">${unit.speed.toFixed(1)} km/h</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Jarak Tempuh:</span>
+                        <span class="info-value">${unit.distance.toFixed(2)} km</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Bahan Bakar:</span>
+                        <span class="info-value">${unit.fuelLevel.toFixed(1)}%</span>
+                    </div>
+                    ${routeInfo}
+                </div>
+            </div>
+        `;
+    }
+
+    // ===== DATA LOGGER METHODS =====
+    setupDataLogger() {
+        this.loadLogs();
+        this.renderLogger();
+        this.startAutoExport();
+        
+        this.logData('Enhanced GPS Monitoring System with WhatsApp-style Chat initialized', 'system', {
+            timestamp: new Date().toISOString(),
+            version: '4.0'
+        });
+    }
+
+    logData(message, level = 'info', metadata = {}) {
+        const logEntry = {
+            id: 'LOG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            dateDisplay: new Date().toLocaleDateString('id-ID'),
+            level: level,
+            message: message,
+            metadata: metadata
+        };
+
+        this.dataLogger.logs.unshift(logEntry);
+
+        if (this.dataLogger.logs.length > this.dataLogger.maxLogs) {
+            this.dataLogger.logs = this.dataLogger.logs.slice(0, this.dataLogger.maxLogs);
+        }
+
+        this.saveLogs();
+        this.renderLogger();
+        
+        console.log(`[${level.toUpperCase()}] ${message}`, metadata);
+    }
+
+    loadLogs() {
+        try {
+            const savedLogs = localStorage.getItem('sagm_data_logs');
+            if (savedLogs) {
+                this.dataLogger.logs = JSON.parse(savedLogs);
+            }
+        } catch (error) {
+            console.error('Failed to load logs:', error);
+            this.dataLogger.logs = [];
+        }
+    }
+
+    saveLogs() {
+        try {
+            localStorage.setItem('sagm_data_logs', JSON.stringify(this.dataLogger.logs));
+        } catch (error) {
+            console.error('Failed to save logs:', error);
+        }
+    }
+
+    renderLogger() {
+        const container = document.getElementById('dataLoggerContainer');
+        if (!container) return;
+
+        let html = `
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">📊 Data Logger System</h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.clearAllLogs()">
+                            🗑️ Clear
+                        </button>
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.exportLogData()">
+                            📥 Export
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th width="120">Waktu</th>
+                                    <th width="80">Level</th>
+                                    <th>Pesan</th>
+                                    <th width="100">Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        if (this.dataLogger.logs.length === 0) {
+            html += `
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">
+                        Tidak ada data log
+                    </td>
+                </tr>
+            `;
+        } else {
+            this.dataLogger.logs.forEach(log => {
+                const levelBadge = this.getLogLevelBadge(log.level);
+                const unitInfo = log.metadata.unit ? `<span class="badge bg-primary">${log.metadata.unit}</span>` : '';
+                
+                html += `
+                    <tr class="log-entry log-${log.level}">
+                        <td><small>${log.timeDisplay}</small></td>
+                        <td>${levelBadge}</td>
+                        <td>
+                            <div class="log-message">${log.message}</div>
+                            ${log.metadata.details ? `<small class="text-muted">${log.metadata.details}</small>` : ''}
+                        </td>
+                        <td>${unitInfo}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    getLogLevelBadge(level) {
+        const badges = {
+            'info': '<span class="badge bg-info">INFO</span>',
+            'success': '<span class="badge bg-success">SUCCESS</span>',
+            'warning': '<span class="badge bg-warning">WARNING</span>',
+            'error': '<span class="badge bg-danger">ERROR</span>',
+            'gps': '<span class="badge bg-primary">GPS</span>',
+            'system': '<span class="badge bg-secondary">SYSTEM</span>'
+        };
+        return badges[level] || '<span class="badge bg-dark">UNKNOWN</span>';
+    }
+
+    clearAllLogs() {
+        if (confirm('Yakin ingin menghapus semua logs?')) {
+            this.dataLogger.logs = [];
+            this.saveLogs();
+            this.renderLogger();
+            this.logData('All logs cleared', 'system');
+        }
+    }
+
+    exportLogData() {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalLogs: this.dataLogger.logs.length,
+            system: 'SAGM GPS Tracking System',
+            logs: this.dataLogger.logs
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `sagm-logs-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.logData('Logs exported successfully', 'success', {
+            file: link.download,
+            totalLogs: this.dataLogger.logs.length
+        });
+    }
+
+    // ===== CLEANUP METHODS =====
+    gradualCleanupInactiveUnits(activeUnits) {
+        const now = Date.now();
+        const inactiveThreshold = 30000;
+        const removalThreshold = 60000;
+
+        this.units.forEach((unit, unitName) => {
+            if (!activeUnits.has(unitName)) {
+                const currentCount = this.inactiveUnitTracker.get(unitName) || 0;
+                this.inactiveUnitTracker.set(unitName, currentCount + 1);
+                
+                const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
+                
+                if (timeSinceLastUpdate > inactiveThreshold && unit.isOnline) {
+                    unit.isOnline = false;
+                    this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                        unit: unitName,
+                        lastUpdate: timeSinceLastUpdate
+                    });
+                }
+                
+                if (timeSinceLastUpdate > removalThreshold) {
+                    this.logData(`Removing inactive unit: ${unitName}`, 'info', {
+                        unit: unitName,
+                        inactiveTime: timeSinceLastUpdate
+                    });
+                    this.removeUnitCompletely(unitName);
+                }
+            } else {
+                this.inactiveUnitTracker.set(unitName, 0);
+            }
+        });
+    }
+
+    forceCleanupInactiveUnits() {
+        console.log('🧹 FORCE CLEANUP: Removing all inactive units');
+        
+        const now = Date.now();
+        const unitsToRemove = [];
+        
+        this.units.forEach((unit, unitName) => {
+            const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
+            
+            if (timeSinceLastUpdate > 15000) {
+                unitsToRemove.push(unitName);
+            }
+        });
+
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Force removing: ${unitName}`, 'warning', {
+                unit: unitName,
+                inactiveTime: now - (this.lastDataTimestamps.get(unitName) || 0)
+            });
+            this.removeUnitCompletely(unitName);
+        });
+
+        this.scheduleRender();
+    }
+
+    removeUnitCompletely(unitName) {
+        console.log(`🗑️ Removing unit completely: ${unitName}`);
+        
+        this.units.delete(unitName);
+        
+        const marker = this.markers.get(unitName);
+        if (marker && this.map) {
+            this.map.removeLayer(marker);
+            this.markers.delete(unitName);
+        }
+        
+        const polyline = this.unitPolylines.get(unitName);
+        if (polyline && this.map) {
+            this.map.removeLayer(polyline);
+            this.unitPolylines.delete(unitName);
+        }
+        
+        this.driverOnlineStatus.delete(unitName);
+        this.lastDataTimestamps.delete(unitName);
+        this.unitSessions.delete(unitName);
+        this.inactiveUnitTracker.delete(unitName);
+        this.unitHistory.delete(unitName);
+        this.routeColors.delete(unitName);
+        
+        // Cleanup chat for this unit
+        this.cleanupUnitChatListener(unitName);
+        
+        this.scheduleRender();
+    }
+
+    forceCleanupAllData() {
+        console.log('🧹 FORCE CLEANUP ALL: Removing ALL units and data');
+        
+        const unitsToRemove = Array.from(this.units.keys());
+        
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Force removing ALL: ${unitName}`, 'warning');
+            this.removeUnitCompletely(unitName);
+        });
+
+        this.scheduleRender();
+    }
+
+    cleanupOrphanedMarkers() {
+        this.markers.forEach((marker, unitName) => {
+            if (!this.units.has(unitName)) {
+                console.log(`🧹 Removing orphaned marker: ${unitName}`);
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+                this.markers.delete(unitName);
+            }
+        });
+    }
+
+    cleanupFirebaseListeners() {
+        this.firebaseListeners.forEach((listener, key) => {
+            try {
+                if (key === 'connection') {
+                    database.ref('.info/connected').off('value', listener);
+                } else if (key === 'units') {
+                    database.ref('/units').off('value', listener);
+                } else if (key === 'removal') {
+                    database.ref('/units').off('child_removed', listener);
+                } else if (key.startsWith('chat_')) {
+                    const unitName = key.replace('chat_', '');
+                    if (this.monitorChatRefs.has(unitName)) {
+                        this.monitorChatRefs.get(unitName).off('child_added', listener);
+                    }
+                } else if (key.startsWith('typing_')) {
+                    const unitName = key.replace('typing_', '');
+                    if (this.monitorTypingRefs.has(unitName)) {
+                        this.monitorTypingRefs.get(unitName).off('value', listener);
+                    }
+                }
+            } catch (error) {
+                console.warn(`Error cleaning up listener ${key}:`, error);
+            }
+        });
+        this.firebaseListeners.clear();
+    }
+
+    // ===== EVENT HANDLERS =====
+    setupEventHandlers() {
+        const searchInput = document.getElementById('searchUnit');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.applyFilters());
+        }
+
+        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
+        filters.forEach(filterId => {
+            const filter = document.getElementById(filterId);
+            if (filter) {
+                filter.addEventListener('change', () => this.applyFilters());
+            }
+        });
+
+        database.ref('.info/connected').on('value', (snapshot) => {
+            this.updateConnectionStatus(snapshot.val());
+        });
+    }
+
+    updateConnectionStatus(connected) {
+        const statusElement = document.getElementById('firebaseStatus');
+        if (statusElement) {
+            if (connected) {
+                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
+                statusElement.className = 'text-success';
+            } else {
+                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                statusElement.className = 'text-danger';
+            }
+        }
+    }
+
+    applyFilters() {
+        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
+        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
+        const statusFilter = document.getElementById('filterStatus')?.value || '';
+        const fuelFilter = document.getElementById('filterFuel')?.value || '';
+
+        console.log('Applying filters:', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
+    }
+
+    // ===== UTILITY METHODS =====
+    computeFuelConsumption(distance, status) {
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelUsage(distance, status) {
+        if (!distance) return 0;
+        
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelLevel(initialFuel, distance, status) {
+        if (!distance) return initialFuel;
+        
+        const fuelUsed = this.computeFuelUsage(distance, status);
+        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
+        const fuelPercentage = (fuelRemaining / this.vehicleConfig.fuelTankCapacity) * 100;
+        
+        return Math.max(5, Math.min(100, fuelPercentage));
+    }
+
+    computeDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // ===== PERIODIC TASKS =====
+    startPeriodicTasks() {
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
+
+        const cleanupInterval = setInterval(() => {
+            this.forceCleanupInactiveUnits();
+            this.cleanupOrphanedMarkers();
+            this.lastCleanupTime = new Date();
+        }, 30000);
+        this.intervals.add(cleanupInterval);
+
+        const healthInterval = setInterval(() => {
+            this.logData('System health check', 'info', {
+                activeUnits: this.units.size,
+                markers: this.markers.size,
+                polylines: this.unitPolylines.size,
+                chatUnits: this.monitorChatRefs.size
+            });
+        }, 60000);
+        this.intervals.add(healthInterval);
+
+        const statusInterval = setInterval(() => {
+            const now = Date.now();
+            this.lastDataTimestamps.forEach((lastUpdate, unitName) => {
+                const timeDiff = now - lastUpdate;
+                if (timeDiff > 15000) {
+                    this.markUnitOffline(unitName);
+                }
+            });
+        }, 5000);
+        this.intervals.add(statusInterval);
+    }
+
+    markUnitOffline(unitName) {
+        const unit = this.units.get(unitName);
+        if (unit) {
+            this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                unit: unitName,
+                driver: unit.driver,
+                lastLocation: { lat: unit.latitude, lng: unit.longitude }
+            });
+            
+            this.removeUnitCompletely(unitName);
+        }
+    }
+
+    handleDataRemoval(unitName) {
+        this.logData(`Data removed for unit: ${unitName}`, 'info', {
+            unit: unitName,
+            action: 'logout'
+        });
+        
+        this.removeUnitCompletely(unitName);
+    }
+
+    markAllUnitsOffline() {
+        this.units.forEach(unit => {
+            unit.isOnline = false;
+        });
+        this.scheduleRender();
+    }
+
+    // ===== SYSTEM METHODS =====
+    refreshData() {
+        console.log('🔄 Manual refresh with cleanup');
+        this.logData('Manual refresh initiated', 'info');
+        this.forceCleanupInactiveUnits();
+        this.loadInitialData();
+    }
+
+    async loadInitialData() {
+        this.showLoadingIndicator(true);
+        
+        try {
+            const snapshot = await database.ref('/units').once('value');
+            const firebaseData = snapshot.val();
+            
+            this.clearAllData();
+            
+            if (firebaseData && Object.keys(firebaseData).length > 0) {
+                let loadedCount = 0;
+                
+                Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+                    if (this.validateUnitData(unitName, unitData)) {
+                        const unit = this.createNewUnit(unitName, unitData);
+                        if (unit) {
+                            this.units.set(unitName, unit);
+                            loadedCount++;
+                            
+                            // Setup chat for this unit
+                            if (!this.monitorChatRefs.has(unitName)) {
+                                this.setupUnitChatListener(unitName);
+                            }
+                        }
+                    }
+                });
+                
+                this.logData('Initial data loaded successfully', 'success', {
+                    units: loadedCount,
+                    total: Object.keys(firebaseData).length
+                });
+            } else {
+                this.logData('No initial data found', 'warning');
+            }
+            
+            this.scheduleRender();
+            
+        } catch (error) {
+            console.error('Failed to load initial data:', error);
+            this.logData('Failed to load initial data', 'error', { error: error.message });
+        } finally {
+            this.showLoadingIndicator(false);
+        }
+    }
+
+    clearAllData() {
+        console.log('🧹 Clearing ALL system data...');
+        
+        this.units.clear();
+        this.markers.clear();
+        this.unitPolylines.clear();
+        this.unitHistory.clear();
+        this.unitSessions.clear();
+        this.driverOnlineStatus.clear();
+        this.lastDataTimestamps.clear();
+        this.inactiveUnitTracker.clear();
+        this.routeColors.clear();
+        
+        // Cleanup all chat listeners
+        this.monitorChatRefs.forEach((ref, unitName) => {
+            ref.off();
+        });
+        this.monitorChatRefs.clear();
+        this.monitorTypingRefs.clear();
+        this.monitorChatMessages.clear();
+        this.monitorUnreadCounts.clear();
+        
+        this.importantMarkers = [];
+        this.dataLogger.logs = [];
+        
+        this.activeUnits = 0;
+        this.totalDistance = 0;
+        this.avgSpeed = 0;
+        this.totalFuelConsumption = 0;
+        
+        this.activeChatUnit = null;
+        this.isMonitorChatOpen = false;
+        
+        console.log('✅ All data cleared');
+    }
+
+    showLoadingIndicator(show) {
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) {
+            spinner.style.display = show ? 'block' : 'none';
+        }
+    }
+
+    displayError(message) {
+        this.logData(message, 'error');
         
         const notification = document.createElement('div');
         notification.className = 'alert alert-danger alert-dismissible fade show position-fixed';
         notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
         notification.innerHTML = `
-            <strong>❌ System Error</strong><br>
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
@@ -1239,100 +2060,159 @@ class GPSMonitoringSystem {
         }, 5000);
     }
 
-    // ===== PUBLIC METHODS =====
-    refreshData() {
-        console.log('🔄 Manual refresh initiated');
-        this.clearAllUnits();
-        this.connectToFirebase();
+    testFirebaseConnection() {
+        console.log('🔍 Testing Firebase connection...');
         
-        // Show loading state
-        const refreshBtn = document.getElementById('refreshBtn');
-        const refreshIcon = document.getElementById('refreshIcon');
-        
-        if (refreshBtn && refreshIcon) {
-            refreshBtn.disabled = true;
-            refreshIcon.innerHTML = '⏳';
-            
-            setTimeout(() => {
-                refreshBtn.disabled = false;
-                refreshIcon.innerHTML = '🔄';
-            }, 2000);
-        }
+        database.ref('.info/connected').once('value')
+            .then((snapshot) => {
+                const connected = snapshot.val();
+                console.log('📡 Firebase Connected:', connected);
+                alert(`Firebase Connection: ${connected ? 'CONNECTED ✅' : 'DISCONNECTED ❌'}`);
+            })
+            .catch((error) => {
+                console.error('❌ Firebase connection test failed:', error);
+                alert('Firebase Connection Test: FAILED ❌');
+            });
     }
 
-    exportData() {
+    showDebugPanel() {
+        const debugHtml = `
+            <div class="debug-panel card position-fixed" style="bottom: 10px; right: 10px; width: 400px; z-index: 9999;">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <span>🐛 Debug Panel</span>
+                    <button class="btn btn-sm btn-outline-light" onclick="this.closest('.debug-panel').remove()">×</button>
+                </div>
+                <div class="card-body p-2">
+                    <div class="mb-2">
+                        <strong>Firebase Status:</strong> 
+                        <span id="debugFirebaseStatus">Checking...</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Units Loaded:</strong> 
+                        <span id="debugUnitsCount">${this.units.size}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Chat Units:</strong> 
+                        <span id="debugChatUnits">${this.monitorChatRefs.size}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Last Update:</strong> 
+                        <span id="debugLastUpdate">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <button class="btn btn-sm btn-warning w-100" onclick="window.gpsSystem.testFirebaseConnection()">
+                        Test Connection
+                    </button>
+                    <button class="btn btn-sm btn-danger w-100 mt-1" onclick="forceCleanup()">
+                        🧹 Force Cleanup
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', debugHtml);
+        
+        setInterval(() => {
+            const statusElement = document.getElementById('debugFirebaseStatus');
+            const unitsElement = document.getElementById('debugUnitsCount');
+            const chatUnitsElement = document.getElementById('debugChatUnits');
+            const updateElement = document.getElementById('debugLastUpdate');
+            
+            if (statusElement) {
+                database.ref('.info/connected').once('value').then((snapshot) => {
+                    statusElement.textContent = snapshot.val() ? '🟢 CONNECTED' : '🔴 DISCONNECTED';
+                    statusElement.className = snapshot.val() ? 'text-success' : 'text-danger';
+                });
+            }
+            
+            if (unitsElement) {
+                unitsElement.textContent = this.units.size;
+            }
+            
+            if (chatUnitsElement) {
+                chatUnitsElement.textContent = this.monitorChatRefs.size;
+            }
+            
+            if (updateElement) {
+                updateElement.textContent = new Date().toLocaleTimeString();
+            }
+        }, 2000);
+    }
+
+    downloadRouteData() {
         const exportData = {
             timestamp: new Date().toISOString(),
             totalUnits: this.units.size,
-            units: Array.from(this.units.values()),
-            statistics: {
-                activeUnits: document.getElementById('activeUnits').textContent,
-                totalDistance: document.getElementById('totalDistance').textContent,
-                avgSpeed: document.getElementById('avgSpeed').textContent,
-                totalFuel: document.getElementById('totalFuel').textContent
-            }
+            routes: {}
         };
+
+        this.units.forEach((unit, unitName) => {
+            exportData.routes[unitName] = {
+                driver: unit.driver,
+                totalDistance: unit.distance,
+                routePoints: this.unitHistory.get(unitName)?.length || 0,
+                history: this.unitHistory.get(unitName) || []
+            };
+        });
 
         const dataStr = JSON.stringify(exportData, null, 2);
         const dataBlob = new Blob([dataStr], {type: 'application/json'});
         const url = URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `gps-data-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
+        link.download = `routes-data-${new Date().toISOString().split('T')[0]}.json`;
         link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
         
-        console.log('📊 Data exported successfully');
-        this.showNotification('Data berhasil diexport', 'success');
+        this.logData('Route data exported', 'success');
     }
 
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        notification.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
-        notification.innerHTML = `
-            <strong>${type === 'success' ? '✅' : 'ℹ️'} ${message}</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 3000);
-    }
-
-    // Cleanup
+    // ===== ENHANCED CLEANUP WITH CHAT SUPPORT =====
     cleanup() {
-        console.log('🧹 Cleaning up system...');
+        console.log('🧹 Comprehensive system cleanup with chat support...');
         
+        // Cleanup chat event listeners
+        this.cleanupChatEventListeners();
+        
+        // Cleanup Firebase listeners
+        this.cleanupFirebaseListeners();
+        
+        // Cleanup intervals
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
+        
+        // Cleanup debounce
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
+        }
+        
+        // Cleanup all chat Firebase listeners
+        this.monitorChatRefs.forEach(ref => ref.off());
+        this.monitorChatRefs.clear();
+        this.monitorTypingRefs.forEach(ref => ref.off());
+        this.monitorTypingRefs.clear();
+        
+        database.ref('/chat').off('child_added');
+        database.ref('/chat').off('child_removed');
+        
+        // Clear all data
+        this.clearAllData();
+        
+        // Cleanup map
         if (this.map) {
             this.map.remove();
             this.map = null;
         }
         
-        this.markers.clear();
-        this.units.clear();
-        
-        if (this.chatRef) {
-            this.chatRef.off();
+        // Cleanup data logger
+        if (this.dataLogger.exportInterval) {
+            clearInterval(this.dataLogger.exportInterval);
         }
         
-        if (this.typingRef) {
-            this.typingRef.off();
-        }
-        
-        if (this.dataUpdateInterval) {
-            clearInterval(this.dataUpdateInterval);
-        }
-        
-        console.log('✅ System cleanup completed');
+        console.log('✅ System cleanup with chat support completed');
     }
 }
+
+// Initialize the system
+let gpsSystem;
 
 // Global functions
 function refreshData() {
@@ -1341,9 +2221,16 @@ function refreshData() {
     }
 }
 
+function forceCleanup() {
+    if (window.gpsSystem) {
+        window.gpsSystem.forceCleanupAllData();
+        alert('Force cleanup executed! All sticky data removed.');
+    }
+}
+
 function exportData() {
     if (window.gpsSystem) {
-        window.gpsSystem.exportData();
+        window.gpsSystem.downloadRouteData();
     }
 }
 
@@ -1354,46 +2241,49 @@ function toggleSidebar() {
     }
 }
 
-// Handle Enter key in chat
-document.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && document.getElementById('chatInputMonitor') === document.activeElement) {
-        window.gpsSystem.sendChatMessage();
+// ✅ ENHANCED CHAT GLOBAL FUNCTIONS
+function toggleMonitorChat() {
+    if (window.gpsSystem) {
+        window.gpsSystem.toggleMonitorChat();
     }
-});
-
-// Real-time clock
-function updateClock() {
-    const now = new Date();
-    document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
 }
-setInterval(updateClock, 1000);
-updateClock();
 
-// Initialize system when page loads
+function handleMonitorChatInput(event) {
+    if (window.gpsSystem) {
+        window.gpsSystem.handleMonitorChatInput(event);
+    }
+}
+
+function sendMonitorMessage() {
+    if (window.gpsSystem) {
+        window.gpsSystem.sendMonitorMessage();
+    }
+}
+
+function selectChatUnit(unitName) {
+    if (window.gpsSystem) {
+        window.gpsSystem.selectChatUnit(unitName);
+    }
+}
+
+// Event listener dengan enhanced cleanup
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Starting GPS Tracking System...');
+    if (window.gpsSystem) {
+        window.gpsSystem.cleanup();
+    }
     
-    // Test dependencies
-    console.log('📋 Dependencies check:');
-    console.log('- Leaflet:', typeof L);
-    console.log('- Firebase:', typeof firebase);
-    console.log('- Map container:', document.getElementById('map'));
-    
-    // Initialize system after short delay
-    setTimeout(() => {
-        if (typeof L !== 'undefined' && typeof firebase !== 'undefined') {
-            window.gpsSystem = new GPSMonitoringSystem();
-            window.gpsSystem.initialize();
-        } else {
-            console.error('❌ Dependencies not loaded properly');
-            alert('Sistem gagal dimuat. Periksa koneksi internet dan refresh halaman.');
-        }
-    }, 1000);
+    gpsSystem = new OptimizedSAGMGpsTracking();
+    window.gpsSystem = gpsSystem;
 });
 
-// Handle page unload
+// Cleanup on page unload
 window.addEventListener('beforeunload', function() {
     if (window.gpsSystem) {
         window.gpsSystem.cleanup();
     }
 });
+
+// Prevent multiple instances
+if (window.gpsSystem) {
+    window.gpsSystem.cleanup();
+}
