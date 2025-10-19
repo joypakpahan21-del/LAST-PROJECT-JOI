@@ -192,6 +192,7 @@ class DTGPSLogger {
                     </div>
                 `;
                 document.getElementById('chatMessages').appendChild(indicator);
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
             }
         } else {
             if (typingIndicator) {
@@ -273,17 +274,20 @@ class DTGPSLogger {
         
         if (!messageList) return;
         
+        // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
             unreadBadge.style.display = this.unreadCount > 0 ? 'inline' : 'none';
         }
         
+        // Update chat toggle button
         if (chatToggle) {
             chatToggle.innerHTML = this.unreadCount > 0 ? 
                 `💬 Chat <span class="badge bg-danger">${this.unreadCount}</span>` : 
                 '💬 Chat';
         }
         
+        // Render messages
         messageList.innerHTML = '';
         
         if (this.chatMessages.length === 0) {
@@ -295,29 +299,76 @@ class DTGPSLogger {
             return;
         }
         
-        this.chatMessages.forEach(message => {
-            const messageElement = document.createElement('div');
-            const isSentMessage = message.sender === this.driverData.name;
+        // Group messages by date (WhatsApp style)
+        const groupedMessages = this.groupMessagesByDate(this.chatMessages);
+        
+        Object.keys(groupedMessages).forEach(date => {
+            // Add date separator untuk hari yang berbeda
+            if (Object.keys(groupedMessages).length > 1) {
+                const dateElement = document.createElement('div');
+                dateElement.className = 'chat-date-separator';
+                dateElement.innerHTML = `<span>${date}</span>`;
+                messageList.appendChild(dateElement);
+            }
             
-            messageElement.className = `chat-message ${isSentMessage ? 'message-sent' : 'message-received'}`;
-            
-            messageElement.innerHTML = `
-                <div class="message-content ${message.status === 'failed' ? 'message-failed' : ''}">
-                    ${!isSentMessage ? 
-                        `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
-                    <div class="message-text">${this.escapeHtml(message.text)}</div>
-                    <div class="message-footer">
-                        <span class="message-time">${message.timeDisplay}</span>
-                        ${isSentMessage ? 
-                            `<span class="message-status">${message.status === 'failed' ? '❌' : '✓'}</span>` : ''}
-                    </div>
-                </div>
-            `;
-            
-            messageList.appendChild(messageElement);
+            // Add messages for this date
+            groupedMessages[date].forEach(message => {
+                const messageElement = this.createMessageElement(message);
+                messageList.appendChild(messageElement);
+            });
         });
         
+        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    groupMessagesByDate(messages) {
+        const grouped = {};
+        
+        messages.forEach(message => {
+            const messageDate = new Date(message.timestamp);
+            const dateKey = messageDate.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = [];
+            }
+            
+            grouped[dateKey].push(message);
+        });
+        
+        // Sort messages within each date by timestamp
+        Object.keys(grouped).forEach(date => {
+            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        });
+        
+        return grouped;
+    }
+
+    createMessageElement(message) {
+        const messageElement = document.createElement('div');
+        const isSentMessage = message.sender === this.driverData.name;
+        
+        messageElement.className = `chat-message ${isSentMessage ? 'message-sent' : 'message-received'}`;
+        
+        messageElement.innerHTML = `
+            <div class="message-content ${message.status === 'failed' ? 'message-failed' : ''}">
+                ${!isSentMessage ? 
+                    `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                <div class="message-text">${this.escapeHtml(message.text)}</div>
+                <div class="message-footer">
+                    <span class="message-time">${message.timeDisplay}</span>
+                    ${isSentMessage ? 
+                        `<span class="message-status">${message.status === 'failed' ? '❌' : '✓'}</span>` : ''}
+                </div>
+            </div>
+        `;
+        
+        return messageElement;
     }
 
     toggleChat() {
