@@ -21,81 +21,6 @@
     
     <!-- Custom CSS -->
     <link href="style-monitor.css" rel="stylesheet">
-
-    <style>
-        /* Additional Styles untuk Map Controls dan Chat */
-        .map-type-control {
-            background: white;
-            padding: 5px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        
-        .map-type-control .btn {
-            font-size: 0.8rem;
-            padding: 3px 8px;
-        }
-        
-        .chat-window-monitor {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .typing-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 15px;
-            font-size: 0.8rem;
-            color: #6c757d;
-            font-style: italic;
-        }
-        
-        .typing-dots {
-            display: flex;
-            gap: 3px;
-        }
-        
-        .typing-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: #6c757d;
-            animation: typingAnimation 1.4s infinite ease-in-out;
-        }
-        
-        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-        
-        @keyframes typingAnimation {
-            0%, 80%, 100% { 
-                transform: scale(0);
-                opacity: 0.5;
-            }
-            40% { 
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .chat-notification {
-            animation: slideInRight 0.3s ease-out;
-        }
-        
-        @keyframes slideInRight {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-    </style>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -438,6 +363,7 @@ class GPSMonitoringSystem {
         this.chatMessages = new Map(); // unit -> messages
         this.unreadCounts = new Map();
         this.typingStatus = new Map();
+        this.isChatMinimized = false;
     }
 
     // ===== MAIN INITIALIZATION =====
@@ -694,7 +620,7 @@ class GPSMonitoringSystem {
             // ✅ PERBEDAAN LOGOUT vs NO NETWORK
             if (unitData.status === "LOGGED_OUT") {
                 console.log(`🚪 ${unitName} sudah logout - menghapus data`);
-                database.ref('/units/' + unitName).remove();
+                firebase.database().ref('/units/' + unitName).remove();
                 return;
             }
 
@@ -987,6 +913,7 @@ class GPSMonitoringSystem {
         document.getElementById('monitorChatContainer').style.display = 'none';
         this.currentChatUnit = null;
         this.currentChatDriver = null;
+        this.isChatMinimized = false;
     }
 
     minimizeChat() {
@@ -994,12 +921,18 @@ class GPSMonitoringSystem {
         const messages = document.getElementById('chatMessagesMonitor');
         const input = document.querySelector('.chat-input-container');
         
-        if (messages.style.display === 'none') {
+        if (this.isChatMinimized) {
+            // Restore
             messages.style.display = 'block';
             input.style.display = 'block';
+            chatWindow.style.height = '500px';
+            this.isChatMinimized = false;
         } else {
+            // Minimize
             messages.style.display = 'none';
             input.style.display = 'none';
+            chatWindow.style.height = '60px';
+            this.isChatMinimized = true;
         }
     }
 
@@ -1022,25 +955,71 @@ class GPSMonitoringSystem {
             return;
         }
         
-        messages.forEach(message => {
-            const messageElement = document.createElement('div');
-            const isSentByMonitor = message.sender === 'Monitor';
+        // Group messages by date
+        const groupedMessages = this.groupMessagesByDate(messages);
+        
+        Object.keys(groupedMessages).forEach(date => {
+            // Add date separator untuk hari yang berbeda
+            if (Object.keys(groupedMessages).length > 1) {
+                const dateElement = document.createElement('div');
+                dateElement.className = 'chat-date-separator';
+                dateElement.innerHTML = `<span>${date}</span>`;
+                messagesContainer.appendChild(dateElement);
+            }
             
-            messageElement.className = `chat-message ${isSentByMonitor ? 'message-sent' : 'message-received'}`;
-            messageElement.innerHTML = `
-                <div class="message-content">
-                    ${!isSentByMonitor ? `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
-                    <div class="message-text">${this.escapeHtml(message.text)}</div>
-                    <div class="message-footer">
-                        <span class="message-time">${message.timeDisplay}</span>
-                    </div>
-                </div>
-            `;
-            
-            messagesContainer.appendChild(messageElement);
+            // Add messages for this date
+            groupedMessages[date].forEach(message => {
+                const messageElement = this.createMessageElement(message);
+                messagesContainer.appendChild(messageElement);
+            });
         });
         
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    groupMessagesByDate(messages) {
+        const grouped = {};
+        
+        messages.forEach(message => {
+            const messageDate = new Date(message.timestamp);
+            const dateKey = messageDate.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = [];
+            }
+            
+            grouped[dateKey].push(message);
+        });
+        
+        // Sort messages within each date by timestamp
+        Object.keys(grouped).forEach(date => {
+            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        });
+        
+        return grouped;
+    }
+
+    createMessageElement(message) {
+        const messageElement = document.createElement('div');
+        const isSentByMonitor = message.sender === 'Monitor';
+        
+        messageElement.className = `chat-message ${isSentByMonitor ? 'message-sent' : 'message-received'}`;
+        messageElement.innerHTML = `
+            <div class="message-content">
+                ${!isSentByMonitor ? `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                <div class="message-text">${this.escapeHtml(message.text)}</div>
+                <div class="message-footer">
+                    <span class="message-time">${message.timeDisplay}</span>
+                </div>
+            </div>
+        `;
+        
+        return messageElement;
     }
 
     async sendChatMessage() {
