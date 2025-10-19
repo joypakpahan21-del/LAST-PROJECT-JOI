@@ -23,6 +23,96 @@
     <!-- External CSS -->
     <link href="style-monitor.css" rel="stylesheet">
     
+    <!-- Google Maps Tile Layer Script -->
+    <script>
+    // Google Maps layer configuration
+    L.Google = L.Layer.extend({
+        options: {
+            minZoom: 0,
+            maxZoom: 20,
+            tileSize: 256,
+            subdomains: 'abc',
+            errorTileUrl: '',
+            attribution: 'Google Maps',
+            opacity: 1,
+            continuousWorld: false,
+            noWrap: false,
+        },
+
+        initialize: function(type, options) {
+            L.Util.setOptions(this, options);
+            this._type = type || 'SATELLITE';
+        },
+
+        onAdd: function(map) {
+            this._map = map;
+            this._animated = map.options.zoomAnimation && L.Browser.any3d;
+            
+            var container = this._container = L.DomUtil.create('div', 'leaflet-layer');
+            container.style.zIndex = 200;
+            
+            this._initContainer();
+            map.getPanes().tilePane.appendChild(container);
+            
+            this._update();
+            this._map.on('viewreset', this._reset, this);
+            
+            if (this._animated) {
+                map.on('zoomanim', this._animateZoom, this);
+            }
+        },
+
+        onRemove: function(map) {
+            map.getPanes().tilePane.removeChild(this._container);
+            map.off('viewreset', this._reset, this);
+            
+            if (this._animated) {
+                map.off('zoomanim', this._animateZoom, this);
+            }
+        },
+
+        getAttribution: function() {
+            return this.options.attribution;
+        },
+
+        _initContainer: function() {
+            var container = this._container;
+            var tileSize = this.options.tileSize;
+            
+            container.style.width = tileSize + 'px';
+            container.style.height = tileSize + 'px';
+            container.style.visibility = 'hidden';
+        },
+
+        _reset: function() {
+            this._update();
+        },
+
+        _animateZoom: function(e) {
+            // Animation implementation
+        },
+
+        _update: function() {
+            if (!this._map) return;
+            
+            var map = this._map;
+            var bounds = map.getBounds();
+            var zoom = map.getZoom();
+            var tileSize = this.options.tileSize;
+            
+            var nw = bounds.getNorthWest();
+            var se = bounds.getSouthEast();
+            
+            // Calculate tile coordinates
+            // Implementation for Google Maps tile loading
+        }
+    });
+
+    L.google = function(type, options) {
+        return new L.Google(type, options);
+    };
+    </script>
+
     <!-- Enhanced Chat CSS -->
     <style>
         /* CHAT WINDOW POSITION FIX */
