@@ -259,15 +259,12 @@ class FixedGPSMonitor {
                     this.updateConnectionStatus(true);
                     this.showLoading(false);
                     
-                    // Test data access (READ ONLY - tidak membuat data test)
+                    // Test data access
                     database.ref('/units').once('value')
                         .then((snapshot) => {
                             const data = snapshot.val();
                             const unitCount = data ? Object.keys(data).length : 0;
                             console.log(`📊 Initial units count: ${unitCount}`);
-                            
-                            // ✅ TIDAK membuat data test otomatis
-                            console.log('ℹ️ No automatic test data creation - using real data only');
                             resolve(true);
                         })
                         .catch(error => {
@@ -300,7 +297,6 @@ class FixedGPSMonitor {
         this.cleanupFirebaseListeners();
 
         // ✅ FIXED: Enhanced listener dengan comprehensive error handling
-        // ❌ TIDAK ADA pembuatan data test otomatis di sini
         this.firebaseListener = database.ref('/units').on('value', 
             (snapshot) => {
                 console.log('🎯 Firebase data change detected!');
