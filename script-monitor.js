@@ -10,7 +10,7 @@ const FIREBASE_CONFIG = {
 };
 
 // Initialize Firebase
-console.log('🚀 Initializing Enhanced GPS Tracking System...');
+console.log('🚀 Initializing Fixed GPS Tracking System...');
 try {
     firebase.initializeApp(FIREBASE_CONFIG);
     console.log('✅ Firebase initialized successfully');
@@ -19,96 +19,25 @@ try {
 }
 const database = firebase.database();
 
-class EnhancedSAGMGpsTracking {
+class FixedGPSMonitor {
     constructor() {
-        console.log('🚀 Starting Enhanced GPS Tracking System with GPS Accuracy Features...');
+        console.log('🚀 Starting Fixed GPS Monitor with Real-time Fix...');
         
-        // 🔄 COMPLETE MEMORY MANAGEMENT
+        // Core data structures
         this.units = new Map();
         this.markers = new Map();
-        this.unitPolylines = new Map();
-        this.unitHistory = new Map();
-        this.unitSessions = new Map();
-        this.driverOnlineStatus = new Map();
-        this.lastDataTimestamps = new Map();
-        this.accuracyCircles = new Map(); // ✅ NEW: Accuracy visualization
-        
-        // 🧹 COMPLETE CLEANUP SYSTEM
-        this.cleanupCallbacks = [];
-        this.intervals = new Set();
-        this.firebaseListeners = new Map();
-        this.inactiveUnitTracker = new Map();
-        
-        // ⚡ PERFORMANCE OPTIMIZATION
-        this.updateDebounce = null;
-        this.lastRenderTime = 0;
-        this.renderThrottleMs = 500;
+        this.accuracyCircles = new Map();
         
         // System state
         this.map = null;
-        this.importantMarkers = [];
-        this.activeUnits = 0;
-        this.totalDistance = 0;
-        this.avgSpeed = 0;
-        this.totalFuelConsumption = 0;
-        this.lastUpdate = new Date();
+        this.firebaseListener = null;
+        this.isConnected = false;
+        this.connectionRef = null;
         
-        // ✅ COMPLETE CHAT SYSTEM
-        this.monitorChatRefs = new Map();
-        this.monitorTypingRefs = new Map();
-        this.monitorChatMessages = new Map();
-        this.monitorUnreadCounts = new Map();
-        this.activeChatUnit = null;
-        this.isMonitorChatOpen = false;
-        this.monitorChatInitialized = false;
-        this.isMonitorTyping = false;
+        // UI elements cache
+        this.uiElements = {};
         
-        // Route visualization
-        this.showRoutes = true;
-        this.routeColors = new Map();
-        this.maxRoutePoints = 2000;
-        
-        // Data Logger System
-        this.dataLogger = {
-            logs: [],
-            maxLogs: 1000,
-            logLevels: {
-                INFO: 'info',
-                SUCCESS: 'success', 
-                WARNING: 'warning',
-                ERROR: 'error',
-                GPS: 'gps',
-                SYSTEM: 'system'
-            }
-        };
-
-        // Vehicle configuration
-        this.vehicleConfig = {
-            fuelEfficiency: 4.5,
-            maxSpeed: 80,
-            fuelTankCapacity: 100,
-            baseFuelConsumption: 0.25,
-            movingFuelConsumption: 0.22,
-            idleFuelConsumptionPerMin: 0.013
-        };
-
-        // Important locations
-        this.importantLocations = {
-            PKS_SAGM: { 
-                lat: -0.43452332690449164, 
-                lng: 102.96741072417917, 
-                name: "PKS SAGM",
-                type: "pks"
-            },
-            KANTOR_KEBUN: { 
-                lat: -0.3575865859028525, 
-                lng: 102.95047687287101, 
-                name: "Kantor Kebun PT SAGM",
-                type: "office"
-            }
-        };
-
-        // ✅ NEW: GPS Accuracy Configuration
+        // GPS Accuracy Configuration
         this.gpsAccuracyLevels = {
             EXCELLENT: { max: 5, color: '#28a745', label: 'Excellent', icon: '🎯' },
             GOOD: { max: 15, color: '#17a2b8', label: 'Good', icon: '✅' },
@@ -120,226 +49,60 @@ class EnhancedSAGMGpsTracking {
         this.initializeSystem();
     }
 
-    // ===== INITIALIZATION METHODS =====
-    initializeSystem() {
+    async initializeSystem() {
         try {
-            console.log('🚀 Starting Enhanced GPS Tracking System with GPS Accuracy...');
-            this.setupMap();
-            this.setupEventHandlers();
-            this.connectToFirebase();
+            console.log('🔧 Initializing Fixed GPS Monitor System...');
+            
+            // Initialize UI elements cache
+            this.cacheUIElements();
+            
+            // Setup map first
+            await this.setupMap();
+            
+            // Setup UI event handlers
+            this.setupUIEventHandlers();
+            
+            // Test Firebase connection
+            await this.testFirebaseConnection();
+            
+            // Setup Firebase listeners
+            this.setupFirebaseListeners();
+            
+            // Start periodic tasks
             this.startPeriodicTasks();
-            this.setupDataLogger();
             
-            // ✅ SETUP COMPLETE CHAT SYSTEM
-            this.setupMonitorChatSystem();
-            
-            this.testFirebaseConnection();
+            console.log('✅ Fixed GPS Monitor System initialized successfully');
+            this.showNotification('System initialized successfully', 'success');
             
         } catch (error) {
-            console.error('System initialization failed:', error);
-            this.displayError('Gagal memulai sistem GPS');
+            console.error('❌ System initialization failed:', error);
+            this.showError('System initialization failed: ' + error.message);
         }
     }
 
-    // ===== GPS ACCURACY METHODS =====
-    getAccuracyLevel(accuracy) {
-        if (accuracy <= this.gpsAccuracyLevels.EXCELLENT.max) return 'EXCELLENT';
-        if (accuracy <= this.gpsAccuracyLevels.GOOD.max) return 'GOOD';
-        if (accuracy <= this.gpsAccuracyLevels.FAIR.max) return 'FAIR';
-        if (accuracy <= this.gpsAccuracyLevels.POOR.max) return 'POOR';
-        return 'VERY_POOR';
-    }
-
-    createAccuracyBadge(accuracy) {
-        const level = this.getAccuracyLevel(accuracy);
-        const config = this.gpsAccuracyLevels[level];
-        
-        return `<span class="badge accuracy-badge" style="background-color: ${config.color}" 
-                title="Akurasi ${config.label} (±${accuracy.toFixed(1)}m)">
-                ${config.icon} ${accuracy.toFixed(1)}m
-                </span>`;
-    }
-
-    createAccuracyCircle(unit) {
-        if (unit.accuracy && unit.accuracy > 0) {
-            const level = this.getAccuracyLevel(unit.accuracy);
-            const config = this.gpsAccuracyLevels[level];
-            
-            const circle = L.circle([unit.latitude, unit.longitude], {
-                radius: unit.accuracy,
-                color: config.color,
-                fillColor: config.color,
-                fillOpacity: 0.1,
-                weight: 1,
-                opacity: 0.7
-            }).addTo(this.map);
-            
-            this.accuracyCircles.set(unit.name, circle);
-        }
-    }
-
-    refreshAccuracyCircle(unit) {
-        const circle = this.accuracyCircles.get(unit.name);
-        if (circle) {
-            circle.setLatLng([unit.latitude, unit.longitude]);
-            circle.setRadius(unit.accuracy);
-            
-            const level = this.getAccuracyLevel(unit.accuracy);
-            const config = this.gpsAccuracyLevels[level];
-            
-            circle.setStyle({
-                color: config.color,
-                fillColor: config.color
-            });
-        } else {
-            this.createAccuracyCircle(unit);
-        }
-    }
-
-    createMarkerHTML(unit, accuracyLevel) {
-        const config = this.gpsAccuracyLevels[accuracyLevel];
-        const accuracyDots = this.createAccuracyDots(accuracyLevel);
-        
-        return `
-            <div class="marker-container accuracy-${accuracyLevel.toLowerCase()}">
-                <div class="marker-icon" title="${unit.name} - Akurasi: ±${unit.accuracy.toFixed(1)}m">
-                    🚛
-                </div>
-                <div class="accuracy-indicator">
-                    ${accuracyDots}
-                </div>
-                <div class="unit-name">${unit.name}</div>
-            </div>
-        `;
-    }
-
-    createAccuracyDots(accuracyLevel) {
-        const dots = {
-            'EXCELLENT': '●●●●●',
-            'GOOD': '●●●●○', 
-            'FAIR': '●●●○○',
-            'POOR': '●●○○○',
-            'VERY_POOR': '●○○○○'
+    cacheUIElements() {
+        // Cache frequently used UI elements
+        this.uiElements = {
+            activeUnits: document.getElementById('activeUnits'),
+            totalDistance: document.getElementById('totalDistance'),
+            avgSpeed: document.getElementById('avgSpeed'),
+            totalFuel: document.getElementById('totalFuel'),
+            currentTime: document.getElementById('currentTime'),
+            firebaseStatus: document.getElementById('firebaseStatus'),
+            unitList: document.getElementById('unitList'),
+            loadingSpinner: document.getElementById('loadingSpinner'),
+            activeUnitsDetail: document.getElementById('activeUnitsDetail'),
+            dataCount: document.getElementById('dataCount')
         };
-        
-        const config = this.gpsAccuracyLevels[accuracyLevel];
-        return `<span style="color: ${config.color}; font-size: 8px;">${dots[accuracyLevel]}</span>`;
     }
 
-    // ===== ENHANCED UNIT POPUP WITH ACCURACY =====
-    createUnitPopup(unit) {
-        const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
-        const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
-        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
-        
-        const onlineStatus = unit.isOnline ? 
-            '<span class="badge bg-success">ONLINE</span>' : 
-            '<span class="badge bg-danger">OFFLINE</span>';
-
-        return `
-            <div class="unit-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">🚛 ${unit.name} ${onlineStatus}</h6>
-                </div>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Driver:</span>
-                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Afdeling:</span>
-                        <span class="info-value">${unit.afdeling}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-danger'}">
-                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Kecepatan:</span>
-                        <span class="info-value">${unit.speed.toFixed(1)} km/h</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Akurasi GPS:</span>
-                        <span class="info-value">${accuracyBadge}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Jarak Tempuh:</span>
-                        <span class="info-value">${unit.distance.toFixed(2)} km</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Bahan Bakar:</span>
-                        <span class="info-value">${unit.fuelLevel.toFixed(1)}%</span>
-                    </div>
-                    ${routePoints > 0 ? `
-                    <div class="info-item">
-                        <span class="info-label">Points Rute:</span>
-                        <span class="info-value">${routePoints}</span>
-                    </div>
-                    ` : ''}
-                </div>
-                ${unit.accuracy > 30 ? `
-                <div class="accuracy-warning mt-2 p-2 bg-warning text-dark rounded">
-                    <small>⚠️ Akurasi GPS rendah (±${unit.accuracy.toFixed(1)}m). Posisi mungkin tidak tepat.</small>
-                </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    // ===== ENHANCED MAP MARKERS WITH ACCURACY =====
-    createUnitMarker(unit) {
-        const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
-        const markerIcon = L.divIcon({
-            className: `custom-marker accuracy-${accuracyLevel.toLowerCase()}`,
-            html: this.createMarkerHTML(unit, accuracyLevel),
-            iconSize: [36, 36],
-            iconAnchor: [18, 18]
-        });
-
-        const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
-            .bindPopup(this.createUnitPopup(unit))
-            .addTo(this.map);
-        
-        this.markers.set(unit.name, marker);
-        
-        // Create accuracy circle
-        this.createAccuracyCircle(unit);
-    }
-
-    refreshUnitMarker(unit) {
-        const marker = this.markers.get(unit.name);
-        if (marker) {
-            marker.setLatLng([unit.latitude, unit.longitude]);
-            marker.setPopupContent(this.createUnitPopup(unit));
-            
-            const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
-            const markerIcon = L.divIcon({
-                className: `custom-marker accuracy-${accuracyLevel.toLowerCase()}`,
-                html: this.createMarkerHTML(unit, accuracyLevel),
-                iconSize: [36, 36],
-                iconAnchor: [18, 18]
-            });
-            marker.setIcon(markerIcon);
-            
-            // Refresh accuracy circle
-            this.refreshAccuracyCircle(unit);
-        }
-    }
-
-    // ===== ENHANCED MAP SETUP WITH ACCURACY LEGEND =====
-    setupMap() {
+    async setupMap() {
         try {
-            console.log('🗺️ Setting up Google Maps with GPS Accuracy Features...');
+            console.log('🗺️ Setting up map with enhanced features...');
             
-            this.config = {
-                center: [-0.396056, 102.958944],
-                zoom: 13
-            };
+            this.map = L.map('map').setView([-0.396056, 102.958944], 13);
 
-            this.map = L.map('map').setView(this.config.center, this.config.zoom);
-
+            // Multiple tile layers
             const googleSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -357,8 +120,10 @@ class EnhancedSAGMGpsTracking {
                 maxZoom: 19
             });
 
+            // Add default layer
             googleSatellite.addTo(this.map);
 
+            // Add layer control
             const baseMaps = {
                 "Google Satellite": googleSatellite,
                 "Google Roads": googleRoads,
@@ -368,21 +133,17 @@ class EnhancedSAGMGpsTracking {
             L.control.layers(baseMaps).addTo(this.map);
             L.control.scale({ imperial: false }).addTo(this.map);
 
-            // ✅ ADD ACCURACY LEGEND
+            // Add accuracy legend
             this.addAccuracyLegend();
-            
-            console.log('✅ Map setup completed with GPS accuracy features');
-            
-            this.map.whenReady(() => {
-                console.log('🗺️ Map is ready and loaded');
-                this.logData('Peta dengan fitur akurasi GPS berhasil dimuat', 'success');
-            });
 
-            this.addLocationMarkers();
+            // Add important locations
+            this.addImportantLocations();
 
+            console.log('✅ Map setup completed with enhanced features');
+            
         } catch (error) {
             console.error('❌ Map setup failed:', error);
-            this.displayError('Gagal menyiapkan peta: ' + error.message);
+            throw new Error('Map initialization failed: ' + error.message);
         }
     }
 
@@ -392,25 +153,25 @@ class EnhancedSAGMGpsTracking {
         accuracyLegend.onAdd = (map) => {
             const div = L.DomUtil.create('div', 'accuracy-legend');
             div.innerHTML = `
-                <h6>🎯 Akurasi GPS</h6>
+                <h6>🎯 GPS Accuracy</h6>
                 <div class="accuracy-legend-item">
-                    <div class="accuracy-color accuracy-excellent-color"></div>
+                    <div class="accuracy-color" style="background-color: #28a745"></div>
                     <span>±5m (Excellent)</span>
                 </div>
                 <div class="accuracy-legend-item">
-                    <div class="accuracy-color accuracy-good-color"></div>
+                    <div class="accuracy-color" style="background-color: #17a2b8"></div>
                     <span>±15m (Good)</span>
                 </div>
                 <div class="accuracy-legend-item">
-                    <div class="accuracy-color accuracy-fair-color"></div>
+                    <div class="accuracy-color" style="background-color: #ffc107"></div>
                     <span>±30m (Fair)</span>
                 </div>
                 <div class="accuracy-legend-item">
-                    <div class="accuracy-color accuracy-poor-color"></div>
+                    <div class="accuracy-color" style="background-color: #dc3545"></div>
                     <span>±50m (Poor)</span>
                 </div>
                 <div class="accuracy-legend-item">
-                    <div class="accuracy-color accuracy-very-poor-color"></div>
+                    <div class="accuracy-color" style="background-color: #343a40"></div>
                     <span>>50m (Very Poor)</span>
                 </div>
             `;
@@ -420,312 +181,273 @@ class EnhancedSAGMGpsTracking {
         accuracyLegend.addTo(this.map);
     }
 
-    // ===== ENHANCED UNIT LIST WITH ACCURACY =====
-    renderUnitList() {
-        const unitList = document.getElementById('unitList');
-        if (!unitList) return;
-
-        if (this.units.size === 0) {
-            unitList.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <div class="mb-2">📭</div>
-                    <small>Tidak ada unit aktif</small>
-                    <br>
-                    <small class="text-muted">Menunggu koneksi dari driver mobile...</small>
-                    <br>
-                    <small class="text-muted">Pastikan driver sudah login di aplikasi mobile</small>
-                </div>
-            `;
-            return;
-        }
-
-        unitList.innerHTML = '';
-        
-        const sortedUnits = Array.from(this.units.values()).sort((a, b) => {
-            if (a.isOnline !== b.isOnline) return b.isOnline - a.isOnline;
-            if (a.status !== b.status) {
-                const statusOrder = { 'moving': 3, 'active': 2, 'inactive': 1 };
-                return statusOrder[b.status] - statusOrder[a.status];
+    addImportantLocations() {
+        const importantLocations = {
+            PKS_SAGM: { 
+                lat: -0.43452332690449164, 
+                lng: 102.96741072417917, 
+                name: "PKS SAGM",
+                type: "pks"
+            },
+            KANTOR_KEBUN: { 
+                lat: -0.3575865859028525, 
+                lng: 102.95047687287101, 
+                name: "Kantor Kebun PT SAGM",
+                type: "office"
             }
-            return a.name.localeCompare(b.name);
-        });
+        };
 
-        sortedUnits.forEach(unit => {
-            const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
-            const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
-            
-            const unitElement = document.createElement('div');
-            unitElement.className = `unit-item ${unit.status} ${unit.isOnline ? 'online' : 'offline'}`;
-            unitElement.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">
-                            ${unit.name} 
-                            ${unit.isOnline ? '🟢' : '🔴'}
-                            ${unit.status === 'moving' ? '🚗' : ''}
-                        </h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
+        Object.values(importantLocations).forEach(location => {
+            const icon = L.divIcon({
+                className: 'important-marker',
+                html: `<div class="marker-icon ${location.type}" title="${location.name}">${location.type === 'pks' ? '🏭' : '🏢'}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            L.marker([location.lat, location.lng], { icon: icon })
+                .bindPopup(`
+                    <div class="location-popup">
+                        <strong>${location.name}</strong><br>
+                        Type: ${location.type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}<br>
+                        Status: Operational
                     </div>
-                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
-                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
-                    </span>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted d-block">
-                        📍 Lokasi: ${unit.latitude.toFixed(4)}, ${unit.longitude.toFixed(4)}
-                    </small>
-                    <small class="text-muted d-block">
-                        🚀 Kecepatan: <strong>${unit.speed.toFixed(1)} km/h</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        🎯 Akurasi: ${accuracyBadge}
-                    </small>
-                    <small class="text-muted d-block">
-                        📏 Jarak: <strong>${unit.distance.toFixed(2)} km</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        ⛽ Bahan Bakar: <strong>${unit.fuelLevel.toFixed(1)}%</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        ⏰ Update: <strong>${unit.lastUpdate}</strong>
-                    </small>
-                </div>
-                ${unit.accuracy > 30 ? `
-                <div class="alert alert-warning py-1 mt-2">
-                    <small>⚠️ Akurasi rendah (±${unit.accuracy.toFixed(1)}m)</small>
-                </div>
-                ` : ''}
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary w-100" onclick="selectChatUnit('${unit.name}')">
-                        💬 Chat dengan ${unit.driver || 'Driver'}
-                    </button>
-                </div>
-            `;
-            unitList.appendChild(unitElement);
+                `)
+                .addTo(this.map);
         });
-        
-        this.updateUnitCountDisplay();
     }
 
-    // ===== ENHANCED CLEANUP WITH ACCURACY CIRCLES =====
-    removeUnitCompletely(unitName) {
-        console.log(`🗑️ Removing unit completely: ${unitName}`);
-        
-        this.units.delete(unitName);
-        
-        const marker = this.markers.get(unitName);
-        if (marker && this.map) {
-            this.map.removeLayer(marker);
-            this.markers.delete(unitName);
+    setupUIEventHandlers() {
+        // Search functionality
+        const searchInput = document.getElementById('searchUnit');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
         }
-        
-        const polyline = this.unitPolylines.get(unitName);
-        if (polyline && this.map) {
-            this.map.removeLayer(polyline);
-            this.unitPolylines.delete(unitName);
-        }
-        
-        // ✅ Cleanup accuracy circles
-        const accuracyCircle = this.accuracyCircles.get(unitName);
-        if (accuracyCircle && this.map) {
-            this.map.removeLayer(accuracyCircle);
-            this.accuracyCircles.delete(unitName);
-        }
-        
-        this.driverOnlineStatus.delete(unitName);
-        this.lastDataTimestamps.delete(unitName);
-        this.unitSessions.delete(unitName);
-        this.inactiveUnitTracker.delete(unitName);
-        this.unitHistory.delete(unitName);
-        this.routeColors.delete(unitName);
-        
-        // Cleanup chat for this unit
-        this.cleanupUnitChatListener(unitName);
-        
-        this.scheduleRender();
+
+        // Filter functionality
+        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
+        filters.forEach(filterId => {
+            const filter = document.getElementById(filterId);
+            if (filter) {
+                filter.addEventListener('change', () => this.applyFilters());
+            }
+        });
+
+        // Update clock every second
+        setInterval(() => {
+            this.updateElement('currentTime', new Date().toLocaleTimeString('id-ID'));
+        }, 1000);
+
+        console.log('✅ UI event handlers setup completed');
     }
 
-    // ===== IMPROVED FIREBASE CONNECTION =====
-    connectToFirebase() {
-        try {
-            console.log('🟡 Connecting to Firebase...');
+    async testFirebaseConnection() {
+        console.log('🔍 Testing Firebase connection...');
+        
+        this.showLoading(true);
+        
+        return new Promise((resolve, reject) => {
+            this.connectionRef = database.ref('.info/connected');
             
-            this.cleanupFirebaseListeners();
-
-            // Connection status listener
-            const connectionListener = database.ref('.info/connected').on('value', (snapshot) => {
+            const connectionHandler = this.connectionRef.on('value', (snapshot) => {
                 const connected = snapshot.val();
-                this.updateConnectionStatus(connected);
+                console.log('📡 Firebase connection state:', connected);
                 
                 if (connected) {
-                    this.logData('Firebase connected successfully', 'success');
-                    console.log('✅ Firebase connected, setting up data listeners...');
+                    console.log('✅ Firebase connected successfully');
+                    this.isConnected = true;
+                    this.updateConnectionStatus(true);
+                    this.showLoading(false);
+                    
+                    // Test data access (READ ONLY - tidak membuat data test)
+                    database.ref('/units').once('value')
+                        .then((snapshot) => {
+                            const data = snapshot.val();
+                            const unitCount = data ? Object.keys(data).length : 0;
+                            console.log(`📊 Initial units count: ${unitCount}`);
+                            
+                            // ✅ TIDAK membuat data test otomatis
+                            console.log('ℹ️ No automatic test data creation - using real data only');
+                            resolve(true);
+                        })
+                        .catch(error => {
+                            console.error('❌ Data access test failed:', error);
+                            reject(error);
+                        });
+                        
                 } else {
-                    this.logData('Firebase disconnected', 'warning');
+                    console.log('❌ Firebase disconnected');
+                    this.isConnected = false;
+                    this.updateConnectionStatus(false);
+                    this.showLoading(false);
+                    reject(new Error('Firebase not connected'));
                 }
             });
-            this.firebaseListeners.set('connection', connectionListener);
 
-            // ✅ PASTIKAN PATH YANG DIAKSES SESUAI RULES
-            console.log('🎧 Setting up listener for /units path...');
-            const unitsListener = database.ref('/units').on('value', 
-                (snapshot) => {
-                    try {
-                        console.log('🎯 Firebase listener triggered!');
-                        const data = snapshot.val();
-                        console.log('📦 Raw data from Firebase:', data);
-                        
-                        if (data && Object.keys(data).length > 0) {
-                            console.log(`🔄 Processing ${Object.keys(data).length} units`);
-                            this.processRealTimeData(data);
-                        } else {
-                            console.log('ℹ️ No active units in Firebase');
-                            this.clearAllUnits();
-                            this.showMessage('Tidak ada units aktif. Pastikan driver sudah login di aplikasi mobile.');
-                        }
-                    } catch (processError) {
-                        console.error('❌ Error processing data:', processError);
-                        this.logData('Data processing error: ' + processError.message, 'error');
-                    }
-                }, 
-                (error) => {
-                    console.error('❌ Firebase listener error:', error);
-                    this.logData('Firebase listener error: ' + error.message, 'error');
-                    this.showError('Firebase error: ' + error.message);
-                    
-                    // Show specific error details
-                    if (error.code === 'PERMISSION_DENIED') {
-                        this.showError('❌ AKSES DITOLAK: Periksa Firebase Rules!\nPastikan ada akses read ke path /units');
-                    }
-                }
-            );
-            this.firebaseListeners.set('units', unitsListener);
-
-            console.log('✅ Firebase listeners setup completed');
-            
-        } catch (error) {
-            console.error('🔥 Critical Firebase error:', error);
-            this.showError('Firebase initialization failed: ' + error.message);
-        }
+            // Timeout after 15 seconds
+            setTimeout(() => {
+                this.connectionRef.off('value', connectionHandler);
+                this.showLoading(false);
+                reject(new Error('Firebase connection timeout'));
+            }, 15000);
+        });
     }
 
-    // ===== IMPROVED DATA PROCESSING =====
+    setupFirebaseListeners() {
+        console.log('📡 Setting up Firebase REAL-TIME listeners...');
+        
+        // Cleanup previous listener
+        this.cleanupFirebaseListeners();
+
+        // ✅ FIXED: Enhanced listener dengan comprehensive error handling
+        // ❌ TIDAK ADA pembuatan data test otomatis di sini
+        this.firebaseListener = database.ref('/units').on('value', 
+            (snapshot) => {
+                console.log('🎯 Firebase data change detected!');
+                
+                try {
+                    const data = snapshot.val();
+                    console.log('📦 Data snapshot received');
+                    
+                    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                        console.log(`🔄 Processing ${Object.keys(data).length} active units`);
+                        this.processRealTimeData(data);
+                    } else {
+                        console.log('ℹ️ No active units in Firebase database');
+                        this.clearAllUnits();
+                        this.showMessage('Tidak ada units aktif. Pastikan driver sudah login di aplikasi mobile.');
+                    }
+                } catch (error) {
+                    console.error('❌ Error processing Firebase data:', error);
+                    this.showError('Error processing real-time data: ' + error.message);
+                }
+            }, 
+            (error) => {
+                console.error('❌ Firebase listener error:', error);
+                
+                if (error.code === 'PERMISSION_DENIED') {
+                    this.showError('❌ FIREBASE PERMISSION DENIED\n\nPeriksa Firebase Security Rules:\n- Pastikan path /units dapat diakses read\n- Pastikan rules mengizinkan operasi read');
+                } else {
+                    this.showError('Firebase connection error: ' + error.message);
+                }
+                
+                // Auto-retry after 5 seconds
+                console.log('🔄 Auto-retrying Firebase connection in 5 seconds...');
+                setTimeout(() => {
+                    this.setupFirebaseListeners();
+                }, 5000);
+            }
+        );
+        
+        console.log('✅ Firebase real-time listener setup completed');
+    }
+
     processRealTimeData(firebaseData) {
         if (!firebaseData) {
-            this.logData('No real-time data from Firebase', 'warning');
+            console.log('⚠️ No valid data received from Firebase');
             return;
         }
 
         const unitCount = Object.keys(firebaseData).length;
         console.log(`🔄 Processing ${unitCount} units from Firebase`);
-
+        
         const activeUnits = new Set();
         const currentTime = Date.now();
         
+        // Process each unit
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            // ✅ VALIDASI SESUAI RULES: harus ada lat, lng, driver, unit
-            if (this.validateUnitDataWithRules(unitName, unitData)) {
+            console.log(`📝 Processing unit: ${unitName}`, unitData);
+            
+            if (this.validateUnitData(unitName, unitData)) {
                 activeUnits.add(unitName);
-                this.lastDataTimestamps.set(unitName, currentTime);
-                this.driverOnlineStatus.set(unitName, true);
-
-                const existingUnit = this.units.get(unitName);
-                
-                if (existingUnit) {
-                    this.refreshUnitData(existingUnit, unitData);
-                } else {
-                    const newUnit = this.createNewUnit(unitName, unitData);
-                    if (newUnit) {
-                        this.units.set(unitName, newUnit);
-                        this.unitSessions.set(unitName, {
-                            sessionId: unitData.sessionId,
-                            startTime: currentTime
-                        });
-                        
-                        // Setup chat untuk unit baru
-                        if (!this.monitorChatRefs.has(unitName)) {
-                            this.setupUnitChatListener(unitName);
-                        }
-                        
-                        this.logData(`Unit baru terdeteksi: ${unitName}`, 'success');
-                    }
-                }
+                this.updateOrCreateUnit(unitName, unitData, currentTime);
             } else {
-                console.log(`❌ Data ${unitName} tidak sesuai rules Firebase`);
-                this.logData(`Data ${unitName} ditolak - tidak sesuai rules`, 'warning');
+                console.log(`❌ Invalid data for ${unitName}, skipping`);
             }
         });
 
-        this.gradualCleanupInactiveUnits(activeUnits);
-        this.updateStatistics();
-        this.scheduleRender();
-        this.updateUnitCountDisplay();
+        // Cleanup units that are no longer in Firebase
+        this.cleanupInactiveUnits(activeUnits);
+        
+        // Update UI
+        this.updateDisplay();
+        
+        // Show success message for first load or significant changes
+        if (this.units.size > 0) {
+            this.showSuccess(`Real-time tracking active: ${this.units.size} units online`);
+        }
     }
 
-    // ===== VALIDATION SESUAI FIREBASE RULES =====
-    validateUnitDataWithRules(unitName, unitData) {
+    validateUnitData(unitName, unitData) {
         if (!unitData) {
-            console.log(`❌ Invalid data for ${unitName}: null data`);
+            console.log(`❌ Invalid data for ${unitName}: null or undefined`);
             return false;
         }
         
-        // ✅ CHECK REQUIRED FIELDS SESUAI RULES FIREBASE
+        // Check required fields
         const requiredFields = ['lat', 'lng', 'driver', 'unit'];
         const missingFields = requiredFields.filter(field => !unitData.hasOwnProperty(field));
         
         if (missingFields.length > 0) {
-            console.log(`❌ Missing required fields for ${unitName}:`, missingFields);
-            return false;
+            console.log(`⚠️ Missing required fields for ${unitName}:`, missingFields);
+            // Still process for now, but log warning
         }
         
-        // Validate coordinate types
+        // Validate coordinates
         const lat = parseFloat(unitData.lat);
         const lng = parseFloat(unitData.lng);
         
         if (isNaN(lat) || isNaN(lng)) {
-            console.log(`❌ Invalid coordinates for ${unitName}`);
+            console.log(`❌ Invalid coordinates for ${unitName}: lat=${unitData.lat}, lng=${unitData.lng}`);
             return false;
         }
         
         // Validate coordinate ranges
         if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            console.log(`❌ Coordinate out of range for ${unitName}`);
-            return false;
-        }
-        
-        // Validate field types
-        if (typeof unitData.driver !== 'string' || typeof unitData.unit !== 'string') {
-            console.log(`❌ Invalid field types for ${unitName}`);
+            console.log(`❌ Coordinates out of range for ${unitName}: lat=${lat}, lng=${lng}`);
             return false;
         }
         
         return true;
     }
 
-    // ===== CREATE UNIT SESUAI STRUCTURE =====
-    createNewUnit(unitName, firebaseData) {
-        // ✅ PASTIKAN DATA SESUAI DENGAN RULES
+    updateOrCreateUnit(unitName, unitData, timestamp) {
+        const existingUnit = this.units.get(unitName);
+        
+        if (existingUnit) {
+            // Update existing unit
+            this.refreshUnitData(existingUnit, unitData, timestamp);
+        } else {
+            // Create new unit
+            const newUnit = this.createNewUnit(unitName, unitData, timestamp);
+            if (newUnit) {
+                this.units.set(unitName, newUnit);
+                this.createUnitMarker(newUnit);
+                this.createAccuracyCircle(newUnit);
+                console.log(`✅ New unit created: ${unitName} - ${newUnit.driver}`);
+            }
+        }
+    }
+
+    createNewUnit(unitName, firebaseData, timestamp) {
         return {
             id: this.getUnitId(unitName),
             name: unitName,
-            afdeling: this.determineAfdeling(unitName),
-            status: this.determineStatus(firebaseData.journeyStatus),
-            latitude: parseFloat(firebaseData.lat),      // ✅ dari rules
-            longitude: parseFloat(firebaseData.lng),     // ✅ dari rules
+            driver: firebaseData.driver || 'Unknown Driver',
+            unit: firebaseData.unit || unitName,
+            latitude: parseFloat(firebaseData.lat) || -0.396056,
+            longitude: parseFloat(firebaseData.lng) || 102.958944,
             speed: parseFloat(firebaseData.speed) || 0,
-            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
             distance: parseFloat(firebaseData.distance) || 0,
-            fuelLevel: this.computeFuelLevel(100, firebaseData.distance, firebaseData.journeyStatus),
-            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
-            driver: firebaseData.driver,                 // ✅ dari rules
-            unit: firebaseData.unit,                     // ✅ dari rules
             accuracy: parseFloat(firebaseData.accuracy) || 0,
-            batteryLevel: firebaseData.batteryLevel || null,
-            lastLat: parseFloat(firebaseData.lat),       // ✅ dari rules
-            lastLng: parseFloat(firebaseData.lng),       // ✅ dari rules
+            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+            status: this.determineStatus(firebaseData.journeyStatus),
+            fuelLevel: firebaseData.fuel || this.calculateFuelLevel(parseFloat(firebaseData.distance) || 0),
             isOnline: true,
+            afdeling: this.determineAfdeling(unitName),
             sessionId: firebaseData.sessionId,
-            lastFuelUpdate: Date.now()
+            lastUpdateTime: timestamp,
+            batteryLevel: firebaseData.batteryLevel || null
         };
     }
 
@@ -763,439 +485,422 @@ class EnhancedSAGMGpsTracking {
         return statusMap[journeyStatus] || 'active';
     }
 
-    refreshUnitData(unit, firebaseData) {
-        const now = Date.now();
-        
-        unit.latitude = firebaseData.lat ? parseFloat(firebaseData.lat) : unit.latitude;
-        unit.longitude = firebaseData.lng ? parseFloat(firebaseData.lng) : unit.longitude;
-        unit.speed = firebaseData.speed ? parseFloat(firebaseData.speed) : unit.speed;
-        unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
-        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
-        unit.driver = firebaseData.driver || unit.driver;
-        unit.accuracy = firebaseData.accuracy ? parseFloat(firebaseData.accuracy) : unit.accuracy;
-        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
-        unit.fuelLevel = this.computeFuelLevel(100, unit.distance, unit.status);
-        unit.lastLat = firebaseData.lat ? parseFloat(firebaseData.lat) : unit.lastLat;
-        unit.lastLng = firebaseData.lng ? parseFloat(firebaseData.lng) : unit.lastLng;
-        unit.isOnline = true;
-        unit.lastFuelUpdate = now;
-
-        this.addHistoryPoint(unit);
+    calculateFuelLevel(distance) {
+        // Simple fuel calculation based on distance
+        const baseFuel = 100;
+        const fuelConsumptionRate = 0.25; // liters per km
+        const fuelUsed = distance * fuelConsumptionRate;
+        return Math.max(0, baseFuel - fuelUsed);
     }
 
-    // ===== COMPLETE STATISTICS SYSTEM =====
+    refreshUnitData(unit, firebaseData, timestamp) {
+        unit.latitude = parseFloat(firebaseData.lat) || unit.latitude;
+        unit.longitude = parseFloat(firebaseData.lng) || unit.longitude;
+        unit.speed = parseFloat(firebaseData.speed) || 0;
+        unit.distance = parseFloat(firebaseData.distance) || unit.distance;
+        unit.accuracy = parseFloat(firebaseData.accuracy) || unit.accuracy;
+        unit.lastUpdate = firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID');
+        unit.driver = firebaseData.driver || unit.driver;
+        unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
+        unit.fuelLevel = firebaseData.fuel || this.calculateFuelLevel(unit.distance);
+        unit.isOnline = true;
+        unit.lastUpdateTime = timestamp;
+        unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
+
+        // Update visual elements
+        this.refreshUnitMarker(unit);
+        this.refreshAccuracyCircle(unit);
+    }
+
+    updateDisplay() {
+        // Update statistics
+        this.updateStatistics();
+        
+        // Update unit list
+        this.renderUnitList();
+        
+        // Update map markers
+        this.updateMapMarkers();
+    }
+
     updateStatistics() {
-        let activeUnits = 0;
+        const activeUnits = Array.from(this.units.values()).filter(unit => unit.isOnline).length;
+        const totalUnits = this.units.size;
+        
         let totalDistance = 0;
         let totalSpeed = 0;
         let totalFuel = 0;
-        let unitCount = 0;
-
+        
         this.units.forEach(unit => {
             if (unit.isOnline) {
-                unitCount++;
-                if (unit.status === 'active' || unit.status === 'moving') {
-                    activeUnits++;
-                }
                 totalDistance += unit.distance || 0;
                 totalSpeed += unit.speed || 0;
-                totalFuel += unit.fuelUsed || 0;
+                totalFuel += (100 - (unit.fuelLevel || 100)) || 0;
             }
         });
+        
+        const avgSpeed = totalUnits > 0 ? totalSpeed / totalUnits : 0;
 
-        const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
-
-        this.activeUnits = activeUnits;
-        this.totalDistance = totalDistance;
-        this.avgSpeed = avgSpeed;
-        this.totalFuelConsumption = totalFuel;
-
-        // Update ALL statistics elements
-        this.updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
+        // Update UI elements
+        this.updateElement('activeUnits', `${activeUnits}/${totalUnits}`);
         this.updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
         this.updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
         this.updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
         
-        this.updateElement('activeUnitsDetail', `${unitCount} units terdeteksi`);
-        this.updateElement('distanceDetail', `${this.units.size} units`);
-        this.updateElement('speedDetail', `Live update`);
-        this.updateElement('fuelDetail', `Berdasar jarak`);
-        this.updateElement('dataCount', this.unitHistory.size);
+        this.updateElement('activeUnitsDetail', `${totalUnits} units terdeteksi`);
+        this.updateElement('dataCount', totalUnits.toString());
     }
 
-    updateElement(id, value) {
-        const element = document.getElementById(id);
-        if (element) element.textContent = value;
-    }
-
-    updateUnitCountDisplay() {
-        const activeCount = Array.from(this.units.values()).filter(unit => unit.isOnline).length;
-        const totalCount = this.units.size;
+    renderUnitList() {
+        const unitList = this.uiElements.unitList;
+        if (!unitList) return;
         
-        const activeUnitsElement = document.getElementById('activeUnits');
-        if (activeUnitsElement) {
-            activeUnitsElement.textContent = `${activeCount}/${totalCount}`;
+        if (this.units.size === 0) {
+            unitList.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <div class="mb-2">📭</div>
+                    <small>Tidak ada unit aktif</small>
+                    <br>
+                    <small class="text-muted">Menunggu koneksi dari driver mobile...</small>
+                    <br>
+                    <small class="text-muted">Pastikan driver sudah login di aplikasi mobile</small>
+                </div>
+            `;
+            return;
         }
         
-        const activeUnitsDetail = document.getElementById('activeUnitsDetail');
-        if (activeUnitsDetail) {
-            activeUnitsDetail.textContent = `${totalCount} units terdeteksi, ${activeCount} online`;
-        }
+        unitList.innerHTML = '';
         
-        console.log(`📊 Unit Count: ${activeCount} aktif dari ${totalCount} total`);
+        // Sort units: online first, then by status, then by name
+        const sortedUnits = Array.from(this.units.values()).sort((a, b) => {
+            if (a.isOnline !== b.isOnline) return b.isOnline - a.isOnline;
+            if (a.status !== b.status) {
+                const statusOrder = { 'moving': 3, 'active': 2, 'inactive': 1 };
+                return (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
+            }
+            return a.name.localeCompare(b.name);
+        });
+
+        sortedUnits.forEach(unit => {
+            const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
+            const statusBadge = this.getStatusBadge(unit.status);
+            
+            const unitElement = document.createElement('div');
+            unitElement.className = `unit-item ${unit.status} ${unit.isOnline ? 'online' : 'offline'}`;
+            unitElement.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">
+                            ${unit.name} 
+                            ${unit.isOnline ? '🟢' : '🔴'}
+                            ${unit.status === 'moving' ? '🚗' : ''}
+                        </h6>
+                        <small class="text-muted">${unit.afdeling} - ${unit.driver}</small>
+                    </div>
+                    ${statusBadge}
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted d-block">
+                        📍 Lokasi: ${unit.latitude.toFixed(6)}, ${unit.longitude.toFixed(6)}
+                    </small>
+                    <small class="text-muted d-block">
+                        🚀 Kecepatan: <strong>${unit.speed.toFixed(1)} km/h</strong>
+                    </small>
+                    <small class="text-muted d-block">
+                        🎯 Akurasi: ${accuracyBadge}
+                    </small>
+                    <small class="text-muted d-block">
+                        📏 Jarak: <strong>${unit.distance.toFixed(2)} km</strong>
+                    </small>
+                    <small class="text-muted d-block">
+                        ⛽ Bahan Bakar: <strong>${unit.fuelLevel.toFixed(1)}%</strong>
+                    </small>
+                    <small class="text-muted d-block">
+                        ⏰ Update: <strong>${unit.lastUpdate}</strong>
+                    </small>
+                    ${unit.batteryLevel ? `
+                    <small class="text-muted d-block">
+                        🔋 Baterai: <strong>${unit.batteryLevel}%</strong>
+                    </small>
+                    ` : ''}
+                </div>
+                ${unit.accuracy > 30 ? `
+                <div class="alert alert-warning py-1 mt-2">
+                    <small>⚠️ Akurasi GPS rendah (±${unit.accuracy.toFixed(1)}m)</small>
+                </div>
+                ` : ''}
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="window.gpsMonitor.startChat('${unit.name}')">
+                        💬 Chat dengan ${unit.driver}
+                    </button>
+                </div>
+            `;
+            unitList.appendChild(unitElement);
+        });
     }
 
-    // ===== COMPLETE MAP MARKERS SYSTEM =====
+    getStatusBadge(status) {
+        const badges = {
+            'moving': '<span class="badge bg-warning">Berjalan</span>',
+            'active': '<span class="badge bg-success">Aktif</span>',
+            'inactive': '<span class="badge bg-secondary">Non-Aktif</span>'
+        };
+        return badges[status] || '<span class="badge bg-dark">Unknown</span>';
+    }
+
+    // GPS Accuracy Methods
+    getAccuracyLevel(accuracy) {
+        if (accuracy <= this.gpsAccuracyLevels.EXCELLENT.max) return 'EXCELLENT';
+        if (accuracy <= this.gpsAccuracyLevels.GOOD.max) return 'GOOD';
+        if (accuracy <= this.gpsAccuracyLevels.FAIR.max) return 'FAIR';
+        if (accuracy <= this.gpsAccuracyLevels.POOR.max) return 'POOR';
+        return 'VERY_POOR';
+    }
+
+    createAccuracyBadge(accuracy) {
+        const level = this.getAccuracyLevel(accuracy);
+        const config = this.gpsAccuracyLevels[level];
+        
+        return `<span class="badge accuracy-badge" style="background-color: ${config.color}; color: white;" 
+                title="Akurasi ${config.label} (±${accuracy.toFixed(1)}m)">
+                ${config.icon} ${accuracy.toFixed(1)}m
+                </span>`;
+    }
+
+    createUnitMarker(unit) {
+        const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
+        const config = this.gpsAccuracyLevels[accuracyLevel];
+        
+        const markerIcon = L.divIcon({
+            className: `custom-marker accuracy-${accuracyLevel.toLowerCase()}`,
+            html: `
+                <div class="marker-container accuracy-${accuracyLevel.toLowerCase()}">
+                    <div class="marker-icon" title="${unit.name} - ${unit.driver} - Akurasi: ±${unit.accuracy.toFixed(1)}m">
+                        🚛
+                    </div>
+                    <div class="accuracy-indicator" style="border-color: ${config.color}"></div>
+                    <div class="unit-name">${unit.name}</div>
+                </div>
+            `,
+            iconSize: [36, 36],
+            iconAnchor: [18, 36]
+        });
+
+        const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
+            .bindPopup(this.createUnitPopup(unit))
+            .addTo(this.map);
+        
+        this.markers.set(unit.name, marker);
+    }
+
+    createAccuracyCircle(unit) {
+        if (unit.accuracy && unit.accuracy > 0) {
+            const level = this.getAccuracyLevel(unit.accuracy);
+            const config = this.gpsAccuracyLevels[level];
+            
+            const circle = L.circle([unit.latitude, unit.longitude], {
+                radius: unit.accuracy,
+                color: config.color,
+                fillColor: config.color,
+                fillOpacity: 0.1,
+                weight: 2,
+                opacity: 0.7
+            }).addTo(this.map);
+            
+            this.accuracyCircles.set(unit.name, circle);
+        }
+    }
+
+    createUnitPopup(unit) {
+        const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
+        
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">🚛 ${unit.name}</h6>
+                    <small class="text-muted">${unit.afdeling}</small>
+                </div>
+                <div class="popup-content">
+                    <div class="info-item">
+                        <span class="info-label">Driver:</span>
+                        <span class="info-value">${unit.driver}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-secondary'}">
+                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Kecepatan:</span>
+                        <span class="info-value">${unit.speed.toFixed(1)} km/h</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Akurasi GPS:</span>
+                        <span class="info-value">${accuracyBadge}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Jarak Tempuh:</span>
+                        <span class="info-value">${unit.distance.toFixed(2)} km</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Bahan Bakar:</span>
+                        <span class="info-value">${unit.fuelLevel.toFixed(1)}%</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Update:</span>
+                        <span class="info-value">${unit.lastUpdate}</span>
+                    </div>
+                </div>
+                ${unit.accuracy > 30 ? `
+                <div class="accuracy-warning mt-2 p-2 bg-warning text-dark rounded">
+                    <small>⚠️ Akurasi GPS rendah (±${unit.accuracy.toFixed(1)}m). Posisi mungkin tidak tepat.</small>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    refreshUnitMarker(unit) {
+        const marker = this.markers.get(unit.name);
+        if (marker) {
+            marker.setLatLng([unit.latitude, unit.longitude]);
+            marker.setPopupContent(this.createUnitPopup(unit));
+            
+            const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
+            const config = this.gpsAccuracyLevels[accuracyLevel];
+            
+            const markerIcon = L.divIcon({
+                className: `custom-marker accuracy-${accuracyLevel.toLowerCase()}`,
+                html: `
+                    <div class="marker-container accuracy-${accuracyLevel.toLowerCase()}">
+                        <div class="marker-icon" title="${unit.name} - ${unit.driver} - Akurasi: ±${unit.accuracy.toFixed(1)}m">
+                            🚛
+                        </div>
+                        <div class="accuracy-indicator" style="border-color: ${config.color}"></div>
+                        <div class="unit-name">${unit.name}</div>
+                    </div>
+                `,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36]
+            });
+            marker.setIcon(markerIcon);
+        }
+    }
+
+    refreshAccuracyCircle(unit) {
+        const circle = this.accuracyCircles.get(unit.name);
+        if (circle) {
+            circle.setLatLng([unit.latitude, unit.longitude]);
+            circle.setRadius(unit.accuracy);
+            
+            const level = this.getAccuracyLevel(unit.accuracy);
+            const config = this.gpsAccuracyLevels[level];
+            
+            circle.setStyle({
+                color: config.color,
+                fillColor: config.color
+            });
+        } else {
+            this.createAccuracyCircle(unit);
+        }
+    }
+
     updateMapMarkers() {
+        // Cleanup orphaned markers
         this.markers.forEach((marker, unitName) => {
             if (!this.units.has(unitName)) {
-                if (marker && this.map) {
-                    this.map.removeLayer(marker);
-                }
+                this.map.removeLayer(marker);
                 this.markers.delete(unitName);
             }
         });
 
+        // Cleanup orphaned accuracy circles
+        this.accuracyCircles.forEach((circle, unitName) => {
+            if (!this.units.has(unitName)) {
+                this.map.removeLayer(circle);
+                this.accuracyCircles.delete(unitName);
+            }
+        });
+    }
+
+    cleanupInactiveUnits(activeUnits) {
         this.units.forEach((unit, unitName) => {
-            if (!this.markers.has(unitName)) {
-                this.createUnitMarker(unit);
+            if (!activeUnits.has(unitName)) {
+                this.removeUnit(unitName);
+            }
+        });
+    }
+
+    removeUnit(unitName) {
+        console.log(`🗑️ Removing unit: ${unitName}`);
+        
+        // Remove marker
+        const marker = this.markers.get(unitName);
+        if (marker && this.map) {
+            this.map.removeLayer(marker);
+            this.markers.delete(unitName);
+        }
+        
+        // Remove accuracy circle
+        const accuracyCircle = this.accuracyCircles.get(unitName);
+        if (accuracyCircle && this.map) {
+            this.map.removeLayer(accuracyCircle);
+            this.accuracyCircles.delete(unitName);
+        }
+        
+        // Remove from units map
+        this.units.delete(unitName);
+    }
+
+    clearAllUnits() {
+        console.log('🧹 Clearing all units...');
+        this.units.forEach((unit, unitName) => {
+            this.removeUnit(unitName);
+        });
+    }
+
+    // UI Helper Methods
+    updateConnectionStatus(connected) {
+        const statusElement = this.uiElements.firebaseStatus;
+        if (statusElement) {
+            if (connected) {
+                statusElement.innerHTML = '🟢 FIREBASE TERHUBUNG';
+                statusElement.className = 'text-success fw-bold';
             } else {
-                this.refreshUnitMarker(unit);
+                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                statusElement.className = 'text-danger fw-bold';
             }
-        });
-    }
-
-    addLocationMarkers() {
-        try {
-            this.importantMarkers.forEach(marker => {
-                if (marker && this.map) {
-                    this.map.removeLayer(marker);
-                }
-            });
-            this.importantMarkers = [];
-
-            const pksIcon = L.divIcon({
-                className: 'custom-marker',
-                html: `<div class="marker-icon pks" title="PKS SAGM">🏭</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            const pksMarker = L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { icon: pksIcon })
-                .bindPopup(this.createLocationInfo('PKS SAGM', 'pks'))
-                .addTo(this.map);
-
-            const officeIcon = L.divIcon({
-                className: 'custom-marker',
-                html: `<div class="marker-icon office" title="Kantor Kebun">🏢</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            const officeMarker = L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { icon: officeIcon })
-                .bindPopup(this.createLocationInfo('Kantor Kebun PT SAGM', 'office'))
-                .addTo(this.map);
-
-            this.importantMarkers.push(pksMarker, officeMarker);
-            console.log('✅ Location markers added');
-
-        } catch (error) {
-            console.error('Failed to add location markers:', error);
         }
     }
 
-    createLocationInfo(name, type) {
-        return `
-            <div class="unit-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">${type === 'pks' ? '🏭' : '🏢'} ${name}</h6>
-                </div>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Tipe:</span>
-                        <span class="info-value">${type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value">Operasional</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Lokasi:</span>
-                        <span class="info-value">Kebun Tempuling</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // ===== COMPLETE CHAT SYSTEM =====
-    setupMonitorChatSystem() {
-        console.log('💬 Initializing WhatsApp-style monitor chat system...');
-        
-        database.ref('/chat').on('child_added', (snapshot) => {
-            const unitName = snapshot.key;
-            console.log(`💬 New chat unit detected: ${unitName}`);
-            if (!this.monitorChatRefs.has(unitName)) {
-                this.setupUnitChatListener(unitName);
-            }
-        });
-
-        database.ref('/chat').on('child_removed', (snapshot) => {
-            const unitName = snapshot.key;
-            this.cleanupUnitChatListener(unitName);
-        });
-
-        database.ref('/units').on('value', (snapshot) => {
-            const unitsData = snapshot.val();
-            if (unitsData) {
-                Object.keys(unitsData).forEach(unitName => {
-                    if (!this.monitorChatRefs.has(unitName)) {
-                        this.setupUnitChatListener(unitName);
-                    }
-                });
-            }
-        });
-
-        this.setupChatEventHandlers();
-        this.monitorChatInitialized = true;
-        
-        console.log('💬 WhatsApp-style monitor chat system activated');
-    }
-
-    setupUnitChatListener(unitName) {
-        if (this.monitorChatRefs.has(unitName)) {
-            this.cleanupUnitChatListener(unitName);
-        }
-        
-        console.log(`💬 Setting up chat listener for unit: ${unitName}`);
-        
-        try {
-            const chatRef = database.ref('/chat/' + unitName);
-            const typingRef = database.ref('/typing/' + unitName);
-            
-            this.monitorChatRefs.set(unitName, chatRef);
-            this.monitorTypingRefs.set(unitName, typingRef);
-            this.monitorChatMessages.set(unitName, []);
-            this.monitorUnreadCounts.set(unitName, 0);
-            
-            const messageHandler = chatRef.on('child_added', (snapshot) => {
-                const message = snapshot.val();
-                if (message && message.type !== 'monitor') {
-                    this.handleMonitorChatMessage(unitName, message);
-                }
-            });
-            
-            this.firebaseListeners.set(`chat_${unitName}`, messageHandler);
-            
-            const typingHandler = typingRef.on('value', (snapshot) => {
-                const typingData = snapshot.val();
-                this.handleMonitorTypingIndicator(unitName, typingData);
-            });
-            
-            this.firebaseListeners.set(`typing_${unitName}`, typingHandler);
-
-            this.updateMonitorChatUnitSelect();
-            console.log(`💬 Now actively listening to chat for unit: ${unitName}`);
-            
-        } catch (error) {
-            console.error(`❌ Failed to setup chat listener for ${unitName}:`, error);
+    updateElement(id, value) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = value;
         }
     }
 
-    handleMonitorChatMessage(unitName, message) {
-        if (!message || message.type === 'monitor') return;
-        
-        if (!this.monitorChatMessages.has(unitName)) {
-            this.monitorChatMessages.set(unitName, []);
-        }
-        
-        const messages = this.monitorChatMessages.get(unitName);
-        
-        const messageExists = messages.some(msg => 
-            msg.id === message.id || 
-            (msg.timestamp === message.timestamp && msg.sender === message.sender)
-        );
-        
-        if (messageExists) return;
-        
-        messages.push(message);
-        
-        if (this.activeChatUnit !== unitName || !this.isMonitorChatOpen) {
-            const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
-            this.monitorUnreadCounts.set(unitName, currentCount + 1);
-        }
-        
-        this.updateMonitorChatUI();
-        this.updateMonitorChatUnitSelect();
-        
-        if (this.activeChatUnit !== unitName || !this.isMonitorChatOpen) {
-            this.showMonitorChatNotification(unitName, message);
-        }
-        
-        this.playMonitorNotificationSound();
-        
-        console.log(`💬 New message from ${unitName}:`, message);
-    }
-
-    // ===== COMPLETE DATA LOGGER =====
-    setupDataLogger() {
-        this.loadLogs();
-        this.renderLogger();
-        
-        this.logData('Enhanced GPS Monitoring System with WhatsApp-style Chat initialized', 'system', {
-            timestamp: new Date().toISOString(),
-            version: '4.0'
-        });
-    }
-
-    logData(message, level = 'info', metadata = {}) {
-        const logEntry = {
-            id: 'LOG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            dateDisplay: new Date().toLocaleDateString('id-ID'),
-            level: level,
-            message: message,
-            metadata: metadata
-        };
-
-        this.dataLogger.logs.unshift(logEntry);
-
-        if (this.dataLogger.logs.length > this.dataLogger.maxLogs) {
-            this.dataLogger.logs = this.dataLogger.logs.slice(0, this.dataLogger.maxLogs);
-        }
-
-        this.saveLogs();
-        this.renderLogger();
-        
-        console.log(`[${level.toUpperCase()}] ${message}`, metadata);
-    }
-
-    renderLogger() {
-        const container = document.getElementById('dataLoggerContainer');
-        if (!container) return;
-
-        let html = `
-            <div class="card">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">📊 Data Logger System</h6>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-light" onclick="window.gpsSystem.clearAllLogs()">
-                            🗑️ Clear
-                        </button>
-                        <button class="btn btn-outline-light" onclick="window.gpsSystem.exportLogData()">
-                            📥 Export
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                        <table class="table table-sm table-striped mb-0">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th width="120">Waktu</th>
-                                    <th width="80">Level</th>
-                                    <th>Pesan</th>
-                                    <th width="100">Unit</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-        `;
-
-        if (this.dataLogger.logs.length === 0) {
-            html += `
-                <tr>
-                    <td colspan="4" class="text-center text-muted py-3">
-                        Tidak ada data log
-                    </td>
-                </tr>
-            `;
-        } else {
-            this.dataLogger.logs.forEach(log => {
-                const levelBadge = this.getLogLevelBadge(log.level);
-                const unitInfo = log.metadata.unit ? `<span class="badge bg-primary">${log.metadata.unit}</span>` : '';
-                
-                html += `
-                    <tr class="log-entry log-${log.level}">
-                        <td><small>${log.timeDisplay}</small></td>
-                        <td>${levelBadge}</td>
-                        <td>
-                            <div class="log-message">${log.message}</div>
-                            ${log.metadata.details ? `<small class="text-muted">${log.metadata.details}</small>` : ''}
-                        </td>
-                        <td>${unitInfo}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        html += `
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.innerHTML = html;
-    }
-
-    // ===== UTILITY METHODS =====
-    computeFuelUsage(distance, status) {
-        if (!distance) return 0;
-        
-        let rate;
-        switch(status) {
-            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
-            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
-            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
-        }
-        return distance * rate;
-    }
-
-    computeFuelLevel(initialFuel, distance, status) {
-        if (!distance) return initialFuel;
-        
-        const fuelUsed = this.computeFuelUsage(distance, status);
-        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
-        const fuelPercentage = (fuelRemaining / this.vehicleConfig.fuelTankCapacity) * 100;
-        
-        return Math.max(5, Math.min(100, fuelPercentage));
-    }
-
-    scheduleRender() {
-        const now = Date.now();
-        if (now - this.lastRenderTime < this.renderThrottleMs) {
-            return;
-        }
-        
-        this.lastRenderTime = now;
-        this.refreshDisplay();
-    }
-
-    refreshDisplay() {
-        this.cleanupOrphanedMarkers();
-        this.updateStatistics();
-        this.renderUnitList();
-        this.updateMapMarkers();
-    }
-
-    showLoadingIndicator(show) {
-        const spinner = document.getElementById('loadingSpinner');
+    showLoading(show) {
+        const spinner = this.uiElements.loadingSpinner;
         if (spinner) {
             spinner.style.display = show ? 'block' : 'none';
         }
     }
 
-    displayError(message) {
-        this.logData(message, 'error');
-        this.showNotification(message, 'error');
-    }
-
     showNotification(message, type = 'info') {
+        console.log(`💬 ${type.toUpperCase()}: ${message}`);
+        
+        // Create notification element
         const notification = document.createElement('div');
-        notification.className = `alert alert-${type} position-fixed`;
-        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = `
+            top: 20px; 
+            right: 20px; 
+            z-index: 9999; 
+            min-width: 300px;
+            max-width: 400px;
+        `;
         notification.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -1203,6 +908,7 @@ class EnhancedSAGMGpsTracking {
         
         document.body.appendChild(notification);
         
+        // Auto remove after 5 seconds
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -1210,600 +916,141 @@ class EnhancedSAGMGpsTracking {
         }, 5000);
     }
 
-    showError(message) {
-        console.error('🚨 ERROR:', message);
-        
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-        errorDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            min-width: 400px;
-            max-width: 500px;
-        `;
-        errorDiv.innerHTML = `
-            <strong>🚨 Error:</strong> ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(errorDiv);
-        
-        setTimeout(() => {
-            if (errorDiv.parentNode) {
-                errorDiv.remove();
-            }
-        }, 10000);
-    }
-
     showMessage(message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'alert alert-info alert-dismissible fade show';
-        messageDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            min-width: 400px;
-            text-align: center;
-        `;
-        messageDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(messageDiv);
-        
-        setTimeout(() => {
-            if (messageDiv.parentNode) {
-                messageDiv.remove();
-            }
-        }, 5000);
+        this.showNotification(message, 'info');
     }
 
-    // ===== CLEANUP METHODS =====
-    gradualCleanupInactiveUnits(activeUnits) {
-        const now = Date.now();
-        const inactiveThreshold = 30000;
-
-        this.units.forEach((unit, unitName) => {
-            if (!activeUnits.has(unitName)) {
-                const currentCount = this.inactiveUnitTracker.get(unitName) || 0;
-                this.inactiveUnitTracker.set(unitName, currentCount + 1);
-                
-                const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
-                
-                if (timeSinceLastUpdate > inactiveThreshold && unit.isOnline) {
-                    unit.isOnline = false;
-                    this.logData(`Unit marked offline: ${unitName}`, 'warning');
-                }
-            } else {
-                this.inactiveUnitTracker.set(unitName, 0);
-            }
-        });
+    showSuccess(message) {
+        this.showNotification(message, 'success');
     }
 
-    clearAllUnits() {
-        this.units.forEach((unit, unitName) => {
-            this.removeUnit(unitName);
-        });
+    showError(message) {
+        this.showNotification(message, 'danger');
     }
 
-    removeUnit(unitName) {
-        const marker = this.markers.get(unitName);
-        if (marker && this.map) {
-            this.map.removeLayer(marker);
-        }
-        this.markers.delete(unitName);
-        
-        const polyline = this.unitPolylines.get(unitName);
-        if (polyline && this.map) {
-            this.map.removeLayer(polyline);
-        }
-        this.unitPolylines.delete(unitName);
-        
-        // Cleanup accuracy circles
-        const accuracyCircle = this.accuracyCircles.get(unitName);
-        if (accuracyCircle && this.map) {
-            this.map.removeLayer(accuracyCircle);
-            this.accuracyCircles.delete(unitName);
-        }
-        
-        this.unitHistory.delete(unitName);
-        this.unitSessions.delete(unitName);
-        this.driverOnlineStatus.delete(unitName);
-        this.lastDataTimestamps.delete(unitName);
-        this.inactiveUnitTracker.delete(unitName);
-    }
-
-    clearAllData() {
-        console.log('🧹 Clearing ALL system data...');
-        this.clearAllUnits();
-        this.importantMarkers = [];
-        this.dataLogger.logs = [];
-        
-        this.activeUnits = 0;
-        this.totalDistance = 0;
-        this.avgSpeed = 0;
-        this.totalFuelConsumption = 0;
-        
-        this.activeChatUnit = null;
-        this.isMonitorChatOpen = false;
-    }
-
-    cleanupOrphanedMarkers() {
-        this.markers.forEach((marker, unitName) => {
-            if (!this.units.has(unitName)) {
-                console.log(`🧹 Removing orphaned marker: ${unitName}`);
-                if (marker && this.map) {
-                    this.map.removeLayer(marker);
-                }
-                this.markers.delete(unitName);
-            }
-        });
-        
-        // Cleanup orphaned accuracy circles
-        this.accuracyCircles.forEach((circle, unitName) => {
-            if (!this.units.has(unitName)) {
-                console.log(`🧹 Removing orphaned accuracy circle: ${unitName}`);
-                if (circle && this.map) {
-                    this.map.removeLayer(circle);
-                }
-                this.accuracyCircles.delete(unitName);
-            }
-        });
-    }
-
-    cleanupFirebaseListeners() {
-        this.firebaseListeners.forEach((listener, key) => {
-            try {
-                if (key === 'connection') {
-                    database.ref('.info/connected').off('value', listener);
-                } else if (key === 'units') {
-                    database.ref('/units').off('value', listener);
-                } else if (key.startsWith('chat_')) {
-                    const unitName = key.replace('chat_', '');
-                    if (this.monitorChatRefs.has(unitName)) {
-                        this.monitorChatRefs.get(unitName).off('child_added', listener);
-                    }
-                } else if (key.startsWith('typing_')) {
-                    const unitName = key.replace('typing_', '');
-                    if (this.monitorTypingRefs.has(unitName)) {
-                        this.monitorTypingRefs.get(unitName).off('value', listener);
-                    }
-                }
-            } catch (error) {
-                console.warn(`Error cleaning up listener ${key}:`, error);
-            }
-        });
-        this.firebaseListeners.clear();
-    }
-
-    // ===== PERIODIC TASKS =====
-    startPeriodicTasks() {
-        this.intervals.forEach(interval => clearInterval(interval));
-        this.intervals.clear();
-
-        const cleanupInterval = setInterval(() => {
-            this.cleanupOrphanedMarkers();
-        }, 30000);
-        this.intervals.add(cleanupInterval);
-
-        const healthInterval = setInterval(() => {
-            this.logData('System health check', 'info', {
-                activeUnits: this.units.size,
-                markers: this.markers.size,
-                accuracyCircles: this.accuracyCircles.size
-            });
-        }, 60000);
-        this.intervals.add(healthInterval);
-    }
-
-    // ===== EVENT HANDLERS =====
-    setupEventHandlers() {
-        const searchInput = document.getElementById('searchUnit');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.applyFilters());
-        }
-
-        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
-        filters.forEach(filterId => {
-            const filter = document.getElementById(filterId);
-            if (filter) {
-                filter.addEventListener('change', () => this.applyFilters());
-            }
-        });
-
-        // Update clock
-        setInterval(() => {
-            this.updateElement('currentTime', new Date().toLocaleTimeString('id-ID'));
-        }, 1000);
-    }
-
-    updateConnectionStatus(connected) {
-        const statusElement = document.getElementById('firebaseStatus');
-        if (statusElement) {
-            if (connected) {
-                statusElement.innerHTML = '🟢 FIREBASE TERHUBUNG';
-                statusElement.className = 'text-success fw-bold';
-                
-                // Update last connection time
-                this.lastConnectedTime = new Date();
-                this.updateElement('lastUpdate', this.lastConnectedTime.toLocaleTimeString('id-ID'));
-                
-            } else {
-                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'text-danger fw-bold';
-            }
-        }
-        
-        // Also update connection indicator in header
-        const connectionIndicator = document.getElementById('connectionIndicator');
-        if (connectionIndicator) {
-            connectionIndicator.className = connected ? 'connection-online' : 'connection-offline';
-            connectionIndicator.title = connected ? 'Terhubung ke Firebase' : 'Terputus dari Firebase';
-        }
+    // Search and Filter Methods
+    handleSearch(searchTerm) {
+        console.log(`🔍 Searching for: ${searchTerm}`);
+        // Implementation for search functionality
     }
 
     applyFilters() {
-        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
-        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
-        const statusFilter = document.getElementById('filterStatus')?.value || '';
-        const fuelFilter = document.getElementById('filterFuel')?.value || '';
-
-        console.log('Applying filters:', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
+        console.log('🎛️ Applying filters...');
+        // Implementation for filter functionality
     }
 
-    // ===== TEST FIREBASE CONNECTION =====
-    testFirebaseConnection() {
-        console.log('🔍 Testing Firebase connection and permissions...');
+    // Chat Methods
+    startChat(unitName) {
+        console.log(`💬 Starting chat with ${unitName}`);
+        this.showMessage(`Fitur chat dengan ${unitName} akan segera tersedia`);
+    }
+
+    // Periodic Tasks
+    startPeriodicTasks() {
+        // Health check every 30 seconds
+        setInterval(() => {
+            this.healthCheck();
+        }, 30000);
+
+        // Cleanup orphaned elements every minute
+        setInterval(() => {
+            this.cleanupOrphanedElements();
+        }, 60000);
+
+        console.log('✅ Periodic tasks started');
+    }
+
+    healthCheck() {
+        const activeUnits = Array.from(this.units.values()).filter(unit => unit.isOnline).length;
+        console.log(`❤️ Health check: ${activeUnits} active units, Firebase: ${this.isConnected ? 'Connected' : 'Disconnected'}`);
+    }
+
+    cleanupOrphanedElements() {
+        console.log('🧹 Running cleanup of orphaned elements...');
+        this.updateMapMarkers();
+    }
+
+    // Cleanup Methods
+    cleanupFirebaseListeners() {
+        if (this.firebaseListener) {
+            database.ref('/units').off('value', this.firebaseListener);
+            this.firebaseListener = null;
+        }
         
-        this.showLoadingIndicator(true);
-        
-        database.ref('.info/connected').once('value')
-            .then((snapshot) => {
-                const connected = snapshot.val();
-                console.log('📡 Firebase Connection Test:', connected);
-                
-                if (connected) {
-                    return database.ref('/units').once('value');
-                } else {
-                    throw new Error('Firebase not connected');
-                }
-            })
-            .then((unitsSnapshot) => {
-                const unitsData = unitsSnapshot.val();
-                const unitCount = unitsData ? Object.keys(unitsData).length : 0;
-                
-                console.log('✅ Firebase Read Access Test: SUCCESS');
-                console.log(`📊 Units available: ${unitCount}`);
-                
-                this.showNotification(`Firebase Connection: CONNECTED ✅\nUnits Available: ${unitCount}`, 'success');
-                this.logData(`Firebase test: CONNECTED, ${unitCount} units`, 'success');
-                
-                if (unitCount > 0) {
-                    this.loadInitialData();
-                }
-            })
-            .catch((error) => {
-                console.error('❌ Firebase connection test failed:', error);
-                
-                if (error.code === 'PERMISSION_DENIED') {
-                    this.showNotification(
-                        '❌ FIREBASE PERMISSION DENIED\n' +
-                        'Periksa Firebase Rules:\n' +
-                        'Pastikan rules mengizinkan read di path /units', 
-                        'error'
-                    );
-                    this.logData('Firebase permission denied - check rules', 'error');
-                } else {
-                    this.showNotification('Firebase Connection Test: FAILED ❌\n' + error.message, 'error');
-                    this.logData('Firebase connection test failed: ' + error.message, 'error');
-                }
-            })
-            .finally(() => {
-                this.showLoadingIndicator(false);
-            });
-    }
-
-    // ===== IMPROVED LOAD INITIAL DATA =====
-    async loadInitialData() {
-        this.showLoadingIndicator(true);
-        
-        try {
-            console.log('📥 Loading initial data from Firebase...');
-            const snapshot = await database.ref('/units').once('value');
-            const firebaseData = snapshot.val();
-            
-            this.clearAllData();
-            
-            if (firebaseData && Object.keys(firebaseData).length > 0) {
-                let loadedCount = 0;
-                let rejectedCount = 0;
-                
-                Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-                    if (this.validateUnitDataWithRules(unitName, unitData)) {
-                        const unit = this.createNewUnit(unitName, unitData);
-                        if (unit) {
-                            this.units.set(unitName, unit);
-                            this.lastDataTimestamps.set(unitName, Date.now());
-                            loadedCount++;
-                            
-                            if (!this.monitorChatRefs.has(unitName)) {
-                                this.setupUnitChatListener(unitName);
-                            }
-                        }
-                    } else {
-                        rejectedCount++;
-                        console.log(`❌ Rejected invalid data for ${unitName}`);
-                    }
-                });
-                
-                this.logData('Initial data loaded successfully', 'success', {
-                    units: loadedCount,
-                    rejected: rejectedCount,
-                    total: Object.keys(firebaseData).length
-                });
-                
-                this.scheduleRender();
-                this.updateUnitCountDisplay();
-                
-                if (rejectedCount > 0) {
-                    this.showMessage(`${rejectedCount} units ditolak karena data tidak valid`);
-                }
-                
-            } else {
-                this.logData('No initial data found in Firebase', 'warning');
-                this.showMessage('Tidak ada data units di Firebase. Pastikan driver sudah login.');
-            }
-            
-        } catch (error) {
-            console.error('❌ Failed to load initial data:', error);
-            this.logData('Failed to load initial data: ' + error.message, 'error');
-            this.showError('Gagal memuat data: ' + error.message);
-        } finally {
-            this.showLoadingIndicator(false);
+        if (this.connectionRef) {
+            database.ref('.info/connected').off('value');
+            this.connectionRef = null;
         }
-    }
-
-    refreshData() {
-        console.log('🔄 Manual refresh with cleanup');
-        this.logData('Manual refresh initiated', 'info');
-        this.testFirebaseConnection();
-    }
-
-    forceCleanupAllData() {
-        console.log('🧹 FORCE CLEANUP ALL: Removing ALL units and data');
-        this.clearAllData();
-        this.showNotification('All data cleaned up successfully', 'info');
-    }
-
-    // Route history methods
-    initializeUnitHistory(unit) {
-        if (!this.unitHistory.has(unit.name)) {
-            this.unitHistory.set(unit.name, []);
-        }
-        this.addHistoryPoint(unit);
-    }
-
-    addHistoryPoint(unit) {
-        if (!this.unitHistory.has(unit.name)) {
-            this.unitHistory.set(unit.name, []);
-        }
-
-        const history = this.unitHistory.get(unit.name);
-        const timestamp = new Date().toISOString();
-
-        const point = {
-            timestamp: timestamp,
-            latitude: unit.latitude,
-            longitude: unit.longitude,
-            speed: unit.speed,
-            distance: unit.distance,
-            status: unit.status,
-            fuelLevel: unit.fuelLevel,
-            accuracy: unit.accuracy // ✅ NEW: Include accuracy in history
-        };
-
-        history.push(point);
-
-        if (history.length > this.maxRoutePoints) {
-            this.unitHistory.set(unit.name, history.slice(-this.maxRoutePoints));
-        }
-
-        this.updateUnitRoute(unit);
-    }
-
-    updateUnitRoute(unit) {
-        const history = this.unitHistory.get(unit.name);
-        if (!history || history.length < 2) return;
-
-        const routePoints = history.map(point => [
-            point.latitude, point.longitude
-        ]);
-
-        const routeColor = this.getRouteColor(unit.name);
-
-        if (this.unitPolylines.has(unit.name)) {
-            try {
-                this.unitPolylines.get(unit.name).setLatLngs(routePoints);
-            } catch (error) {
-                console.error('Error updating polyline:', error);
-                this.map.removeLayer(this.unitPolylines.get(unit.name));
-                this.unitPolylines.delete(unit.name);
-                this.createRoutePolyline(unit, routePoints, routeColor);
-            }
-        } else {
-            this.createRoutePolyline(unit, routePoints, routeColor);
-        }
-    }
-
-    createRoutePolyline(unit, routePoints, routeColor) {
-        try {
-            const style = this.getRouteStyle(unit.status, routeColor);
-            const polyline = L.polyline(routePoints, style);
-            
-            this.unitPolylines.set(unit.name, polyline);
-            
-            if (this.showRoutes) {
-                polyline.addTo(this.map);
-            }
-
-        } catch (error) {
-            this.logData(`Failed to create route for ${unit.name}`, 'error');
-        }
-    }
-
-    getRouteStyle(status, color) {
-        const baseStyle = {
-            color: color,
-            weight: 5,
-            opacity: 0.8,
-            lineCap: 'round',
-            lineJoin: 'round'
-        };
-
-        switch(status) {
-            case 'moving':
-                return { ...baseStyle, opacity: 0.9, weight: 6 };
-            case 'active':
-                return { ...baseStyle, opacity: 0.7, weight: 5 };
-            case 'inactive':
-                return { ...baseStyle, opacity: 0.4, weight: 4 };
-            default:
-                return baseStyle;
-        }
-    }
-
-    getRouteColor(unitName) {
-        if (!this.routeColors.has(unitName)) {
-            const colors = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
-            ];
-            this.routeColors.set(unitName, colors[this.routeColors.size % colors.length]);
-        }
-        return this.routeColors.get(unitName);
-    }
-
-    getLogLevelBadge(level) {
-        const badges = {
-            'info': '<span class="badge bg-info">INFO</span>',
-            'success': '<span class="badge bg-success">SUCCESS</span>',
-            'warning': '<span class="badge bg-warning">WARNING</span>',
-            'error': '<span class="badge bg-danger">ERROR</span>',
-            'gps': '<span class="badge bg-primary">GPS</span>',
-            'system': '<span class="badge bg-secondary">SYSTEM</span>'
-        };
-        return badges[level] || '<span class="badge bg-dark">UNKNOWN</span>';
-    }
-
-    loadLogs() {
-        try {
-            const savedLogs = localStorage.getItem('sagm_data_logs');
-            if (savedLogs) {
-                this.dataLogger.logs = JSON.parse(savedLogs);
-            }
-        } catch (error) {
-            console.error('Failed to load logs:', error);
-            this.dataLogger.logs = [];
-        }
-    }
-
-    saveLogs() {
-        try {
-            localStorage.setItem('sagm_data_logs', JSON.stringify(this.dataLogger.logs));
-        } catch (error) {
-            console.error('Failed to save logs:', error);
-        }
-    }
-
-    clearAllLogs() {
-        if (confirm('Yakin ingin menghapus semua logs?')) {
-            this.dataLogger.logs = [];
-            this.saveLogs();
-            this.renderLogger();
-            this.logData('All logs cleared', 'system');
-        }
-    }
-
-    exportLogData() {
-        const exportData = {
-            exportedAt: new Date().toISOString(),
-            totalLogs: this.dataLogger.logs.length,
-            system: 'SAGM GPS Tracking System',
-            logs: this.dataLogger.logs
-        };
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `sagm-logs-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.logData('Logs exported successfully', 'success');
-    }
-
-    downloadRouteData() {
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            totalUnits: this.units.size,
-            routes: {}
-        };
-
-        this.units.forEach((unit, unitName) => {
-            exportData.routes[unitName] = {
-                driver: unit.driver,
-                totalDistance: unit.distance,
-                routePoints: this.unitHistory.get(unitName)?.length || 0,
-                history: this.unitHistory.get(unitName) || []
-            };
-        });
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `routes-data-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.logData('Route data exported', 'success');
     }
 
     cleanup() {
-        console.log('🧹 Comprehensive system cleanup...');
-        this.cleanupFirebaseListeners();
-        this.intervals.forEach(interval => clearInterval(interval));
-        this.intervals.clear();
-        this.clearAllData();
+        console.log('🧹 Comprehensive cleanup...');
         
+        // Cleanup Firebase listeners
+        this.cleanupFirebaseListeners();
+        
+        // Clear all units
+        this.clearAllUnits();
+        
+        // Remove map
         if (this.map) {
             this.map.remove();
+            this.map = null;
         }
+        
+        console.log('✅ Cleanup completed');
+    }
+
+    // Public Methods
+    refreshData() {
+        console.log('🔄 Manual refresh requested');
+        this.showLoading(true);
+        this.setupFirebaseListeners();
+        setTimeout(() => this.showLoading(false), 2000);
+    }
+
+    forceCleanup() {
+        if (confirm('Yakin ingin membersihkan semua data?')) {
+            this.cleanup();
+            this.showSuccess('Semua data telah dibersihkan');
+        }
+    }
+
+    exportData() {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalUnits: this.units.size,
+            units: Array.from(this.units.values())
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `gps-data-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.showSuccess('Data berhasil diexport');
     }
 }
 
-// Global functions
+// Global Functions
 function refreshData() {
-    if (window.gpsSystem) {
-        window.gpsSystem.refreshData();
+    if (window.gpsMonitor) {
+        window.gpsMonitor.refreshData();
     }
 }
 
 function forceCleanup() {
-    if (window.gpsSystem) {
-        window.gpsSystem.forceCleanupAllData();
+    if (window.gpsMonitor) {
+        window.gpsMonitor.forceCleanup();
     }
 }
 
 function exportData() {
-    if (window.gpsSystem) {
-        window.gpsSystem.downloadRouteData();
+    if (window.gpsMonitor) {
+        window.gpsMonitor.exportData();
     }
 }
 
@@ -1814,47 +1061,43 @@ function toggleSidebar() {
     }
 }
 
-// Chat global functions
 function toggleMonitorChat() {
-    if (window.gpsSystem) {
-        window.gpsSystem.toggleMonitorChat();
-    }
+    alert('Fitur chat monitor akan segera tersedia');
 }
 
-function handleMonitorChatInput(event) {
-    if (window.gpsSystem) {
-        window.gpsSystem.handleMonitorChatInput(event);
-    }
-}
-
-function sendMonitorMessage() {
-    if (window.gpsSystem) {
-        window.gpsSystem.sendMonitorMessage();
-    }
-}
-
-function selectChatUnit(unitName) {
-    if (window.gpsSystem) {
-        window.gpsSystem.selectChatUnit(unitName);
-    }
-}
-
-// Initialize system
-let gpsSystem;
+// Initialize System
+let gpsMonitor;
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 DOM loaded - initializing Enhanced GPS system with Accuracy Features');
+    console.log('🚀 DOM loaded - initializing Fixed GPS Monitor System');
     
-    if (window.gpsSystem) {
-        window.gpsSystem.cleanup();
+    // Cleanup previous instance if exists
+    if (window.gpsMonitor) {
+        window.gpsMonitor.cleanup();
     }
     
-    gpsSystem = new EnhancedSAGMGpsTracking();
-    window.gpsSystem = gpsSystem;
+    // Initialize new instance
+    gpsMonitor = new FixedGPSMonitor();
+    window.gpsMonitor = gpsMonitor;
+    
+    // Make sure global functions are available
+    window.refreshData = refreshData;
+    window.forceCleanup = forceCleanup;
+    window.exportData = exportData;
+    window.toggleSidebar = toggleSidebar;
+    window.toggleMonitorChat = toggleMonitorChat;
 });
 
 window.addEventListener('beforeunload', function() {
-    if (window.gpsSystem) {
-        window.gpsSystem.cleanup();
+    if (window.gpsMonitor) {
+        window.gpsMonitor.cleanup();
+    }
+});
+
+// Error boundary for unhandled errors
+window.addEventListener('error', function(event) {
+    console.error('🚨 Global error caught:', event.error);
+    if (window.gpsMonitor) {
+        window.gpsMonitor.showError('System error occurred: ' + event.error.message);
     }
 });
