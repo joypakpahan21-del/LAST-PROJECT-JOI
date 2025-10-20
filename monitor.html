@@ -88,6 +88,148 @@
     });
     </script>
 
+    <!-- Firebase Connection Test - Enhanced Version -->
+    <script>
+    console.log('🔍 Testing Firebase Configuration...');
+
+    // Test Firebase App
+    try {
+        const firebaseConfig = {
+            apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
+            authDomain: "joi-gps-tracker.firebaseapp.com",
+            databaseURL: "https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "joi-gps-tracker",
+            storageBucket: "joi-gps-tracker.firebasestorage.app",
+            messagingSenderId: "216572191895",
+            appId: "1:216572191895:web:a4fef1794daf200a2775d2"
+        };
+        
+        console.log('📋 Firebase Config:', firebaseConfig);
+        
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+            console.log('✅ Firebase App Initialized');
+        } else {
+            console.log('✅ Firebase App Already Initialized');
+        }
+        
+        const database = firebase.database();
+        
+        // Test connection
+        database.ref('.info/connected').once('value')
+            .then((snapshot) => {
+                const connected = snapshot.val();
+                console.log('📡 Firebase Connection Test Result:', connected);
+                
+                if (connected) {
+                    alert('🎉 FIREBASE CONNECTED SUCCESSFULLY!');
+                    
+                    // Test read data
+                    return database.ref('/units').once('value');
+                } else {
+                    throw new Error('Firebase not connected - check internet connection');
+                }
+            })
+            .then((unitsSnapshot) => {
+                const unitsData = unitsSnapshot.val();
+                console.log('📦 Units Data from Firebase:', unitsData);
+                
+                if (unitsData) {
+                    alert(`✅ FIREBASE WORKING! Found ${Object.keys(unitsData).length} units`);
+                } else {
+                    alert('✅ FIREBASE CONNECTED but no units data yet');
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Firebase Test Failed:', error);
+                alert('❌ FIREBASE CONNECTION FAILED: ' + error.message);
+            });
+            
+    } catch (error) {
+        console.error('🔥 Critical Firebase Error:', error);
+        alert('🔥 FIREBASE CRITICAL ERROR: ' + error.message);
+    }
+    </script>
+
+    <!-- Firebase Rules Compliance Test -->
+    <script>
+    // Test Firebase Rules Compliance
+    function testFirebaseRules() {
+        console.log('🔍 Testing Firebase Rules Compliance...');
+        
+        const testData = {
+            driver: "Test Driver",
+            unit: "DT-TEST",
+            lat: -0.396056,
+            lng: 102.958944,
+            speed: 0,
+            distance: 0,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Test write operation dengan data yang sesuai rules
+        fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-TEST.json', {
+            method: 'PUT',
+            body: JSON.stringify(testData),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('✅ Rules Test - Write Successful:', data);
+            alert('✅ Firebase Rules: WRITE BERHASIL\nData sesuai dengan rules validation');
+            
+            // Test read operation
+            return fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-TEST.json');
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('✅ Rules Test - Read Successful:', data);
+            alert('✅ Firebase Rules: READ BERHASIL\nData bisa dibaca dengan baik');
+        })
+        .catch(error => {
+            console.error('❌ Rules Test Failed:', error);
+            alert('❌ Firebase Rules Test GAGAL: ' + error.message);
+        });
+    }
+
+    // Test dengan data yang tidak sesuai rules
+    function testInvalidData() {
+        console.log('🔍 Testing with INVALID data...');
+        
+        const invalidData = {
+            // Missing required fields: driver, unit, lat, lng
+            speed: 0,
+            distance: 0
+        };
+        
+        fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-INVALID.json', {
+            method: 'PUT',
+            body: JSON.stringify(invalidData),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('❌ Rules should have blocked this:', data);
+            alert('⚠️ Firebase Rules: Validation mungkin tidak bekerja');
+        })
+        .catch(error => {
+            console.log('✅ Rules correctly blocked invalid data:', error);
+            alert('✅ Firebase Rules: Validation BEKERJA\nData invalid diblokir');
+        });
+    }
+
+    // Run tests when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Running Firebase Rules Tests...');
+        setTimeout(testFirebaseRules, 2000);
+    });
+    </script>
+
     <!-- Google Maps Tile Layer Script -->
     <script>
     // Google Maps layer configuration
@@ -491,6 +633,13 @@
                             <button class="btn btn-sm btn-outline-danger" onclick="forceCleanup()" title="Force Cleanup Data Lengket">
                                 <i>🧹</i> Force Cleanup
                             </button>
+                            <!-- Tambahan tombol untuk testing Firebase Rules -->
+                            <button class="btn btn-sm btn-outline-info" onclick="testFirebaseRules()" title="Test Firebase Rules">
+                                <i>🧪</i> Test Rules
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="testInvalidData()" title="Test Invalid Data">
+                                <i>⚠️</i> Test Invalid
+                            </button>
                         </div>
                     </div>
                     <div class="card-body p-0 position-relative">
@@ -733,6 +882,75 @@
                 sidebar.classList.toggle('show');
                 body.classList.toggle('sidebar-open');
             }
+        }
+
+        // ✅ Firebase Rules Test Functions - Available globally
+        function testFirebaseRules() {
+            console.log('🔍 Testing Firebase Rules Compliance...');
+            
+            const testData = {
+                driver: "Test Driver",
+                unit: "DT-TEST",
+                lat: -0.396056,
+                lng: 102.958944,
+                speed: 0,
+                distance: 0,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Test write operation dengan data yang sesuai rules
+            fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-TEST.json', {
+                method: 'PUT',
+                body: JSON.stringify(testData),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Rules Test - Write Successful:', data);
+                alert('✅ Firebase Rules: WRITE BERHASIL\nData sesuai dengan rules validation');
+                
+                // Test read operation
+                return fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-TEST.json');
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Rules Test - Read Successful:', data);
+                alert('✅ Firebase Rules: READ BERHASIL\nData bisa dibaca dengan baik');
+            })
+            .catch(error => {
+                console.error('❌ Rules Test Failed:', error);
+                alert('❌ Firebase Rules Test GAGAL: ' + error.message);
+            });
+        }
+
+        // Test dengan data yang tidak sesuai rules
+        function testInvalidData() {
+            console.log('🔍 Testing with INVALID data...');
+            
+            const invalidData = {
+                // Missing required fields: driver, unit, lat, lng
+                speed: 0,
+                distance: 0
+            };
+            
+            fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-INVALID.json', {
+                method: 'PUT',
+                body: JSON.stringify(invalidData),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('❌ Rules should have blocked this:', data);
+                alert('⚠️ Firebase Rules: Validation mungkin tidak bekerja');
+            })
+            .catch(error => {
+                console.log('✅ Rules correctly blocked invalid data:', error);
+                alert('✅ Firebase Rules: Validation BEKERJA\nData invalid diblokir');
+            });
         }
 
         // ✅ ENHANCED CLICK OUTSIDE HANDLER FOR CHAT
