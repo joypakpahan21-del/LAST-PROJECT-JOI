@@ -23,6 +23,71 @@
     <!-- External CSS -->
     <link href="style-monitor.css" rel="stylesheet">
     
+    <!-- Firebase Configuration & Test -->
+    <script>
+    // Test Firebase Connection Immediately
+    function testFirebaseConnectionImmediate() {
+        console.log('🚀 Testing Firebase connection immediately...');
+        
+        // Initialize Firebase first
+        firebase.initializeApp({
+            apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
+            authDomain: "joi-gps-tracker.firebaseapp.com",
+            databaseURL: "https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "joi-gps-tracker",
+            storageBucket: "joi-gps-tracker.firebasestorage.app",
+            messagingSenderId: "216572191895",
+            appId: "1:216572191895:web:a4fef1794daf200a2775d2"
+        });
+
+        const database = firebase.database();
+        
+        // Test connection
+        database.ref('.info/connected').once('value')
+            .then((snapshot) => {
+                const connected = snapshot.val();
+                console.log('📡 Immediate Firebase Test:', connected);
+                
+                if (connected) {
+                    // Test read data
+                    return database.ref('/units').once('value');
+                } else {
+                    throw new Error('Firebase not connected');
+                }
+            })
+            .then((unitsSnapshot) => {
+                const unitsData = unitsSnapshot.val();
+                const unitCount = unitsData ? Object.keys(unitsData).length : 0;
+                
+                console.log(`✅ Firebase CONNECTED - ${unitCount} units available`);
+                alert(`Firebase Connection: SUCCESS ✅\nUnits Found: ${unitCount}`);
+                
+                // Update UI
+                const statusElement = document.getElementById('firebaseStatus');
+                if (statusElement) {
+                    statusElement.innerHTML = '🟢 FIREBASE TERHUBUNG';
+                    statusElement.className = 'text-success';
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Immediate Firebase test failed:', error);
+                alert('Firebase Connection: FAILED ❌\n' + error.message);
+                
+                const statusElement = document.getElementById('firebaseStatus');
+                if (statusElement) {
+                    statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                    statusElement.className = 'text-danger';
+                }
+            });
+    }
+
+    // Run test immediately when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Page loaded, testing Firebase...');
+        testFirebaseConnectionImmediate();
+    });
+    </script>
+
     <!-- Google Maps Tile Layer Script -->
     <script>
     // Google Maps layer configuration
