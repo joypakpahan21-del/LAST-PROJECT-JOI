@@ -348,14 +348,14 @@
     }
 }
 
-/* ✅ CHAT INPUT ENHANCEMENTS */
-.chat-input-group {
+/* ✅ CHAT INPUT ENHANCEMENTS - FIXED SELECTOR */
+.input-group {
     display: flex;
     gap: 8px;
     width: 100%;
 }
 
-.chat-input-group input {
+.input-group input {
     flex: 1;
     border: 1px solid #ced4da;
     border-radius: 20px;
@@ -365,13 +365,13 @@
     transition: all 0.2s ease;
 }
 
-.chat-input-group input:focus {
+.input-group input:focus {
     border-color: var(--secondary-green);
     box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
     outline: none;
 }
 
-.chat-input-group button {
+.input-group button {
     border-radius: 20px;
     padding: 8px 16px;
     background: linear-gradient(135deg, var(--secondary-green), #20c997);
@@ -382,12 +382,12 @@
     white-space: nowrap;
 }
 
-.chat-input-group button:hover:not(:disabled) {
+.input-group button:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
-.chat-input-group button:disabled {
+.input-group button:disabled {
     background: #6c757d;
     cursor: not-allowed;
     transform: none;
@@ -460,12 +460,12 @@
         max-width: 90%;
     }
     
-    .chat-input-group {
+    .input-group {
         flex-direction: column;
         gap: 10px;
     }
     
-    .chat-input-group button {
+    .input-group button {
         width: 100%;
     }
 }
@@ -584,7 +584,7 @@
 }
 
 /* ✅ ENHANCED FOCUS STATES */
-.chat-input-group input:focus {
+.input-group input:focus {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(25, 135, 84, 0.2);
 }
@@ -764,7 +764,7 @@
 }
 
 /* ✅ ACCESSIBILITY ENHANCEMENTS */
-.chat-input-group input:focus-visible {
+.input-group input:focus-visible {
     outline: 2px solid var(--secondary-green);
     outline-offset: 2px;
 }
