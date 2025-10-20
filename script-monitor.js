@@ -51,6 +51,7 @@ class EnhancedSAGMGpsTracking {
         this.avgSpeed = 0;
         this.totalFuelConsumption = 0;
         this.lastUpdate = new Date();
+        this.lastConnectedTime = null;
         
         // ✅ COMPLETE CHAT SYSTEM
         this.monitorChatRefs = new Map();
@@ -134,12 +135,9 @@ class EnhancedSAGMGpsTracking {
     // ===== IMPROVED FIREBASE CONNECTION =====
     connectToFirebase() {
         try {
-            console.log('🟡 Connecting to Firebase with improved setup...');
+            console.log('🟡 Connecting to Firebase...');
             
             this.cleanupFirebaseListeners();
-
-            // Test connection first
-            this.testFirebaseConnection();
 
             // Connection status listener
             const connectionListener = database.ref('.info/connected').on('value', (snapshot) => {
@@ -148,42 +146,44 @@ class EnhancedSAGMGpsTracking {
                 
                 if (connected) {
                     this.logData('Firebase connected successfully', 'success');
-                    setTimeout(() => {
-                        this.loadInitialData();
-                    }, 1000);
+                    console.log('✅ Firebase connected, setting up data listeners...');
                 } else {
                     this.logData('Firebase disconnected', 'warning');
                 }
             });
             this.firebaseListeners.set('connection', connectionListener);
 
-            // MAIN DATA LISTENER - IMPROVED ERROR HANDLING
+            // ✅ PASTIKAN PATH YANG DIAKSES SESUAI RULES
+            console.log('🎧 Setting up listener for /units path...');
             const unitsListener = database.ref('/units').on('value', 
                 (snapshot) => {
                     try {
+                        console.log('🎯 Firebase listener triggered!');
                         const data = snapshot.val();
-                        console.log('📡 Firebase data received:', data ? Object.keys(data).length + ' units' : 'no data');
+                        console.log('📦 Raw data from Firebase:', data);
                         
                         if (data && Object.keys(data).length > 0) {
+                            console.log(`🔄 Processing ${Object.keys(data).length} units`);
                             this.processRealTimeData(data);
                         } else {
-                            console.log('⚠️ No active units in Firebase');
+                            console.log('ℹ️ No active units in Firebase');
                             this.clearAllUnits();
+                            this.showMessage('Tidak ada units aktif. Pastikan driver sudah login di aplikasi mobile.');
                         }
                     } catch (processError) {
                         console.error('❌ Error processing data:', processError);
-                        this.logData('Data processing error', 'error');
+                        this.logData('Data processing error: ' + processError.message, 'error');
                     }
                 }, 
                 (error) => {
                     console.error('❌ Firebase listener error:', error);
-                    this.logData('Firebase listener error', 'error');
+                    this.logData('Firebase listener error: ' + error.message, 'error');
+                    this.showError('Firebase error: ' + error.message);
                     
-                    // Auto-retry connection
-                    setTimeout(() => {
-                        console.log('🔄 Retrying Firebase connection...');
-                        this.connectToFirebase();
-                    }, 5000);
+                    // Show specific error details
+                    if (error.code === 'PERMISSION_DENIED') {
+                        this.showError('❌ AKSES DITOLAK: Periksa Firebase Rules!\nPastikan ada akses read ke path /units');
+                    }
                 }
             );
             this.firebaseListeners.set('units', unitsListener);
@@ -192,8 +192,62 @@ class EnhancedSAGMGpsTracking {
             
         } catch (error) {
             console.error('🔥 Critical Firebase error:', error);
-            setTimeout(() => this.connectToFirebase(), 5000);
+            this.showError('Firebase initialization failed: ' + error.message);
         }
+    }
+
+    // ===== TEST FIREBASE CONNECTION =====
+    testFirebaseConnection() {
+        console.log('🔍 Testing Firebase connection and permissions...');
+        
+        this.showLoadingIndicator(true);
+        
+        // Test basic connection first
+        database.ref('.info/connected').once('value')
+            .then((snapshot) => {
+                const connected = snapshot.val();
+                console.log('📡 Firebase Connection Test:', connected);
+                
+                if (connected) {
+                    // Test read access to /units
+                    return database.ref('/units').once('value');
+                } else {
+                    throw new Error('Firebase not connected');
+                }
+            })
+            .then((unitsSnapshot) => {
+                const unitsData = unitsSnapshot.val();
+                const unitCount = unitsData ? Object.keys(unitsData).length : 0;
+                
+                console.log('✅ Firebase Read Access Test: SUCCESS');
+                console.log(`📊 Units available: ${unitCount}`);
+                
+                this.showNotification(`Firebase Connection: CONNECTED ✅\nUnits Available: ${unitCount}`, 'success');
+                this.logData(`Firebase test: CONNECTED, ${unitCount} units`, 'success');
+                
+                if (unitCount > 0) {
+                    this.loadInitialData();
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Firebase connection test failed:', error);
+                
+                if (error.code === 'PERMISSION_DENIED') {
+                    this.showNotification(
+                        '❌ FIREBASE PERMISSION DENIED\n' +
+                        'Periksa Firebase Rules:\n' +
+                        'Pastikan rules mengizinkan read di path /units', 
+                        'error'
+                    );
+                    this.logData('Firebase permission denied - check rules', 'error');
+                } else {
+                    this.showNotification('Firebase Connection Test: FAILED ❌\n' + error.message, 'error');
+                    this.logData('Firebase connection test failed: ' + error.message, 'error');
+                }
+            })
+            .finally(() => {
+                this.showLoadingIndicator(false);
+            });
     }
 
     // ===== IMPROVED DATA PROCESSING =====
@@ -239,6 +293,7 @@ class EnhancedSAGMGpsTracking {
                 }
             } else {
                 console.log(`❌ Data ${unitName} tidak sesuai rules Firebase`);
+                this.logData(`Data ${unitName} ditolak - tidak sesuai rules`, 'warning');
             }
         });
 
@@ -270,6 +325,12 @@ class EnhancedSAGMGpsTracking {
         
         if (isNaN(lat) || isNaN(lng)) {
             console.log(`❌ Invalid coordinates for ${unitName}`);
+            return false;
+        }
+        
+        // Validate coordinate ranges
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            console.log(`❌ Coordinate out of range for ${unitName}`);
             return false;
         }
         
@@ -361,6 +422,148 @@ class EnhancedSAGMGpsTracking {
         unit.lastFuelUpdate = now;
 
         this.addHistoryPoint(unit);
+    }
+
+    // ===== IMPROVED ERROR HANDLING =====
+    showError(message) {
+        console.error('🚨 ERROR:', message);
+        
+        // Create error notification
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 400px;
+            max-width: 500px;
+        `;
+        errorDiv.innerHTML = `
+            <strong>🚨 Error:</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(errorDiv);
+        
+        // Auto remove after 10 seconds
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.remove();
+            }
+        }, 10000);
+    }
+
+    showMessage(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'alert alert-info alert-dismissible fade show';
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            min-width: 400px;
+            text-align: center;
+        `;
+        messageDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(messageDiv);
+        
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 5000);
+    }
+
+    // ===== IMPROVED LOAD INITIAL DATA =====
+    async loadInitialData() {
+        this.showLoadingIndicator(true);
+        
+        try {
+            console.log('📥 Loading initial data from Firebase...');
+            const snapshot = await database.ref('/units').once('value');
+            const firebaseData = snapshot.val();
+            
+            this.clearAllData();
+            
+            if (firebaseData && Object.keys(firebaseData).length > 0) {
+                let loadedCount = 0;
+                let rejectedCount = 0;
+                
+                Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+                    if (this.validateUnitDataWithRules(unitName, unitData)) {
+                        const unit = this.createNewUnit(unitName, unitData);
+                        if (unit) {
+                            this.units.set(unitName, unit);
+                            this.lastDataTimestamps.set(unitName, Date.now());
+                            loadedCount++;
+                            
+                            if (!this.monitorChatRefs.has(unitName)) {
+                                this.setupUnitChatListener(unitName);
+                            }
+                        }
+                    } else {
+                        rejectedCount++;
+                        console.log(`❌ Rejected invalid data for ${unitName}`);
+                    }
+                });
+                
+                this.logData('Initial data loaded successfully', 'success', {
+                    units: loadedCount,
+                    rejected: rejectedCount,
+                    total: Object.keys(firebaseData).length
+                });
+                
+                this.scheduleRender();
+                this.updateUnitCountDisplay();
+                
+                if (rejectedCount > 0) {
+                    this.showMessage(`${rejectedCount} units ditolak karena data tidak valid`);
+                }
+                
+            } else {
+                this.logData('No initial data found in Firebase', 'warning');
+                this.showMessage('Tidak ada data units di Firebase. Pastikan driver sudah login.');
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to load initial data:', error);
+            this.logData('Failed to load initial data: ' + error.message, 'error');
+            this.showError('Gagal memuat data: ' + error.message);
+        } finally {
+            this.showLoadingIndicator(false);
+        }
+    }
+
+    // ===== IMPROVED CONNECTION STATUS =====
+    updateConnectionStatus(connected) {
+        const statusElement = document.getElementById('firebaseStatus');
+        if (statusElement) {
+            if (connected) {
+                statusElement.innerHTML = '🟢 FIREBASE TERHUBUNG';
+                statusElement.className = 'text-success fw-bold';
+                
+                // Update last connection time
+                this.lastConnectedTime = new Date();
+                this.updateElement('lastUpdate', this.lastConnectedTime.toLocaleTimeString('id-ID'));
+                
+            } else {
+                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                statusElement.className = 'text-danger fw-bold';
+            }
+        }
+        
+        // Also update connection indicator in header
+        const connectionIndicator = document.getElementById('connectionIndicator');
+        if (connectionIndicator) {
+            connectionIndicator.className = connected ? 'connection-online' : 'connection-offline';
+            connectionIndicator.title = connected ? 'Terhubung ke Firebase' : 'Terputus dari Firebase';
+        }
     }
 
     // ===== COMPLETE STATISTICS SYSTEM =====
@@ -832,8 +1035,6 @@ class EnhancedSAGMGpsTracking {
         console.log(`💬 New message from ${unitName}:`, message);
     }
 
-    // ... (Lanjutkan dengan semua method chat system yang ada sebelumnya)
-
     // ===== COMPLETE DATA LOGGER =====
     setupDataLogger() {
         this.loadLogs();
@@ -935,92 +1136,6 @@ class EnhancedSAGMGpsTracking {
         `;
 
         container.innerHTML = html;
-    }
-
-    // ===== IMPROVED FIREBASE TEST =====
-    testFirebaseConnection() {
-        console.log('🔍 Testing Firebase connection...');
-        
-        this.showLoadingIndicator(true);
-        
-        database.ref('.info/connected').once('value')
-            .then((snapshot) => {
-                const connected = snapshot.val();
-                console.log('📡 Firebase Connected:', connected);
-                
-                if (connected) {
-                    return database.ref('/units').once('value');
-                } else {
-                    throw new Error('Firebase not connected');
-                }
-            })
-            .then((unitsSnapshot) => {
-                const unitsData = unitsSnapshot.val();
-                const unitCount = unitsData ? Object.keys(unitsData).length : 0;
-                
-                this.showNotification(`Firebase Connection: CONNECTED ✅\nUnits Available: ${unitCount}`, 'success');
-                this.logData(`Firebase test: CONNECTED, ${unitCount} units`, 'success');
-                
-                if (unitCount > 0) {
-                    this.loadInitialData();
-                }
-            })
-            .catch((error) => {
-                console.error('❌ Firebase connection test failed:', error);
-                this.showNotification('Firebase Connection Test: FAILED ❌\n' + error.message, 'error');
-                this.logData('Firebase connection test failed', 'error');
-            })
-            .finally(() => {
-                this.showLoadingIndicator(false);
-            });
-    }
-
-    async loadInitialData() {
-        this.showLoadingIndicator(true);
-        
-        try {
-            console.log('📥 Loading initial data from Firebase...');
-            const snapshot = await database.ref('/units').once('value');
-            const firebaseData = snapshot.val();
-            
-            this.clearAllData();
-            
-            if (firebaseData && Object.keys(firebaseData).length > 0) {
-                let loadedCount = 0;
-                
-                Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-                    if (this.validateUnitDataWithRules(unitName, unitData)) {
-                        const unit = this.createNewUnit(unitName, unitData);
-                        if (unit) {
-                            this.units.set(unitName, unit);
-                            this.lastDataTimestamps.set(unitName, Date.now());
-                            loadedCount++;
-                            
-                            if (!this.monitorChatRefs.has(unitName)) {
-                                this.setupUnitChatListener(unitName);
-                            }
-                        }
-                    }
-                });
-                
-                this.logData('Initial data loaded successfully', 'success', {
-                    units: loadedCount,
-                    total: Object.keys(firebaseData).length
-                });
-                
-                this.scheduleRender();
-                this.updateUnitCountDisplay();
-                
-            } else {
-                this.logData('No initial data found in Firebase', 'warning');
-            }
-            
-        } catch (error) {
-            console.error('❌ Failed to load initial data:', error);
-            this.logData('Failed to load initial data', 'error');
-        } finally {
-            this.showLoadingIndicator(false);
-        }
     }
 
     // ===== UTILITY METHODS =====
@@ -1231,19 +1346,6 @@ class EnhancedSAGMGpsTracking {
         setInterval(() => {
             this.updateElement('currentTime', new Date().toLocaleTimeString('id-ID'));
         }, 1000);
-    }
-
-    updateConnectionStatus(connected) {
-        const statusElement = document.getElementById('firebaseStatus');
-        if (statusElement) {
-            if (connected) {
-                statusElement.innerHTML = '🟢 FIREBASE TERHUBUNG';
-                statusElement.className = 'text-success';
-            } else {
-                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'text-danger';
-            }
-        }
     }
 
     applyFilters() {
