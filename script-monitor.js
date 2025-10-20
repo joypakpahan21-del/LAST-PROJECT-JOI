@@ -11,12 +11,15 @@ const FIREBASE_CONFIG = {
 
 // Initialize Firebase
 console.log('🚀 Initializing Fixed GPS Tracking System...');
-try {
+
+// ✅ FIXED: Firebase Initialization yang benar
+if (!firebase.apps.length) {
     firebase.initializeApp(FIREBASE_CONFIG);
     console.log('✅ Firebase initialized successfully');
-} catch (error) {
+} else {
     console.log('ℹ️ Firebase already initialized');
 }
+
 const database = firebase.database();
 
 class FixedGPSMonitor {
@@ -50,26 +53,27 @@ class FixedGPSMonitor {
         this.initializeSystem();
     }
 
+    // ✅ PERBAIKAN: Initialization Sequence yang benar
     async initializeSystem() {
         try {
             console.log('🔧 Initializing Fixed GPS Monitor System...');
             
-            // Initialize UI elements cache
+            // 1. Cache UI elements dulu
             this.cacheUIElements();
             
-            // Setup map first
+            // 2. Setup map SEBELUM yang lain
             await this.setupMap();
             
-            // Setup UI event handlers
+            // 3. Setup UI handlers
             this.setupUIEventHandlers();
             
-            // Test Firebase connection
+            // 4. Test Firebase connection
             await this.testFirebaseConnection();
             
-            // Setup Firebase listeners
+            // 5. Setup Firebase listeners
             this.setupFirebaseListeners();
             
-            // Start periodic tasks
+            // 6. Start periodic tasks
             this.startPeriodicTasks();
             
             console.log('✅ Fixed GPS Monitor System initialized successfully');
@@ -97,195 +101,248 @@ class FixedGPSMonitor {
         };
     }
 
-    // ===== ENHANCED MAP SETUP WITH FIXES =====
+    // ✅ PERBAIKAN: Setup Map yang lebih robust dengan error handling
     async setupMap() {
         try {
-            console.log('🗺️ Setting up Map with Fixes...');
+            console.log('🗺️ Setting up Map...');
             
-            // Pastikan element map ada dan visible
+            // TUNGGU sampai DOM benar-benar ready
+            await this.waitForElement('#map');
+            
             const mapElement = document.getElementById('map');
             if (!mapElement) {
-                console.error('❌ Map element not found');
+                console.error('❌ Map element not found after waiting');
                 return;
             }
 
-            // Set height map secara eksplisit
-            mapElement.style.height = '500px';
-            mapElement.style.width = '100%';
+            // FORCE styling dan pastikan visible
+            mapElement.style.cssText = `
+                height: 500px !important;
+                width: 100% !important;
+                min-height: 400px;
+                border-radius: 8px;
+                background: #f8f9fa;
+                position: relative;
+            `;
 
-            this.config = {
-                center: [-0.396056, 102.958944], // Center Kebun Tempuling
-                zoom: 13
-            };
+            // Pastikan parent container juga punya height
+            const mapContainer = mapElement.closest('.card-body');
+            if (mapContainer) {
+                mapContainer.style.minHeight = '500px';
+            }
 
-            // Initialize map
-            this.map = L.map('map').setView(this.config.center, this.config.zoom);
+            console.log('📍 Map element ready, initializing Leaflet...');
 
-            // Google Satellite dengan fallback
-            const googleSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                maxZoom: 20,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-                attribution: '© Google Satellite'
+            // Initialize map dengan error handling
+            this.map = L.map('map', {
+                center: [-0.396056, 102.958944],
+                zoom: 13,
+                zoomControl: true,
+                attributionControl: true
             });
 
+            // Add base layer dengan fallback
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
             });
 
-            // Coba Google Satellite dulu, fallback ke OSM jika gagal
-            googleSatellite.addTo(this.map);
+            osmLayer.addTo(this.map);
             
-            // Test if tiles load
-            googleSatellite.on('load', () => {
-                console.log('✅ Google Satellite tiles loaded successfully');
-            });
-            
-            googleSatellite.on('tileerror', (error) => {
-                console.warn('❌ Google Satellite failed, falling back to OSM');
-                this.map.removeLayer(googleSatellite);
-                osmLayer.addTo(this.map);
+            // Test Google Satellite sebagai alternatif
+            try {
+                const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['mt0','mt1','mt2','mt3'],
+                    attribution: '© Google'
+                });
+                
+                // Add layer control
+                const baseMaps = {
+                    "OpenStreetMap": osmLayer,
+                    "Google Satellite": googleSat
+                };
+                
+                L.control.layers(baseMaps).addTo(this.map);
+                
+            } catch (googleError) {
+                console.log('⚠️ Google Satellite failed, using OSM only');
+            }
+
+            // Force map refresh
+            this.map.whenReady(() => {
+                console.log('✅ Map initialized successfully');
+                setTimeout(() => {
+                    this.map.invalidateSize(true); // ❗FORCE REFRESH
+                    console.log('🔄 Map size invalidated');
+                }, 100);
             });
 
-            // Add layer control
-            const baseMaps = {
-                "Google Satellite": googleSatellite,
-                "OpenStreetMap": osmLayer
-            };
-            
-            L.control.layers(baseMaps).addTo(this.map);
+            // Add scale control
             L.control.scale({ imperial: false }).addTo(this.map);
-
+            
             // Add accuracy legend
             this.addAccuracyLegend();
             
             // Add important locations
             this.addImportantLocations();
             
-            console.log('✅ Map setup completed');
-            
-            // Force map refresh setelah load
-            this.map.whenReady(() => {
-                console.log('🗺️ Map is ready');
-                setTimeout(() => {
-                    this.map.invalidateSize(); // Fix map rendering
-                }, 100);
-            });
-
-            this.addLocationMarkers();
+            console.log('🗺️ Map setup completed');
 
         } catch (error) {
             console.error('❌ Map setup failed:', error);
-            // Fallback ke OSM
-            try {
-                this.map = L.map('map').setView([-0.396056, 102.958944], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
-                console.log('✅ Fallback to OpenStreetMap successful');
-            } catch (fallbackError) {
-                console.error('❌ Fallback also failed:', fallbackError);
-            }
+            this.showError(`Gagal memuat peta: ${error.message}`);
+            
+            // Fallback: coba buat map sederhana
+            this.createFallbackMap();
         }
     }
 
-    addLocationMarkers() {
-        // Method untuk menambahkan marker unit yang sudah ada
-        this.units.forEach(unit => {
-            this.createUnitMarker(unit);
+    // Helper function untuk menunggu element
+    waitForElement(selector, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            const element = document.querySelector(selector);
+            if (element) {
+                resolve(element);
+                return;
+            }
+
+            const observer = new MutationObserver((mutations, obs) => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    obs.disconnect();
+                    resolve(element);
+                }
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            setTimeout(() => {
+                observer.disconnect();
+                reject(new Error(`Element ${selector} not found within ${timeout}ms`));
+            }, timeout);
         });
+    }
+
+    // Fallback map sederhana
+    createFallbackMap() {
+        try {
+            console.log('🔄 Creating fallback map...');
+            this.map = L.map('map').setView([-0.396056, 102.958944], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}/png').addTo(this.map);
+            console.log('✅ Fallback map created');
+        } catch (fallbackError) {
+            console.error('❌ Fallback map also failed:', fallbackError);
+        }
     }
 
     addAccuracyLegend() {
-        const accuracyLegend = L.control({ position: 'bottomright' });
-        
-        accuracyLegend.onAdd = (map) => {
-            const div = L.DomUtil.create('div', 'accuracy-legend');
-            div.innerHTML = `
-                <h6>🎯 GPS Accuracy</h6>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #28a745"></div>
-                    <span>±5m (Excellent)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #17a2b8"></div>
-                    <span>±15m (Good)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #ffc107"></div>
-                    <span>±30m (Fair)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #dc3545"></div>
-                    <span>±50m (Poor)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #343a40"></div>
-                    <span>>50m (Very Poor)</span>
-                </div>
-            `;
-            return div;
-        };
-        
-        accuracyLegend.addTo(this.map);
+        try {
+            const accuracyLegend = L.control({ position: 'bottomright' });
+            
+            accuracyLegend.onAdd = (map) => {
+                const div = L.DomUtil.create('div', 'accuracy-legend');
+                div.innerHTML = `
+                    <h6>🎯 GPS Accuracy</h6>
+                    <div class="accuracy-legend-item">
+                        <div class="accuracy-color" style="background-color: #28a745"></div>
+                        <span>±5m (Excellent)</span>
+                    </div>
+                    <div class="accuracy-legend-item">
+                        <div class="accuracy-color" style="background-color: #17a2b8"></div>
+                        <span>±15m (Good)</span>
+                    </div>
+                    <div class="accuracy-legend-item">
+                        <div class="accuracy-color" style="background-color: #ffc107"></div>
+                        <span>±30m (Fair)</span>
+                    </div>
+                    <div class="accuracy-legend-item">
+                        <div class="accuracy-color" style="background-color: #dc3545"></div>
+                        <span>±50m (Poor)</span>
+                    </div>
+                    <div class="accuracy-legend-item">
+                        <div class="accuracy-color" style="background-color: #343a40"></div>
+                        <span>>50m (Very Poor)</span>
+                    </div>
+                `;
+                return div;
+            };
+            
+            accuracyLegend.addTo(this.map);
+        } catch (error) {
+            console.log('⚠️ Accuracy legend failed:', error);
+        }
     }
 
     addImportantLocations() {
-        const importantLocations = {
-            PKS_SAGM: { 
-                lat: -0.43452332690449164, 
-                lng: 102.96741072417917, 
-                name: "PKS SAGM",
-                type: "pks"
-            },
-            KANTOR_KEBUN: { 
-                lat: -0.3575865859028525, 
-                lng: 102.95047687287101, 
-                name: "Kantor Kebun PT SAGM",
-                type: "office"
-            }
-        };
+        try {
+            const importantLocations = {
+                PKS_SAGM: { 
+                    lat: -0.43452332690449164, 
+                    lng: 102.96741072417917, 
+                    name: "PKS SAGM",
+                    type: "pks"
+                },
+                KANTOR_KEBUN: { 
+                    lat: -0.3575865859028525, 
+                    lng: 102.95047687287101, 
+                    name: "Kantor Kebun PT SAGM",
+                    type: "office"
+                }
+            };
 
-        Object.values(importantLocations).forEach(location => {
-            const icon = L.divIcon({
-                className: 'important-marker',
-                html: `<div class="marker-icon ${location.type}" title="${location.name}">${location.type === 'pks' ? '🏭' : '🏢'}</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
+            Object.values(importantLocations).forEach(location => {
+                const icon = L.divIcon({
+                    className: 'important-marker',
+                    html: `<div class="marker-icon ${location.type}" title="${location.name}">${location.type === 'pks' ? '🏭' : '🏢'}</div>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+
+                L.marker([location.lat, location.lng], { icon: icon })
+                    .bindPopup(`
+                        <div class="location-popup">
+                            <strong>${location.name}</strong><br>
+                            Type: ${location.type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}<br>
+                            Status: Operational
+                        </div>
+                    `)
+                    .addTo(this.map);
             });
-
-            L.marker([location.lat, location.lng], { icon: icon })
-                .bindPopup(`
-                    <div class="location-popup">
-                        <strong>${location.name}</strong><br>
-                        Type: ${location.type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}<br>
-                        Status: Operational
-                    </div>
-                `)
-                .addTo(this.map);
-        });
+        } catch (error) {
+            console.log('⚠️ Important locations failed:', error);
+        }
     }
 
     setupUIEventHandlers() {
-        // Search functionality
-        const searchInput = document.getElementById('searchUnit');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
-        }
-
-        // Filter functionality
-        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
-        filters.forEach(filterId => {
-            const filter = document.getElementById(filterId);
-            if (filter) {
-                filter.addEventListener('change', () => this.applyFilters());
+        try {
+            // Search functionality
+            const searchInput = document.getElementById('searchUnit');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
             }
-        });
 
-        // Update clock every second
-        setInterval(() => {
-            this.updateElement('currentTime', new Date().toLocaleTimeString('id-ID'));
-        }, 1000);
+            // Filter functionality
+            const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
+            filters.forEach(filterId => {
+                const filter = document.getElementById(filterId);
+                if (filter) {
+                    filter.addEventListener('change', () => this.applyFilters());
+                }
+            });
 
-        console.log('✅ UI event handlers setup completed');
+            // Update clock every second
+            setInterval(() => {
+                this.updateElement('currentTime', new Date().toLocaleTimeString('id-ID'));
+            }, 1000);
+
+            console.log('✅ UI event handlers setup completed');
+        } catch (error) {
+            console.log('⚠️ UI event handlers setup failed:', error);
+        }
     }
 
     async testFirebaseConnection() {
@@ -347,7 +404,6 @@ class FixedGPSMonitor {
         this.cleanupFirebaseListeners();
 
         // ✅ FIXED: Enhanced listener dengan comprehensive error handling
-        // ❌ TIDAK ADA pembuatan data test otomatis di sini
         this.firebaseListener = database.ref('/units').on('value', 
             (snapshot) => {
                 console.log('🎯 Firebase data change detected!');
@@ -1145,6 +1201,25 @@ class FixedGPSMonitor {
         this.showMessage(`Fitur chat dengan ${unitName} akan segera tersedia`);
     }
 
+    // ✅ FIXED: Missing Chat Methods
+    toggleMonitorChat() {
+        this.showMessage('Fitur chat monitor akan segera tersedia');
+    }
+
+    handleMonitorChatInput(event) {
+        if (event.key === 'Enter') {
+            this.sendMonitorMessage();
+        }
+    }
+
+    sendMonitorMessage() {
+        this.showMessage('Fitur pengiriman pesan akan segera tersedia');
+    }
+
+    selectChatUnit(unitName) {
+        this.showMessage(`Memulai chat dengan ${unitName}`);
+    }
+
     // ===== ENHANCED PERIODIC TASKS =====
     startPeriodicTasks() {
         this.intervals.forEach(interval => clearInterval(interval));
@@ -1177,6 +1252,7 @@ class FixedGPSMonitor {
         const mapRefreshInterval = setInterval(() => {
             if (this.map) {
                 this.map.invalidateSize();
+                console.log('🗺️ Map refreshed');
             }
         }, 60 * 1000);
         this.intervals.add(mapRefreshInterval);
@@ -1299,7 +1375,7 @@ function forceCleanupAllData() {
     }
 }
 
-// Global Functions
+// ✅ FIXED: Global Functions yang benar
 function refreshData() {
     if (window.gpsMonitor) {
         window.gpsMonitor.refreshData();
@@ -1326,7 +1402,43 @@ function toggleSidebar() {
 }
 
 function toggleMonitorChat() {
-    alert('Fitur chat monitor akan segera tersedia');
+    if (window.gpsMonitor) {  // ✅ BENAR: gpsMonitor bukan gpsSystem
+        window.gpsMonitor.toggleMonitorChat();
+    }
+}
+
+function handleMonitorChatInput(event) {
+    if (window.gpsMonitor) {
+        window.gpsMonitor.handleMonitorChatInput(event);
+    }
+}
+
+function sendMonitorMessage() {
+    if (window.gpsMonitor) {
+        window.gpsMonitor.sendMonitorMessage();
+    }
+}
+
+function selectChatUnit(unitName) {
+    if (window.gpsMonitor) {
+        window.gpsMonitor.selectChatUnit(unitName);
+    }
+}
+
+// ===== DEBUGGING FUNCTIONS =====
+function debugMap() {
+    console.log('🔍 Debugging Map...');
+    console.log('Map element:', document.getElementById('map'));
+    console.log('L object:', typeof L);
+    console.log('GPS Monitor:', window.gpsMonitor);
+    
+    if (window.gpsMonitor && window.gpsMonitor.map) {
+        console.log('Map instance:', window.gpsMonitor.map);
+        window.gpsMonitor.map.invalidateSize(true);
+        console.log('✅ Map refreshed');
+    } else {
+        console.log('❌ Map not initialized');
+    }
 }
 
 // Auto cleanup saat page load
@@ -1359,9 +1471,13 @@ document.addEventListener('DOMContentLoaded', function() {
     window.exportData = exportData;
     window.toggleSidebar = toggleSidebar;
     window.toggleMonitorChat = toggleMonitorChat;
+    window.handleMonitorChatInput = handleMonitorChatInput;
+    window.sendMonitorMessage = sendMonitorMessage;
+    window.selectChatUnit = selectChatUnit;
     window.cleanupStickyData = cleanupStickyData;
     window.cleanupSpecificUnitPrompt = cleanupSpecificUnitPrompt;
     window.forceCleanupAllData = forceCleanupAllData;
+    window.debugMap = debugMap; // ✅ Debug function
 });
 
 window.addEventListener('beforeunload', function() {
