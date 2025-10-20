@@ -1,16 +1,35 @@
-/* ✅ FIXED MAP CONTAINER STYLES */
+/* ✅ FIXED MAP CONTAINER STYLES - ENSURE VISIBILITY */
 #map {
     height: 500px !important;
     width: 100% !important;
     min-height: 400px;
     border-radius: 8px;
     z-index: 1;
+    background: #f8f9fa; /* Background saat loading */
 }
 
-/* Force Leaflet container sizing */
+/* Pastikan parent container punya height */
+.card-body.p-0 {
+    min-height: 500px;
+    position: relative;
+}
+
+/* Leaflet container styling */
 .leaflet-container {
     height: 100% !important;
     width: 100% !important;
+    font-family: inherit;
+}
+
+/* Loading state untuk map */
+#map:empty::before {
+    content: "Loading map...";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #6c757d;
+    font-style: italic;
 }
 
 /* Cleanup Controls */
@@ -424,7 +443,7 @@
     }
     to {
         opacity: 0;
-        transform: translateY(20px) scale(0.95);
+        transform: translateY(20px) scale(1);
     }
 }
 
@@ -467,6 +486,16 @@
     
     .input-group button {
         width: 100%;
+    }
+
+    /* Mobile map adjustments */
+    #map {
+        height: 400px !important;
+        min-height: 300px;
+    }
+
+    .card-body.p-0 {
+        min-height: 400px;
     }
 }
 
@@ -520,7 +549,7 @@
     }
     to {
         opacity: 0;
-        transform: translateY(20px) scale(0.95);
+        transform: translateY(20px) scale(1);
     }
 }
 
