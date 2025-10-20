@@ -210,7 +210,8 @@ class EnhancedSAGMGpsTracking {
         const currentTime = Date.now();
         
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            if (this.validateUnitData(unitName, unitData)) {
+            // ✅ VALIDASI SESUAI RULES: harus ada lat, lng, driver, unit
+            if (this.validateUnitDataWithRules(unitName, unitData)) {
                 activeUnits.add(unitName);
                 this.lastDataTimestamps.set(unitName, currentTime);
                 this.driverOnlineStatus.set(unitName, true);
@@ -236,6 +237,8 @@ class EnhancedSAGMGpsTracking {
                         this.logData(`Unit baru terdeteksi: ${unitName}`, 'success');
                     }
                 }
+            } else {
+                console.log(`❌ Data ${unitName} tidak sesuai rules Firebase`);
             }
         });
 
@@ -245,48 +248,61 @@ class EnhancedSAGMGpsTracking {
         this.updateUnitCountDisplay();
     }
 
-    // ===== COMPLETE UNIT DATA MANAGEMENT =====
-    validateUnitData(unitName, unitData) {
+    // ===== VALIDATION SESUAI FIREBASE RULES =====
+    validateUnitDataWithRules(unitName, unitData) {
         if (!unitData) {
             console.log(`❌ Invalid data for ${unitName}: null data`);
             return false;
         }
         
-        // More lenient validation for testing
-        if (unitData.lat === undefined || unitData.lng === undefined) {
-            console.log(`⚠️ Missing coordinates for ${unitName}, but continuing...`);
-            return true; // Still process for testing
+        // ✅ CHECK REQUIRED FIELDS SESUAI RULES FIREBASE
+        const requiredFields = ['lat', 'lng', 'driver', 'unit'];
+        const missingFields = requiredFields.filter(field => !unitData.hasOwnProperty(field));
+        
+        if (missingFields.length > 0) {
+            console.log(`❌ Missing required fields for ${unitName}:`, missingFields);
+            return false;
         }
         
+        // Validate coordinate types
         const lat = parseFloat(unitData.lat);
         const lng = parseFloat(unitData.lng);
         
         if (isNaN(lat) || isNaN(lng)) {
-            console.log(`⚠️ Invalid coordinates for ${unitName}, but continuing...`);
-            return true; // Still process for testing
+            console.log(`❌ Invalid coordinates for ${unitName}`);
+            return false;
+        }
+        
+        // Validate field types
+        if (typeof unitData.driver !== 'string' || typeof unitData.unit !== 'string') {
+            console.log(`❌ Invalid field types for ${unitName}`);
+            return false;
         }
         
         return true;
     }
 
+    // ===== CREATE UNIT SESUAI STRUCTURE =====
     createNewUnit(unitName, firebaseData) {
+        // ✅ PASTIKAN DATA SESUAI DENGAN RULES
         return {
             id: this.getUnitId(unitName),
             name: unitName,
             afdeling: this.determineAfdeling(unitName),
             status: this.determineStatus(firebaseData.journeyStatus),
-            latitude: parseFloat(firebaseData.lat) || -0.396056,
-            longitude: parseFloat(firebaseData.lng) || 102.958944,
+            latitude: parseFloat(firebaseData.lat),      // ✅ dari rules
+            longitude: parseFloat(firebaseData.lng),     // ✅ dari rules
             speed: parseFloat(firebaseData.speed) || 0,
             lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
             distance: parseFloat(firebaseData.distance) || 0,
             fuelLevel: this.computeFuelLevel(100, firebaseData.distance, firebaseData.journeyStatus),
             fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
-            driver: firebaseData.driver || 'Unknown Driver',
+            driver: firebaseData.driver,                 // ✅ dari rules
+            unit: firebaseData.unit,                     // ✅ dari rules
             accuracy: parseFloat(firebaseData.accuracy) || 0,
             batteryLevel: firebaseData.batteryLevel || null,
-            lastLat: parseFloat(firebaseData.lat) || -0.396056,
-            lastLng: parseFloat(firebaseData.lng) || 102.958944,
+            lastLat: parseFloat(firebaseData.lat),       // ✅ dari rules
+            lastLng: parseFloat(firebaseData.lng),       // ✅ dari rules
             isOnline: true,
             sessionId: firebaseData.sessionId,
             lastFuelUpdate: Date.now()
@@ -973,7 +989,7 @@ class EnhancedSAGMGpsTracking {
                 let loadedCount = 0;
                 
                 Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-                    if (this.validateUnitData(unitName, unitData)) {
+                    if (this.validateUnitDataWithRules(unitName, unitData)) {
                         const unit = this.createNewUnit(unitName, unitData);
                         if (unit) {
                             this.units.set(unitName, unit);
