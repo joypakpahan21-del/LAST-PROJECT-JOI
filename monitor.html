@@ -23,6 +23,8 @@
     <!-- External CSS -->
     <link href="style-monitor.css" rel="stylesheet">
     
+    <!-- ========== FIREBASE TESTING & DEBUG SCRIPTS ========== -->
+    
     <!-- Firebase Configuration & Test -->
     <script>
     // Test Firebase Connection Immediately
@@ -227,6 +229,532 @@
     document.addEventListener('DOMContentLoaded', function() {
         console.log('🚀 Running Firebase Rules Tests...');
         setTimeout(testFirebaseRules, 2000);
+    });
+    </script>
+
+    <!-- Firebase Debug Access -->
+    <script>
+    // Debug Firebase Access
+    async function debugFirebaseAccess() {
+        console.log('🔍 Debugging Firebase Access...');
+        
+        try {
+            // Test 1: Akses root
+            console.log('1. Testing root access...');
+            const rootRef = firebase.database().ref('/');
+            const rootSnapshot = await rootRef.once('value');
+            console.log('✅ Root access:', rootSnapshot.exists());
+            
+            // Test 2: Akses /units
+            console.log('2. Testing /units access...');
+            const unitsRef = firebase.database().ref('/units');
+            const unitsSnapshot = await unitsRef.once('value');
+            console.log('✅ /units access:', unitsSnapshot.exists());
+            console.log('📦 /units data:', unitsSnapshot.val());
+            
+            // Test 3: Akses specific unit
+            console.log('3. Testing specific unit access...');
+            const testUnitRef = firebase.database().ref('/units/DT-06');
+            const testUnitSnapshot = await testUnitRef.once('value');
+            console.log('✅ Specific unit access:', testUnitSnapshot.exists());
+            console.log('📦 Specific unit data:', testUnitSnapshot.val());
+            
+            // Show results
+            if (unitsSnapshot.exists()) {
+                const unitsData = unitsSnapshot.val();
+                const unitCount = Object.keys(unitsData).length;
+                alert(`✅ FIREBASE ACCESS BERHASIL\nDitemukan ${unitCount} units:\n${Object.keys(unitsData).join(', ')}`);
+            } else {
+                alert('❌ TIDAK ADA DATA di /units\nTapi koneksi Firebase berhasil');
+            }
+            
+        } catch (error) {
+            console.error('❌ Firebase access error:', error);
+            alert('❌ FIREBASE ACCESS DITOLAK:\n' + error.message + '\n\nPeriksa Firebase Rules!');
+        }
+    }
+
+    // Test listener
+    function testFirebaseListener() {
+        console.log('🎧 Testing Firebase listener...');
+        
+        const unitsRef = firebase.database().ref('/units');
+        
+        unitsRef.on('value', 
+            (snapshot) => {
+                console.log('🎯 Listener triggered!');
+                console.log('📦 Data received:', snapshot.val());
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    console.log(`✅ Listener working: ${Object.keys(data).length} units`);
+                    alert(`🎉 LISTENER BEKERJA!\nReal-time data received: ${Object.keys(data).length} units`);
+                } else {
+                    console.log('ℹ️ Listener working but no data');
+                    alert('🎉 LISTENER BEKERJA!\nTapi belum ada data units');
+                }
+            },
+            (error) => {
+                console.error('❌ Listener error:', error);
+                alert('❌ LISTENER ERROR:\n' + error.message);
+            }
+        );
+        
+        // Stop listener after 10 seconds
+        setTimeout(() => {
+            unitsRef.off();
+            console.log('⏹️ Test listener stopped');
+        }, 10000);
+    }
+
+    // Run debug when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Starting Firebase Debug...');
+        
+        // Wait for Firebase to initialize
+        setTimeout(() => {
+            debugFirebaseAccess();
+            
+            // Test listener after 3 seconds
+            setTimeout(testFirebaseListener, 3000);
+        }, 2000);
+    });
+    </script>
+
+    <!-- COMPREHENSIVE DEBUG SCRIPT -->
+    <script>
+    // Enhanced Debug Script - Cover Data Lengket & Real-time Issues
+    class FirebaseDebugger {
+        constructor() {
+            this.cleanupCallbacks = [];
+            this.testData = {
+                driver: "DEBUG DRIVER",
+                unit: "DT-DEBUG",
+                lat: -0.396056,
+                lng: 102.958944,
+                speed: 45.5,
+                distance: 12.3,
+                timestamp: new Date().toISOString(),
+                lastUpdate: new Date().toLocaleTimeString('id-ID')
+            };
+        }
+
+        async comprehensiveTest() {
+            console.log('🔍 COMPREHENSIVE FIREBASE DEBUG STARTED...');
+            
+            try {
+                // 1. Test Firebase Connection & Rules
+                await this.testConnectionAndRules();
+                
+                // 2. Test Data Flow
+                await this.testDataFlow();
+                
+                // 3. Test Real-time Listener
+                await this.testRealTimeListener();
+                
+                // 4. Test Data Cleanup
+                await this.testDataCleanup();
+                
+                // 5. Show Summary
+                this.showSummary();
+                
+            } catch (error) {
+                console.error('❌ Comprehensive test failed:', error);
+                this.showError('Debug failed: ' + error.message);
+            }
+        }
+
+        async testConnectionAndRules() {
+            console.log('1. 🔌 Testing Connection & Rules...');
+            
+            // Test read access
+            const readTest = await this.testReadAccess();
+            console.log('📖 Read access:', readTest.success ? '✅' : '❌', readTest.message);
+            
+            // Test write access  
+            const writeTest = await this.testWriteAccess();
+            console.log('📝 Write access:', writeTest.success ? '✅' : '❌', writeTest.message);
+            
+            // Test specific unit access
+            const unitTest = await this.testUnitAccess();
+            console.log('🎯 Unit access:', unitTest.success ? '✅' : '❌', unitTest.message);
+            
+            return readTest.success && writeTest.success;
+        }
+
+        async testReadAccess() {
+            try {
+                const response = await fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units.json');
+                const data = await response.json();
+                
+                return {
+                    success: true,
+                    message: `Read successful - ${data ? Object.keys(data).length + ' units' : 'no data'}`
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    message: error.message
+                };
+            }
+        }
+
+        async testWriteAccess() {
+            try {
+                const response = await fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-DEBUG.json', {
+                    method: 'PUT',
+                    body: JSON.stringify(this.testData),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                await response.json();
+                return {
+                    success: true,
+                    message: 'Write successful'
+                };
+            } catch (error) {
+                return {
+                    success: false, 
+                    message: error.message
+                };
+            }
+        }
+
+        async testUnitAccess() {
+            try {
+                // Test if we can access specific unit data
+                const response = await fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-06.json');
+                const data = await response.json();
+                
+                return {
+                    success: true,
+                    message: data ? 'Unit data accessible' : 'Unit exists but no data'
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    message: error.message
+                };
+            }
+        }
+
+        async testDataFlow() {
+            console.log('2. 📊 Testing Data Flow...');
+            
+            return new Promise((resolve) => {
+                const unitsRef = firebase.database().ref('/units');
+                let listenerFired = false;
+                let dataReceived = null;
+                
+                const listener = unitsRef.on('value', (snapshot) => {
+                    listenerFired = true;
+                    dataReceived = snapshot.val();
+                    console.log('🎯 Real-time listener fired!', dataReceived);
+                    
+                    // Cleanup
+                    unitsRef.off('value', listener);
+                    resolve({
+                        listenerWorking: true,
+                        dataCount: dataReceived ? Object.keys(dataReceived).length : 0,
+                        hasStickyData: this.checkStickyData(dataReceived)
+                    });
+                });
+                
+                // Timeout if listener doesn't fire
+                setTimeout(() => {
+                    if (!listenerFired) {
+                        unitsRef.off('value', listener);
+                        resolve({
+                            listenerWorking: false,
+                            dataCount: 0,
+                            hasStickyData: false
+                        });
+                    }
+                }, 5000);
+            });
+        }
+
+        checkStickyData(data) {
+            if (!data) return false;
+            
+            const now = Date.now();
+            let stickyUnits = [];
+            
+            Object.entries(data).forEach(([unitName, unitData]) => {
+                if (unitData.timestamp) {
+                    const dataTime = new Date(unitData.timestamp).getTime();
+                    const timeDiff = now - dataTime;
+                    const minutesDiff = timeDiff / (1000 * 60);
+                    
+                    // Consider data older than 10 minutes as "sticky"
+                    if (minutesDiff > 10) {
+                        stickyUnits.push({
+                            unit: unitName,
+                            ageMinutes: minutesDiff.toFixed(1),
+                            lastUpdate: unitData.lastUpdate
+                        });
+                    }
+                }
+            });
+            
+            return stickyUnits.length > 0 ? stickyUnits : false;
+        }
+
+        async testRealTimeListener() {
+            console.log('3. 🎧 Testing Real-time Listener...');
+            
+            return new Promise((resolve) => {
+                const testRef = firebase.database().ref('/debug-test');
+                let updatesReceived = 0;
+                const testUpdates = [];
+                
+                const listener = testRef.on('value', (snapshot) => {
+                    updatesReceived++;
+                    const data = snapshot.val();
+                    testUpdates.push({
+                        update: updatesReceived,
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: data
+                    });
+                    
+                    console.log(`🔄 Update ${updatesReceived}:`, data);
+                    
+                    // Stop after 3 updates or 10 seconds
+                    if (updatesReceived >= 3) {
+                        testRef.off('value', listener);
+                        testRef.remove(); // Cleanup test data
+                        resolve({
+                            realTimeWorking: true,
+                            updatesReceived: updatesReceived,
+                            testData: testUpdates
+                        });
+                    }
+                });
+                
+                // Send test updates
+                setTimeout(() => testRef.set({ test: 1, time: Date.now() }), 1000);
+                setTimeout(() => testRef.set({ test: 2, time: Date.now() }), 2000);
+                setTimeout(() => testRef.set({ test: 3, time: Date.now() }), 3000);
+                
+                // Timeout
+                setTimeout(() => {
+                    testRef.off('value', listener);
+                    testRef.remove();
+                    resolve({
+                        realTimeWorking: false,
+                        updatesReceived: updatesReceived,
+                        testData: testUpdates
+                    });
+                }, 10000);
+            });
+        }
+
+        async testDataCleanup() {
+            console.log('4. 🧹 Testing Data Cleanup...');
+            
+            // Create some test data that should be cleaned up
+            const staleData = {
+                driver: "STALE DRIVER",
+                unit: "DT-STALE",
+                lat: -0.396056,
+                lng: 102.958944,
+                timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes old
+                lastUpdate: "30 minutes ago"
+            };
+            
+            try {
+                // Write stale data
+                await fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/DT-STALE.json', {
+                    method: 'PUT',
+                    body: JSON.stringify(staleData),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                console.log('📝 Stale test data written');
+                
+                return {
+                    cleanupTest: true,
+                    message: 'Stale data created for testing'
+                };
+                
+            } catch (error) {
+                return {
+                    cleanupTest: false,
+                    message: error.message
+                };
+            }
+        }
+
+        showSummary() {
+            console.log('5. 📋 Generating Summary...');
+            
+            // Check current data state
+            this.checkCurrentDataState().then(state => {
+                const summary = `
+🎯 COMPREHENSIVE DEBUG SUMMARY
+
+1. CONNECTION & RULES: ${state.connectionTest ? '✅' : '❌'}
+2. DATA FLOW: ${state.dataFlow.listenerWorking ? '✅' : '❌'} 
+   - Listener: ${state.dataFlow.listenerWorking ? 'WORKING' : 'NOT WORKING'}
+   - Units Found: ${state.dataFlow.dataCount}
+   - Sticky Data: ${state.dataFlow.hasStickyData ? 'YES' : 'NO'}
+3. REAL-TIME: ${state.realTime.updatesReceived > 0 ? '✅' : '❌'}
+   - Updates Received: ${state.realTime.updatesReceived}
+4. CURRENT STATE:
+   - Total Units: ${state.currentData.unitCount}
+   - Online Units: ${state.currentData.onlineCount}
+   - Sticky Units: ${state.currentData.stickyCount}
+
+🔧 RECOMMENDATIONS:
+${this.generateRecommendations(state)}
+                `;
+                
+                console.log(summary);
+                alert(summary);
+            });
+        }
+
+        async checkCurrentDataState() {
+            try {
+                const response = await fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units.json');
+                const data = await response.json();
+                
+                const now = Date.now();
+                let onlineCount = 0;
+                let stickyCount = 0;
+                
+                if (data) {
+                    Object.values(data).forEach(unit => {
+                        if (unit.timestamp) {
+                            const dataTime = new Date(unit.timestamp).getTime();
+                            const timeDiff = now - dataTime;
+                            const minutesDiff = timeDiff / (1000 * 60);
+                            
+                            if (minutesDiff < 5) onlineCount++; // Less than 5 minutes = online
+                            if (minutesDiff > 10) stickyCount++; // More than 10 minutes = sticky
+                        }
+                    });
+                }
+                
+                return {
+                    connectionTest: true,
+                    dataFlow: await this.testDataFlow(),
+                    realTime: await this.testRealTimeListener(),
+                    currentData: {
+                        unitCount: data ? Object.keys(data).length : 0,
+                        onlineCount: onlineCount,
+                        stickyCount: stickyCount,
+                        stickyUnits: this.checkStickyData(data)
+                    }
+                };
+                
+            } catch (error) {
+                return {
+                    connectionTest: false,
+                    dataFlow: { listenerWorking: false, dataCount: 0, hasStickyData: false },
+                    realTime: { updatesReceived: 0 },
+                    currentData: { unitCount: 0, onlineCount: 0, stickyCount: 0, stickyUnits: false }
+                };
+            }
+        }
+
+        generateRecommendations(state) {
+            const recommendations = [];
+            
+            if (!state.connectionTest) {
+                recommendations.push('• Perbaiki Firebase Rules - berikan akses read/write');
+            }
+            
+            if (!state.dataFlow.listenerWorking) {
+                recommendations.push('• Perbaiki event listener di JavaScript');
+            }
+            
+            if (state.dataFlow.hasStickyData) {
+                recommendations.push('• Implementasi cleanup untuk data lengket');
+                recommendations.push('• Tambahkan timestamp validation');
+            }
+            
+            if (state.realTime.updatesReceived === 0) {
+                recommendations.push('• Periksa koneksi real-time Firebase');
+            }
+            
+            if (state.currentData.stickyCount > 0) {
+                recommendations.push(`• Bersihkan ${state.currentData.stickyCount} unit yang lengket`);
+            }
+            
+            return recommendations.length > 0 ? recommendations.join('\n') : '✅ Semua sistem bekerja normal!';
+        }
+
+        showError(message) {
+            console.error('❌ Debug Error:', message);
+            alert('❌ DEBUG ERROR:\n' + message);
+        }
+
+        cleanup() {
+            this.cleanupCallbacks.forEach(callback => callback());
+            this.cleanupCallbacks = [];
+        }
+    }
+
+    // Global debug functions
+    function runComprehensiveDebug() {
+        if (!window.firebaseDebugger) {
+            window.firebaseDebugger = new FirebaseDebugger();
+        }
+        window.firebaseDebugger.comprehensiveTest();
+    }
+
+    function forceCleanStickyData() {
+        if (confirm('Hapus SEMUA data units yang lengket/stale?')) {
+            fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units.json')
+                .then(response => response.json())
+                .then(data => {
+                    if (data) {
+                        const now = Date.now();
+                        const cleanupPromises = [];
+                        
+                        Object.entries(data).forEach(([unitName, unitData]) => {
+                            if (unitData.timestamp) {
+                                const dataTime = new Date(unitData.timestamp).getTime();
+                                const timeDiff = now - dataTime;
+                                const minutesDiff = timeDiff / (1000 * 60);
+                                
+                                // Delete data older than 10 minutes
+                                if (minutesDiff > 10) {
+                                    cleanupPromises.push(
+                                        fetch(`https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/${unitName}.json`, {
+                                            method: 'DELETE'
+                                        })
+                                    );
+                                    console.log(`🧹 Deleting stale unit: ${unitName} (${minutesDiff.toFixed(1)} minutes old)`);
+                                }
+                            }
+                        });
+                        
+                        Promise.all(cleanupPromises).then(() => {
+                            alert(`✅ Cleanup completed! Deleted ${cleanupPromises.length} stale units.`);
+                            location.reload();
+                        });
+                    }
+                })
+                .catch(error => {
+                    alert('❌ Cleanup failed: ' + error.message);
+                });
+        }
+    }
+
+    // Initialize debugger when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Comprehensive Firebase Debugger Ready!');
+        console.log('💡 Run: runComprehensiveDebug() in console');
+        console.log('💡 Clean sticky data: forceCleanStickyData() in console');
+        
+        // Auto-run debug after 3 seconds
+        setTimeout(() => {
+            if (confirm('Jalankan comprehensive Firebase debug?')) {
+                runComprehensiveDebug();
+            }
+        }, 3000);
     });
     </script>
 
@@ -633,12 +1161,25 @@
                             <button class="btn btn-sm btn-outline-danger" onclick="forceCleanup()" title="Force Cleanup Data Lengket">
                                 <i>🧹</i> Force Cleanup
                             </button>
-                            <!-- Tambahan tombol untuk testing Firebase Rules -->
+                            <!-- Tambahan tombol untuk testing Firebase -->
                             <button class="btn btn-sm btn-outline-info" onclick="testFirebaseRules()" title="Test Firebase Rules">
                                 <i>🧪</i> Test Rules
                             </button>
                             <button class="btn btn-sm btn-outline-warning" onclick="testInvalidData()" title="Test Invalid Data">
                                 <i>⚠️</i> Test Invalid
+                            </button>
+                            <button class="btn btn-sm btn-outline-dark" onclick="debugFirebaseAccess()" title="Debug Firebase Access">
+                                <i>🔍</i> Debug Access
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="testFirebaseListener()" title="Test Firebase Listener">
+                                <i>🎧</i> Test Listener
+                            </button>
+                            <!-- Enhanced Debug Buttons -->
+                            <button class="btn btn-sm btn-outline-success" onclick="runComprehensiveDebug()" title="Comprehensive Debug">
+                                <i>🚀</i> Full Debug
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="forceCleanStickyData()" title="Force Clean Sticky Data">
+                                <i>🧹</i> Clean Sticky
                             </button>
                         </div>
                     </div>
@@ -951,6 +1492,126 @@
                 console.log('✅ Rules correctly blocked invalid data:', error);
                 alert('✅ Firebase Rules: Validation BEKERJA\nData invalid diblokir');
             });
+        }
+
+        // ✅ Firebase Debug Functions
+        async function debugFirebaseAccess() {
+            console.log('🔍 Debugging Firebase Access...');
+            
+            try {
+                // Test 1: Akses root
+                console.log('1. Testing root access...');
+                const rootRef = firebase.database().ref('/');
+                const rootSnapshot = await rootRef.once('value');
+                console.log('✅ Root access:', rootSnapshot.exists());
+                
+                // Test 2: Akses /units
+                console.log('2. Testing /units access...');
+                const unitsRef = firebase.database().ref('/units');
+                const unitsSnapshot = await unitsRef.once('value');
+                console.log('✅ /units access:', unitsSnapshot.exists());
+                console.log('📦 /units data:', unitsSnapshot.val());
+                
+                // Test 3: Akses specific unit
+                console.log('3. Testing specific unit access...');
+                const testUnitRef = firebase.database().ref('/units/DT-06');
+                const testUnitSnapshot = await testUnitRef.once('value');
+                console.log('✅ Specific unit access:', testUnitSnapshot.exists());
+                console.log('📦 Specific unit data:', testUnitSnapshot.val());
+                
+                // Show results
+                if (unitsSnapshot.exists()) {
+                    const unitsData = unitsSnapshot.val();
+                    const unitCount = Object.keys(unitsData).length;
+                    alert(`✅ FIREBASE ACCESS BERHASIL\nDitemukan ${unitCount} units:\n${Object.keys(unitsData).join(', ')}`);
+                } else {
+                    alert('❌ TIDAK ADA DATA di /units\nTapi koneksi Firebase berhasil');
+                }
+                
+            } catch (error) {
+                console.error('❌ Firebase access error:', error);
+                alert('❌ FIREBASE ACCESS DITOLAK:\n' + error.message + '\n\nPeriksa Firebase Rules!');
+            }
+        }
+
+        // Test listener
+        function testFirebaseListener() {
+            console.log('🎧 Testing Firebase listener...');
+            
+            const unitsRef = firebase.database().ref('/units');
+            
+            unitsRef.on('value', 
+                (snapshot) => {
+                    console.log('🎯 Listener triggered!');
+                    console.log('📦 Data received:', snapshot.val());
+                    
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
+                        console.log(`✅ Listener working: ${Object.keys(data).length} units`);
+                        alert(`🎉 LISTENER BEKERJA!\nReal-time data received: ${Object.keys(data).length} units`);
+                    } else {
+                        console.log('ℹ️ Listener working but no data');
+                        alert('🎉 LISTENER BEKERJA!\nTapi belum ada data units');
+                    }
+                },
+                (error) => {
+                    console.error('❌ Listener error:', error);
+                    alert('❌ LISTENER ERROR:\n' + error.message);
+                }
+            );
+            
+            // Stop listener after 10 seconds
+            setTimeout(() => {
+                unitsRef.off();
+                console.log('⏹️ Test listener stopped');
+            }, 10000);
+        }
+
+        // ✅ Enhanced Comprehensive Debug Functions
+        function runComprehensiveDebug() {
+            if (!window.firebaseDebugger) {
+                window.firebaseDebugger = new FirebaseDebugger();
+            }
+            window.firebaseDebugger.comprehensiveTest();
+        }
+
+        function forceCleanStickyData() {
+            if (confirm('Hapus SEMUA data units yang lengket/stale?')) {
+                fetch('https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units.json')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data) {
+                            const now = Date.now();
+                            const cleanupPromises = [];
+                            
+                            Object.entries(data).forEach(([unitName, unitData]) => {
+                                if (unitData.timestamp) {
+                                    const dataTime = new Date(unitData.timestamp).getTime();
+                                    const timeDiff = now - dataTime;
+                                    const minutesDiff = timeDiff / (1000 * 60);
+                                    
+                                    // Delete data older than 10 minutes
+                                    if (minutesDiff > 10) {
+                                        cleanupPromises.push(
+                                            fetch(`https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app/units/${unitName}.json`, {
+                                                method: 'DELETE'
+                                            })
+                                        );
+                                        console.log(`🧹 Deleting stale unit: ${unitName} (${minutesDiff.toFixed(1)} minutes old)`);
+                                    }
+                                }
+                            });
+                            
+                            Promise.all(cleanupPromises).then(() => {
+                                alert(`✅ Cleanup completed! Deleted ${cleanupPromises.length} stale units.`);
+                                location.reload();
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        alert('❌ Cleanup failed: ' + error.message);
+                    });
+            }
         }
 
         // ✅ ENHANCED CLICK OUTSIDE HANDLER FOR CHAT
