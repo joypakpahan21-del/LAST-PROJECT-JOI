@@ -27,6 +27,7 @@ class FixedGPSMonitor {
         this.units = new Map();
         this.markers = new Map();
         this.accuracyCircles = new Map();
+        this.intervals = new Set();
         
         // System state
         this.map = null;
@@ -96,23 +97,35 @@ class FixedGPSMonitor {
         };
     }
 
+    // ===== ENHANCED MAP SETUP WITH FIXES =====
     async setupMap() {
         try {
-            console.log('🗺️ Setting up map with enhanced features...');
+            console.log('🗺️ Setting up Map with Fixes...');
             
-            this.map = L.map('map').setView([-0.396056, 102.958944], 13);
+            // Pastikan element map ada dan visible
+            const mapElement = document.getElementById('map');
+            if (!mapElement) {
+                console.error('❌ Map element not found');
+                return;
+            }
 
-            // Multiple tile layers
+            // Set height map secara eksplisit
+            mapElement.style.height = '500px';
+            mapElement.style.width = '100%';
+
+            this.config = {
+                center: [-0.396056, 102.958944], // Center Kebun Tempuling
+                zoom: 13
+            };
+
+            // Initialize map
+            this.map = L.map('map').setView(this.config.center, this.config.zoom);
+
+            // Google Satellite dengan fallback
             const googleSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
                 attribution: '© Google Satellite'
-            });
-
-            const googleRoads = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-                maxZoom: 20,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-                attribution: '© Google Maps'
             });
 
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -120,13 +133,23 @@ class FixedGPSMonitor {
                 maxZoom: 19
             });
 
-            // Add default layer
+            // Coba Google Satellite dulu, fallback ke OSM jika gagal
             googleSatellite.addTo(this.map);
+            
+            // Test if tiles load
+            googleSatellite.on('load', () => {
+                console.log('✅ Google Satellite tiles loaded successfully');
+            });
+            
+            googleSatellite.on('tileerror', (error) => {
+                console.warn('❌ Google Satellite failed, falling back to OSM');
+                this.map.removeLayer(googleSatellite);
+                osmLayer.addTo(this.map);
+            });
 
             // Add layer control
             const baseMaps = {
                 "Google Satellite": googleSatellite,
-                "Google Roads": googleRoads,
                 "OpenStreetMap": osmLayer
             };
             
@@ -135,16 +158,40 @@ class FixedGPSMonitor {
 
             // Add accuracy legend
             this.addAccuracyLegend();
-
+            
             // Add important locations
             this.addImportantLocations();
-
-            console.log('✅ Map setup completed with enhanced features');
             
+            console.log('✅ Map setup completed');
+            
+            // Force map refresh setelah load
+            this.map.whenReady(() => {
+                console.log('🗺️ Map is ready');
+                setTimeout(() => {
+                    this.map.invalidateSize(); // Fix map rendering
+                }, 100);
+            });
+
+            this.addLocationMarkers();
+
         } catch (error) {
             console.error('❌ Map setup failed:', error);
-            throw new Error('Map initialization failed: ' + error.message);
+            // Fallback ke OSM
+            try {
+                this.map = L.map('map').setView([-0.396056, 102.958944], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+                console.log('✅ Fallback to OpenStreetMap successful');
+            } catch (fallbackError) {
+                console.error('❌ Fallback also failed:', fallbackError);
+            }
         }
+    }
+
+    addLocationMarkers() {
+        // Method untuk menambahkan marker unit yang sudah ada
+        this.units.forEach(unit => {
+            this.createUnitMarker(unit);
+        });
     }
 
     addAccuracyLegend() {
@@ -378,33 +425,40 @@ class FixedGPSMonitor {
         }
     }
 
+    // ===== ENHANCED DATA VALIDATION =====
     validateUnitData(unitName, unitData) {
         if (!unitData) {
-            console.log(`❌ Invalid data for ${unitName}: null or undefined`);
+            console.log(`❌ Invalid data for ${unitName}: null data`);
             return false;
         }
         
-        // Check required fields
+        // Required fields check
         const requiredFields = ['lat', 'lng', 'driver', 'unit'];
         const missingFields = requiredFields.filter(field => !unitData.hasOwnProperty(field));
         
         if (missingFields.length > 0) {
-            console.log(`⚠️ Missing required fields for ${unitName}:`, missingFields);
-            // Still process for now, but log warning
+            console.log(`❌ Missing required fields for ${unitName}:`, missingFields);
+            return false;
         }
         
-        // Validate coordinates
+        // Coordinate validation
         const lat = parseFloat(unitData.lat);
         const lng = parseFloat(unitData.lng);
         
         if (isNaN(lat) || isNaN(lng)) {
-            console.log(`❌ Invalid coordinates for ${unitName}: lat=${unitData.lat}, lng=${unitData.lng}`);
+            console.log(`❌ Invalid coordinates for ${unitName}`);
             return false;
         }
         
-        // Validate coordinate ranges
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            console.log(`❌ Coordinates out of range for ${unitName}: lat=${lat}, lng=${lng}`);
+        // Coordinate range validation (Kebun Tempuling area)
+        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
+            console.log(`❌ Coordinates out of range for ${unitName}: ${lat}, ${lng}`);
+            return false;
+        }
+        
+        // Timestamp validation
+        if (unitData.lastUpdate && !this.validateTimestamp({ lastUpdate: unitData.lastUpdate })) {
+            console.log(`❌ Invalid timestamp for ${unitName}: ${unitData.lastUpdate}`);
             return false;
         }
         
@@ -853,6 +907,152 @@ class FixedGPSMonitor {
         this.units.delete(unitName);
     }
 
+    // ===== ENHANCED CLEANUP SYSTEM =====
+    cleanupStickyData() {
+        console.log('🧹 Cleaning up sticky data...');
+        
+        const now = Date.now();
+        const STALE_THRESHOLD = 30 * 60 * 1000; // 30 menit
+        const stickyUnits = [];
+        
+        this.units.forEach((unit, unitName) => {
+            // Timestamp validation
+            if (!this.validateTimestamp(unit)) {
+                console.log(`❌ Invalid timestamp for ${unitName}, marking for cleanup`);
+                stickyUnits.push(unitName);
+                return;
+            }
+            
+            // Check jika data stale (lebih dari 30 menit)
+            if (unit.lastUpdate) {
+                const lastUpdateTime = new Date(unit.lastUpdate).getTime();
+                if (isNaN(lastUpdateTime)) {
+                    console.log(`❌ Invalid lastUpdate format for ${unitName}`);
+                    stickyUnits.push(unitName);
+                    return;
+                }
+                
+                const timeDiff = now - lastUpdateTime;
+                if (timeDiff > STALE_THRESHOLD) {
+                    console.log(`🕒 Sticky data detected: ${unitName} (${Math.round(timeDiff/60000)} minutes old)`);
+                    stickyUnits.push(unitName);
+                }
+            }
+        });
+        
+        // Cleanup sticky units
+        if (stickyUnits.length > 0) {
+            console.log(`🧹 Removing ${stickyUnits.length} sticky units:`, stickyUnits);
+            
+            stickyUnits.forEach(unitName => {
+                this.removeUnitCompletely(unitName);
+            });
+            
+            this.logData(`Cleanup: ${stickyUnits.length} sticky units removed`, 'warning', {
+                stickyUnits: stickyUnits,
+                totalBefore: this.units.size + stickyUnits.length,
+                totalAfter: this.units.size
+            });
+            
+            return stickyUnits;
+        }
+        
+        console.log('✅ No sticky data found');
+        return [];
+    }
+
+    validateTimestamp(unit) {
+        // Validasi basic timestamp
+        if (!unit.lastUpdate) {
+            console.log(`⚠️ No lastUpdate for ${unit.name}`);
+            return false;
+        }
+        
+        try {
+            const timestamp = new Date(unit.lastUpdate);
+            if (isNaN(timestamp.getTime())) {
+                console.log(`❌ Invalid timestamp format for ${unit.name}: ${unit.lastUpdate}`);
+                return false;
+            }
+            
+            // Cek jika timestamp di masa depan (impossible)
+            const now = new Date();
+            if (timestamp > now) {
+                console.log(`❌ Future timestamp for ${unit.name}: ${unit.lastUpdate}`);
+                return false;
+            }
+            
+            // Cek jika timestamp terlalu lama (lebih dari 7 hari)
+            const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+            if (timestamp < sevenDaysAgo) {
+                console.log(`❌ Very old timestamp for ${unit.name}: ${unit.lastUpdate}`);
+                return false;
+            }
+            
+            return true;
+        } catch (error) {
+            console.log(`❌ Timestamp validation error for ${unit.name}:`, error);
+            return false;
+        }
+    }
+
+    // Cleanup specific unit
+    cleanupSpecificUnit(unitName) {
+        if (this.units.has(unitName)) {
+            console.log(`🧹 Cleaning up specific unit: ${unitName}`);
+            
+            const unit = this.units.get(unitName);
+            const cleanupReason = this.getCleanupReason(unit);
+            
+            this.removeUnitCompletely(unitName);
+            
+            this.logData(`Unit ${unitName} cleaned up: ${cleanupReason}`, 'warning', {
+                unit: unitName,
+                reason: cleanupReason,
+                lastUpdate: unit.lastUpdate,
+                driver: unit.driver
+            });
+            
+            return true;
+        } else {
+            console.log(`❌ Unit ${unitName} not found for cleanup`);
+            return false;
+        }
+    }
+
+    getCleanupReason(unit) {
+        if (!unit.lastUpdate) return "Missing timestamp";
+        
+        try {
+            const lastUpdateTime = new Date(unit.lastUpdate).getTime();
+            const now = Date.now();
+            const timeDiff = now - lastUpdateTime;
+            const minutesDiff = Math.round(timeDiff / 60000);
+            
+            if (isNaN(lastUpdateTime)) return "Invalid timestamp format";
+            if (timeDiff > 30 * 60 * 1000) return `Stale data (${minutesDiff} minutes old)`;
+            if (timeDiff < 0) return "Future timestamp";
+            
+            return "Manual cleanup";
+        } catch (error) {
+            return "Timestamp validation error";
+        }
+    }
+
+    removeUnitCompletely(unitName) {
+        this.removeUnit(unitName);
+    }
+
+    forceCleanupAllData() {
+        console.log('🧹 Force cleaning all data...');
+        this.clearAllUnits();
+        this.showSuccess('Semua data berhasil dibersihkan');
+    }
+
+    logData(message, type, data) {
+        console.log(`📝 ${type.toUpperCase()}: ${message}`, data || '');
+    }
+
     clearAllUnits() {
         console.log('🧹 Clearing all units...');
         this.units.forEach((unit, unitName) => {
@@ -945,19 +1145,43 @@ class FixedGPSMonitor {
         this.showMessage(`Fitur chat dengan ${unitName} akan segera tersedia`);
     }
 
-    // Periodic Tasks
+    // ===== ENHANCED PERIODIC TASKS =====
     startPeriodicTasks() {
-        // Health check every 30 seconds
-        setInterval(() => {
-            this.healthCheck();
-        }, 30000);
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
 
-        // Cleanup orphaned elements every minute
-        setInterval(() => {
-            this.cleanupOrphanedElements();
-        }, 60000);
+        // Cleanup setiap 5 menit
+        const cleanupInterval = setInterval(() => {
+            console.log('🕒 Running periodic cleanup...');
+            const stickyUnits = this.cleanupStickyData();
+            
+            if (stickyUnits.length > 0) {
+                this.showNotification(`Auto-cleanup: ${stickyUnits.length} sticky units removed`, 'warning');
+            }
+        }, 5 * 60 * 1000); // 5 menit
+        this.intervals.add(cleanupInterval);
 
-        console.log('✅ Periodic tasks started');
+        // Health check setiap 2 menit
+        const healthInterval = setInterval(() => {
+            this.logData('System health check', 'info', {
+                activeUnits: this.units.size,
+                markers: this.markers.size,
+                stickyUnits: Array.from(this.units.values()).filter(unit => 
+                    !this.validateTimestamp(unit)
+                ).length
+            });
+        }, 2 * 60 * 1000);
+        this.intervals.add(healthInterval);
+
+        // Map refresh setiap 1 menit (fix rendering issues)
+        const mapRefreshInterval = setInterval(() => {
+            if (this.map) {
+                this.map.invalidateSize();
+            }
+        }, 60 * 1000);
+        this.intervals.add(mapRefreshInterval);
+
+        console.log('✅ Enhanced periodic tasks started');
     }
 
     healthCheck() {
@@ -985,6 +1209,10 @@ class FixedGPSMonitor {
 
     cleanup() {
         console.log('🧹 Comprehensive cleanup...');
+        
+        // Cleanup intervals
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
         
         // Cleanup Firebase listeners
         this.cleanupFirebaseListeners();
@@ -1035,6 +1263,42 @@ class FixedGPSMonitor {
     }
 }
 
+// ===== GLOBAL CLEANUP FUNCTIONS =====
+function cleanupStickyData() {
+    if (window.gpsMonitor) {
+        const stickyUnits = window.gpsMonitor.cleanupStickyData();
+        
+        if (stickyUnits.length > 0) {
+            alert(`🧹 Cleanup Berhasil!\n${stickyUnits.length} unit lengket dihapus:\n${stickyUnits.join(', ')}`);
+        } else {
+            alert('✅ Tidak ada data lengket ditemukan');
+        }
+    }
+}
+
+function cleanupSpecificUnitPrompt() {
+    const unitName = prompt('Masukkan nama unit yang akan dibersihkan (contoh: DT-06):');
+    
+    if (unitName && window.gpsMonitor) {
+        const success = window.gpsMonitor.cleanupSpecificUnit(unitName);
+        
+        if (success) {
+            alert(`✅ Unit ${unitName} berhasil dibersihkan`);
+        } else {
+            alert(`❌ Unit ${unitName} tidak ditemukan`);
+        }
+    }
+}
+
+function forceCleanupAllData() {
+    if (confirm('⚠️ HAPUS SEMUA DATA?\n\nIni akan menghapus SEMUA unit dari peta dan memory.\nLanjutkan?')) {
+        if (window.gpsMonitor) {
+            window.gpsMonitor.forceCleanupAllData();
+            alert('✅ Semua data berhasil dibersihkan');
+        }
+    }
+}
+
 // Global Functions
 function refreshData() {
     if (window.gpsMonitor) {
@@ -1065,6 +1329,15 @@ function toggleMonitorChat() {
     alert('Fitur chat monitor akan segera tersedia');
 }
 
+// Auto cleanup saat page load
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        if (window.gpsMonitor && confirm('Jalankan auto-cleanup data lengket?')) {
+            window.gpsMonitor.cleanupStickyData();
+        }
+    }, 10000); // 10 detik setelah load
+});
+
 // Initialize System
 let gpsMonitor;
 
@@ -1086,6 +1359,9 @@ document.addEventListener('DOMContentLoaded', function() {
     window.exportData = exportData;
     window.toggleSidebar = toggleSidebar;
     window.toggleMonitorChat = toggleMonitorChat;
+    window.cleanupStickyData = cleanupStickyData;
+    window.cleanupSpecificUnitPrompt = cleanupSpecificUnitPrompt;
+    window.forceCleanupAllData = forceCleanupAllData;
 });
 
 window.addEventListener('beforeunload', function() {
