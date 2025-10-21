@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-class DTGPSLogger {
+class EnhancedGPSLogger {
     constructor() {
         this.driverData = null;
         this.watchId = null;
@@ -35,9 +35,15 @@ class DTGPSLogger {
         
         // Complete history tracking
         this.offlineHistory = [];
-        this.maxOfflinePoints = 2000; // Increased to 2000 points
+        this.maxOfflinePoints = 2000;
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory();
+        
+        // Enhanced waypoint management
+        this.waypoints = [];
+        this.maxWaypoints = 3600 * 17; // 3600 seconds × 17 hours
+        this.waypointInterval = null;
+        this.lastWaypointTime = null;
         
         // ✅ ENHANCED CHAT SYSTEM PROPERTIES - WHATSAPP STYLE
         this.chatRef = null;
@@ -51,6 +57,9 @@ class DTGPSLogger {
         this.typingTimeout = null;
         this.chatInputHandler = null;
         
+        // Enhanced data logger
+        this.dataLogger = new EnhancedDataLogger();
+        
         this.offlineQueue = new OfflineQueueManager();
         
         this.init();
@@ -62,6 +71,9 @@ class DTGPSLogger {
         this.checkNetworkStatus();
         setInterval(() => this.updateTime(), 1000);
         setInterval(() => this.checkNetworkStatus(), 5000);
+        
+        // Load existing waypoints
+        this.loadWaypoints();
     }
 
     setupEventListeners() {
@@ -80,7 +92,8 @@ class DTGPSLogger {
                 name: driverName,
                 unit: unitNumber,
                 year: this.getVehicleYear(unitNumber),
-                sessionId: this.generateSessionId()
+                sessionId: this.generateSessionId(),
+                loginTime: new Date().toISOString()
             };
 
             this.firebaseRef = database.ref('/units/' + unitNumber);
@@ -99,7 +112,8 @@ class DTGPSLogger {
                 fuel: 100,
                 accuracy: 0,
                 timestamp: new Date().toISOString(),
-                isOnline: true
+                isOnline: true,
+                loginTime: this.driverData.loginTime
             };
 
             try {
@@ -107,6 +121,7 @@ class DTGPSLogger {
                 this.showDriverApp();
                 this.startGPSTracking();
                 this.startDataTransmission();
+                this.startWaypointCollection();
                 
                 setTimeout(() => {
                     this.startJourney();
@@ -147,17 +162,119 @@ class DTGPSLogger {
         
         this.sessionStartTime = new Date();
         this.lastUpdateTime = new Date();
+        this.lastWaypointTime = new Date();
         this.updateSessionDuration();
         
         // ✅ SETUP ENHANCED CHAT SYSTEM
         this.setupChatSystem();
+        this.dataLogger.startLogging();
+        
+        this.addLog('Sistem enhanced GPS logger diaktifkan', 'success');
+    }
+
+    // Enhanced Waypoint Management
+    startWaypointCollection() {
+        this.waypointInterval = setInterval(() => {
+            if (this.lastPosition && this.journeyStatus === 'started') {
+                this.collectWaypoint();
+            }
+        }, 1000); // Collect every second
+    }
+
+    collectWaypoint() {
+        const now = new Date();
+        const waypoint = {
+            lat: this.lastPosition.lat,
+            lng: this.lastPosition.lng,
+            speed: this.lastPosition.speed,
+            accuracy: this.lastPosition.accuracy,
+            bearing: this.lastPosition.bearing,
+            timestamp: now.toISOString(),
+            sessionId: this.driverData.sessionId,
+            unit: this.driverData.unit,
+            driver: this.driverData.name,
+            distance: this.totalDistance
+        };
+
+        this.waypoints.push(waypoint);
+        
+        // Maintain size limit
+        if (this.waypoints.length > this.maxWaypoints) {
+            this.waypoints.shift(); // Remove oldest waypoint
+        }
+
+        this.lastWaypointTime = now;
+        this.saveWaypoints();
+        
+        // Log waypoint collection periodically
+        if (this.waypoints.length % 60 === 0) { // Every minute
+            this.addLog(`📍 Waypoint collected: ${this.waypoints.length} points`, 'info');
+        }
+    }
+
+    saveWaypoints() {
+        try {
+            const waypointData = {
+                waypoints: this.waypoints,
+                metadata: {
+                    totalPoints: this.waypoints.length,
+                    lastUpdate: new Date().toISOString(),
+                    sessionId: this.driverData.sessionId,
+                    maxWaypoints: this.maxWaypoints
+                }
+            };
+            localStorage.setItem('gps_waypoints_' + this.driverData.unit, JSON.stringify(waypointData));
+        } catch (error) {
+            console.error('Error saving waypoints:', error);
+        }
+    }
+
+    loadWaypoints() {
+        try {
+            const saved = localStorage.getItem('gps_waypoints_' + (this.driverData?.unit || 'default'));
+            if (saved) {
+                const data = JSON.parse(saved);
+                this.waypoints = data.waypoints || [];
+                console.log(`📂 Loaded ${this.waypoints.length} waypoints`);
+            }
+        } catch (error) {
+            console.error('Error loading waypoints:', error);
+            this.waypoints = [];
+        }
+    }
+
+    exportWaypointData() {
+        if (this.waypoints.length === 0) {
+            alert('Tidak ada waypoint data untuk diexport');
+            return;
+        }
+
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            sessionId: this.driverData.sessionId,
+            unit: this.driverData.unit,
+            driver: this.driverData.name,
+            totalWaypoints: this.waypoints.length,
+            totalDistance: this.totalDistance,
+            waypoints: this.waypoints
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `waypoints-${this.driverData.unit}-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.addLog(`📤 Waypoint data exported: ${this.waypoints.length} points`, 'success');
     }
 
     // ✅ ENHANCED CHAT SYSTEM - WHATSAPP STYLE
     setupChatSystem() {
         if (!this.driverData) return;
         
-        console.log('💬 Setting up WhatsApp-style chat system for unit:', this.driverData.unit);
+        console.log('💬 Setting up enhanced WhatsApp-style chat system for unit:', this.driverData.unit);
         
         this.chatRef = database.ref('/chat/' + this.driverData.unit);
         this.typingRef = database.ref('/typing/' + this.driverData.unit);
@@ -182,8 +299,8 @@ class DTGPSLogger {
         
         this.chatInitialized = true;
         this.setupChatInputHandlers();
-        console.log('💬 WhatsApp-style chat system activated');
-        this.addLog('Sistem chat WhatsApp-style aktif', 'success');
+        console.log('💬 Enhanced WhatsApp-style chat system activated');
+        this.addLog('Sistem chat WhatsApp-style enhanced aktif', 'success');
     }
 
     // ✅ HANDLE NEW MESSAGE
@@ -214,6 +331,13 @@ class DTGPSLogger {
         
         // Play notification sound
         this.playNotificationSound();
+        
+        // Log chat activity
+        this.dataLogger.logChatActivity('message_received', {
+            from: message.sender,
+            message: message.text,
+            timestamp: message.timestamp
+        });
         
         console.log('💬 New message received:', message);
     }
@@ -247,6 +371,13 @@ class DTGPSLogger {
             this.updateChatUI();
             
             this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
+            
+            // Log chat activity
+            this.dataLogger.logChatActivity('message_sent', {
+                to: 'monitor',
+                message: messageText,
+                timestamp: messageData.timestamp
+            });
             
             // Clear typing indicator
             this.stopTyping();
@@ -578,6 +709,7 @@ class DTGPSLogger {
         );
 
         this.addLog('GPS tracking aktif - real-time ke Firebase', 'success');
+        this.dataLogger.logSystemActivity('gps_tracking_started');
     }
 
     startDataTransmission() {
@@ -671,6 +803,13 @@ class DTGPSLogger {
         this.dataPoints++;
         document.getElementById('dataPoints').textContent = this.dataPoints;
         this.updateAverageSpeed();
+
+        // Log GPS data
+        this.dataLogger.logGPSData({
+            lat, lng, speed, accuracy, bearing,
+            distance: this.totalDistance,
+            timestamp: timestamp.toISOString()
+        });
     }
 
     isValidCoordinate(lat, lng) {
@@ -742,7 +881,8 @@ class DTGPSLogger {
                 batteryLevel: this.getBatteryLevel(),
                 sessionId: this.driverData.sessionId,
                 isOfflineData: false,
-                fuel: this.calculateFuelLevel()
+                fuel: this.calculateFuelLevel(),
+                waypointsCount: this.waypoints.length
             };
 
             if (!this.isValidCoordinate(gpsData.lat, gpsData.lng)) {
@@ -795,6 +935,7 @@ class DTGPSLogger {
                 
                 setTimeout(() => {
                     this.syncCompleteHistory();
+                    this.syncWaypointsToFirebase();
                 }, 3000);
                 
             } else {
@@ -843,6 +984,7 @@ class DTGPSLogger {
                 break;
         }
         this.addLog(message, 'error');
+        this.dataLogger.logSystemActivity('gps_error', { error: message });
     }
 
     addLog(message, type = 'info') {
@@ -893,6 +1035,7 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'ON TRIP';
         document.getElementById('vehicleStatus').className = 'bg-success text-white rounded px-2 py-1';
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
+        this.dataLogger.logSystemActivity('journey_started');
         
         this.sendToFirebase();
     }
@@ -902,6 +1045,7 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'PAUSED';
         document.getElementById('vehicleStatus').className = 'bg-warning text-dark rounded px-2 py-1';
         this.addLog('Perjalanan dijeda', 'warning');
+        this.dataLogger.logSystemActivity('journey_paused');
         
         this.sendToFirebase();
     }
@@ -911,9 +1055,11 @@ class DTGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'COMPLETED';
         document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
         this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
+        this.dataLogger.logSystemActivity('journey_ended', { totalDistance: this.totalDistance });
         
         this.sendToFirebase();
         this.syncCompleteHistory();
+        this.syncWaypointsToFirebase();
     }
 
     stopTracking() {
@@ -923,11 +1069,15 @@ class DTGPSLogger {
         if (this.sendInterval) {
             clearInterval(this.sendInterval);
         }
+        if (this.waypointInterval) {
+            clearInterval(this.waypointInterval);
+        }
         if (this.firebaseRef) {
             this.firebaseRef.remove();
         }
         
         this.isTracking = false;
+        this.dataLogger.stopLogging();
     }
 
     logout() {
@@ -950,6 +1100,7 @@ class DTGPSLogger {
         
         this.stopTracking();
         this.syncCompleteHistory();
+        this.syncWaypointsToFirebase();
         
         const sessionSummary = {
             driver: this.driverData.name,
@@ -957,12 +1108,14 @@ class DTGPSLogger {
             duration: document.getElementById('sessionDuration').textContent,
             totalDistance: this.totalDistance.toFixed(3),
             dataPoints: this.dataPoints,
+            waypoints: this.waypoints.length,
             avgSpeed: document.getElementById('avgSpeed').textContent,
             sessionId: this.driverData.sessionId
         };
         
         console.log('Session Summary:', sessionSummary);
-        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
+        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km, Waypoints: ${this.waypoints.length}`, 'info');
+        this.dataLogger.logSystemActivity('session_ended', sessionSummary);
         
         this.driverData = null;
         this.firebaseRef = null;
@@ -980,6 +1133,7 @@ class DTGPSLogger {
         // Reset all data
         this.totalDistance = 0;
         this.dataPoints = 0;
+        this.waypoints = [];
         this.lastPosition = null;
         this.lastUpdateTime = null;
     }
@@ -1028,6 +1182,131 @@ class DTGPSLogger {
             console.error('History sync failed:', error);
             this.addLog(`❌ Gagal sync history: ${error.message}`, 'error');
         }
+    }
+
+    // Sync waypoints to Firebase
+    async syncWaypointsToFirebase() {
+        if (!this.isOnline || !this.driverData || this.waypoints.length === 0) {
+            return;
+        }
+
+        try {
+            const waypointsRef = database.ref('/waypoints/' + this.driverData.unit + '/' + this.driverData.sessionId);
+            
+            const waypointData = {
+                waypoints: this.waypoints,
+                metadata: {
+                    totalPoints: this.waypoints.length,
+                    totalDistance: this.totalDistance,
+                    sessionId: this.driverData.sessionId,
+                    unit: this.driverData.unit,
+                    driver: this.driverData.name,
+                    syncTime: new Date().toISOString()
+                }
+            };
+            
+            await waypointsRef.set(waypointData);
+            this.addLog(`📡 Waypoints synced: ${this.waypoints.length} points`, 'success');
+            
+        } catch (error) {
+            console.error('Waypoint sync failed:', error);
+            this.addLog(`❌ Gagal sync waypoints: ${error.message}`, 'error');
+        }
+    }
+}
+
+// Enhanced Data Logger Class
+class EnhancedDataLogger {
+    constructor() {
+        this.logs = [];
+        this.maxLogs = 1000;
+        this.loggingInterval = null;
+    }
+
+    startLogging() {
+        this.loggingInterval = setInterval(() => {
+            this.cleanupOldLogs();
+        }, 60000); // Cleanup every minute
+    }
+
+    stopLogging() {
+        if (this.loggingInterval) {
+            clearInterval(this.loggingInterval);
+        }
+    }
+
+    logSystemActivity(type, data = {}) {
+        const logEntry = {
+            type: 'system',
+            activity: type,
+            timestamp: new Date().toISOString(),
+            data: data
+        };
+        
+        this.logs.push(logEntry);
+        this.saveLogs();
+    }
+
+    logGPSData(gpsData) {
+        const logEntry = {
+            type: 'gps',
+            timestamp: new Date().toISOString(),
+            data: gpsData
+        };
+        
+        this.logs.push(logEntry);
+        
+        // Save logs periodically to avoid performance issues
+        if (this.logs.length % 10 === 0) {
+            this.saveLogs();
+        }
+    }
+
+    logChatActivity(activity, data = {}) {
+        const logEntry = {
+            type: 'chat',
+            activity: activity,
+            timestamp: new Date().toISOString(),
+            data: data
+        };
+        
+        this.logs.push(logEntry);
+        this.saveLogs();
+    }
+
+    saveLogs() {
+        try {
+            // Maintain size limit
+            if (this.logs.length > this.maxLogs) {
+                this.logs = this.logs.slice(-this.maxLogs);
+            }
+            
+            localStorage.setItem('enhanced_data_logs', JSON.stringify(this.logs));
+        } catch (error) {
+            console.error('Error saving enhanced logs:', error);
+        }
+    }
+
+    cleanupOldLogs() {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        this.logs = this.logs.filter(log => new Date(log.timestamp) > twentyFourHoursAgo);
+        this.saveLogs();
+    }
+
+    exportLogs() {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalLogs: this.logs.length,
+            logs: this.logs
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `enhanced-logs-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
     }
 }
 
@@ -1120,17 +1399,17 @@ class OfflineQueueManager {
         console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
         
         if (successItems.length > 0) {
-            window.dtLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
+            window.enhancedLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
         }
     }
 
     async sendQueuedData(queuedData) {
-        if (!window.dtLogger?.firebaseRef) {
+        if (!window.enhancedLogger?.firebaseRef) {
             throw new Error('No Firebase reference');
         }
 
         const { queueTimestamp, offlineId, ...cleanData } = queuedData;
-        await window.dtLogger.firebaseRef.set(cleanData);
+        await window.enhancedLogger.firebaseRef.set(cleanData);
     }
 
     startSyncMonitor() {
@@ -1153,43 +1432,43 @@ class OfflineQueueManager {
 
 // ✅ GLOBAL FUNCTIONS UNTUK CHAT
 function sendChatMessage() {
-    if (window.dtLogger) {
+    if (window.enhancedLogger) {
         const input = document.getElementById('chatInput');
         if (input && input.value.trim()) {
-            window.dtLogger.sendMessage(input.value);
+            window.enhancedLogger.sendMessage(input.value);
             input.value = '';
         }
     }
 }
 
 function toggleChat() {
-    if (window.dtLogger) {
-        window.dtLogger.toggleChat();
+    if (window.enhancedLogger) {
+        window.enhancedLogger.toggleChat();
     }
 }
 
 function handleChatInput(event) {
-    if (window.dtLogger) {
-        window.dtLogger.handleChatInput(event);
+    if (window.enhancedLogger) {
+        window.enhancedLogger.handleChatInput(event);
     }
 }
 
 // Global functions untuk button controls
 function startJourney() {
-    if (window.dtLogger) {
-        window.dtLogger.startJourney();
+    if (window.enhancedLogger) {
+        window.enhancedLogger.startJourney();
     }
 }
 
 function pauseJourney() {
-    if (window.dtLogger) {
-        window.dtLogger.pauseJourney();
+    if (window.enhancedLogger) {
+        window.enhancedLogger.pauseJourney();
     }
 }
 
 function endJourney() {
-    if (window.dtLogger) {
-        window.dtLogger.endJourney();
+    if (window.enhancedLogger) {
+        window.enhancedLogger.endJourney();
     }
 }
 
@@ -1203,31 +1482,43 @@ function reportIssue() {
     ];
     
     const issue = prompt('Lapor masalah:\n' + issues.join('\n'));
-    if (issue && window.dtLogger) {
-        window.dtLogger.addLog(`Laporan: ${issue}`, 'warning');
+    if (issue && window.enhancedLogger) {
+        window.enhancedLogger.addLog(`Laporan: ${issue}`, 'warning');
     }
 }
 
 function logout() {
-    if (window.dtLogger) {
+    if (window.enhancedLogger) {
         if (confirm('Yakin ingin logout?')) {
-            window.dtLogger.logout();
+            window.enhancedLogger.logout();
         }
+    }
+}
+
+function exportGPSData() {
+    if (window.enhancedLogger) {
+        window.enhancedLogger.exportWaypointData();
+    }
+}
+
+function exportSystemLogs() {
+    if (window.enhancedLogger && window.enhancedLogger.dataLogger) {
+        window.enhancedLogger.dataLogger.exportLogs();
     }
 }
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
-    window.dtLogger = new DTGPSLogger();
+    window.enhancedLogger = new EnhancedGPSLogger();
 });
 
 // Handle page visibility changes
 document.addEventListener('visibilitychange', function() {
-    if (window.dtLogger && window.dtLogger.driverData) {
+    if (window.enhancedLogger && window.enhancedLogger.driverData) {
         if (document.hidden) {
-            window.dtLogger.addLog('Aplikasi di background', 'warning');
+            window.enhancedLogger.addLog('Aplikasi di background', 'warning');
         } else {
-            window.dtLogger.addLog('Aplikasi aktif kembali', 'success');
+            window.enhancedLogger.addLog('Aplikasi aktif kembali', 'success');
         }
     }
 });
