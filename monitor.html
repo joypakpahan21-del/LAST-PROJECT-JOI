@@ -62,7 +62,7 @@
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.2);
             z-index: 1001;
-            display: flex;
+            display: none;
             flex-direction: column;
             overflow: hidden;
         }
@@ -90,7 +90,150 @@
             border-top: 1px solid #eee;
             background: white;
         }
+
+        /* Chat Message Styles */
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
         
+        .message-sent {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message-received {
+            background: #e9ecef;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .message-sender {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .message-status {
+            font-size: 10px;
+            margin-left: 5px;
+        }
+
+        .message-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .chat-date-separator {
+            text-align: center;
+            margin: 10px 0;
+            position: relative;
+        }
+
+        .chat-date-separator span {
+            background: #f8f9fa;
+            padding: 0 10px;
+            color: #6c757d;
+            font-size: 12px;
+        }
+
+        .chat-date-separator:before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #dee2e6;
+            z-index: -1;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            color: #6c757d;
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+
+        .typing-dots {
+            display: flex;
+            margin-left: 8px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #6c757d;
+            margin: 0 1px;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typingAnimation {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Chat Animations */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOutDown {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .chat-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6c757d;
+        }
+
         /* Responsive Design for Mobile */
         @media (max-width: 768px) {
             .chat-toggle-btn {
@@ -134,41 +277,45 @@
                 left: calc(25% + 20px) !important;
             }
         }
-        
-        /* Chat Message Styles */
-        .message {
-            margin-bottom: 10px;
-            padding: 8px 12px;
-            border-radius: 12px;
-            max-width: 80%;
-            word-wrap: break-word;
+
+        /* Loading and System Styles */
+        #loadingSpinner {
+            z-index: 9999;
         }
-        
-        .message.sent {
-            background: #007bff;
-            color: white;
-            margin-left: auto;
-            border-bottom-right-radius: 4px;
+
+        .debug-panel {
+            z-index: 9998;
         }
-        
-        .message.received {
-            background: #e9ecef;
-            color: #333;
-            margin-right: auto;
-            border-bottom-left-radius: 4px;
+
+        .chat-notification {
+            z-index: 9997;
         }
-        
-        .message-time {
-            font-size: 11px;
-            opacity: 0.7;
-            margin-top: 4px;
+
+        /* Connection Status Styles */
+        .connection-online {
+            color: #198754 !important;
+            font-weight: bold;
         }
-        
-        .chat-placeholder {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
+
+        .connection-offline {
+            color: #dc3545 !important;
+            font-weight: bold;
+        }
+
+        .real-time-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #28a745;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
         }
     </style>
 </head>
@@ -508,6 +655,17 @@
         function toggleMonitorChat() {
             if (window.gpsSystem) {
                 window.gpsSystem.toggleMonitorChat();
+            } else {
+                console.warn('GPS System belum diinisialisasi');
+                // Fallback manual toggle
+                const chatWindow = document.getElementById('monitorChatWindow');
+                if (chatWindow) {
+                    const isVisible = chatWindow.style.display === 'flex';
+                    chatWindow.style.display = isVisible ? 'none' : 'flex';
+                    if (!isVisible) {
+                        chatWindow.style.animation = 'slideInUp 0.3s ease-out forwards';
+                    }
+                }
             }
         }
 
@@ -515,6 +673,8 @@
         function handleMonitorChatInput(event) {
             if (window.gpsSystem) {
                 window.gpsSystem.handleMonitorChatInput(event);
+            } else if (event.key === 'Enter') {
+                sendMonitorMessage();
             }
         }
 
@@ -522,6 +682,8 @@
         function sendMonitorMessage() {
             if (window.gpsSystem) {
                 window.gpsSystem.sendMonitorMessage();
+            } else {
+                console.warn('GPS System belum diinisialisasi - tidak dapat mengirim pesan');
             }
         }
 
@@ -533,16 +695,23 @@
                 // Enable input when unit is selected
                 const input = document.getElementById('monitorChatInput');
                 const sendBtn = document.getElementById('monitorSendBtn');
-                input.disabled = false;
-                sendBtn.disabled = false;
-                input.focus();
+                if (input && sendBtn) {
+                    input.disabled = false;
+                    sendBtn.disabled = false;
+                    input.focus();
+                }
+            } else {
+                console.warn('GPS System belum diinisialisasi - tidak dapat memilih unit');
             }
         }
 
         // ✅ ENHANCED REAL-TIME CLOCK
         function updateClock() {
             const now = new Date();
-            document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID');
+            const timeElement = document.getElementById('currentTime');
+            if (timeElement) {
+                timeElement.textContent = now.toLocaleTimeString('id-ID');
+            }
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -552,6 +721,9 @@
             if (window.gpsSystem) {
                 window.gpsSystem.forceCleanupAllData();
                 alert('Force cleanup executed! All sticky data removed.');
+            } else {
+                console.warn('GPS System belum diinisialisasi - tidak dapat melakukan cleanup');
+                alert('Sistem belum siap. Tunggu beberapa saat dan coba lagi.');
             }
         }
 
@@ -559,6 +731,9 @@
         function refreshData() {
             if (window.gpsSystem) {
                 window.gpsSystem.refreshData();
+            } else {
+                console.warn('GPS System belum diinisialisasi - tidak dapat refresh data');
+                location.reload(); // Fallback reload
             }
         }
 
@@ -566,6 +741,9 @@
         function exportData() {
             if (window.gpsSystem) {
                 window.gpsSystem.downloadRouteData();
+            } else {
+                console.warn('GPS System belum diinisialisasi - tidak dapat export data');
+                alert('Sistem belum siap untuk export data.');
             }
         }
 
@@ -586,7 +764,7 @@
             const chatWindow = document.getElementById('monitorChatWindow');
             const toggleBtn = document.getElementById('monitorChatToggle');
             
-            if (chatWindow.style.display === 'flex' && 
+            if (chatWindow && chatWindow.style.display === 'flex' && 
                 !chatContainer.contains(event.target) && 
                 event.target !== toggleBtn) {
                 toggleMonitorChat();
@@ -595,21 +773,76 @@
 
         // ✅ ENHANCED ERROR HANDLING FOR MISSING GPS SYSTEM
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 DOM Content Loaded - Initializing GPS Tracking System');
+            
+            // Initialize clock immediately
+            updateClock();
+            
             // Check if gpsSystem is available after a short delay
+            const checkSystemReady = setInterval(() => {
+                if (window.gpsSystem) {
+                    console.log('✅ GPS System successfully initialized');
+                    clearInterval(checkSystemReady);
+                    
+                    // Update connection status
+                    if (window.gpsSystem.updateConnectionStatus) {
+                        // Simulate connected status
+                        window.gpsSystem.updateConnectionStatus(true);
+                    }
+                }
+            }, 500);
+
+            // Timeout after 10 seconds
             setTimeout(() => {
                 if (!window.gpsSystem) {
-                    console.warn('GPS System not initialized yet - functions will be delegated');
+                    console.error('❌ GPS System failed to initialize within timeout period');
+                    clearInterval(checkSystemReady);
                     
-                    // Show loading state for chat
+                    // Show error state for chat
                     const chatInput = document.getElementById('monitorChatInput');
                     const sendBtn = document.getElementById('monitorSendBtn');
                     if (chatInput && sendBtn) {
-                        chatInput.placeholder = 'Sistem sedang dimuat...';
+                        chatInput.placeholder = 'Sistem gagal dimuat - Refresh halaman';
                         chatInput.disabled = true;
                         sendBtn.disabled = true;
                     }
+                    
+                    // Update Firebase status
+                    const firebaseStatus = document.getElementById('firebaseStatus');
+                    if (firebaseStatus) {
+                        firebaseStatus.innerHTML = '🔴 FIREBASE GAGAL';
+                        firebaseStatus.className = 'connection-status connection-offline';
+                    }
+                }
+            }, 10000);
+        });
+
+        // ✅ ENHANCED SYSTEM READY CHECK
+        window.addEventListener('load', function() {
+            console.log('📦 Page fully loaded');
+            
+            // Hide loading spinner after system is ready
+            setTimeout(() => {
+                const loadingSpinner = document.getElementById('loadingSpinner');
+                if (loadingSpinner) {
+                    loadingSpinner.classList.add('d-none');
                 }
             }, 2000);
+        });
+
+        // ✅ GLOBAL ERROR HANDLER
+        window.addEventListener('error', function(event) {
+            console.error('Global error caught:', event.error);
+            
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-danger alert-dismissible fade show';
+            notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                <strong>Error:</strong> ${event.error?.message || 'Terjadi kesalahan sistem'}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(notification);
         });
     </script>
 </body>
