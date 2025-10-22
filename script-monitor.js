@@ -13,368 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ==== ENHANCED HISTORICAL POLYLINE SYSTEM ====
-class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
-    constructor() {
-        super();
-        
-        // Enhanced Waypoint Properties
-        this.unitWaypoints = new Map();        // unitId -> waypoints[]
-        this.historicalPolylines = new Map();  // unitId -> polyline  
-        this.waypointListeners = new Map();    // unitId -> firebase listeners
-        
-        this.waypointConfig = {
-            maxPointsPerPolyline: 61200,
-            polylineSmoothness: 1.0,
-            waypointBatchSize: 100,
-            polylineColorOpacity: 0.7
-        };
-
-        console.log('📍 Enhanced Historical Polyline System initialized');
-    }
-
-    // ✅ LOAD HISTORICAL WAYPOINTS
-    async loadUnitHistoricalWaypoints(unitName) {
-        try {
-            console.log(`📍 Loading historical waypoints for: ${unitName}`);
-            
-            const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
-            const snapshot = await waypointsRef.once('value');
-            const batchesData = snapshot.val();
-            
-            if (!batchesData) return;
-            
-            const allWaypoints = [];
-            Object.values(batchesData).forEach(batch => {
-                if (batch.waypoints) {
-                    allWaypoints.push(...batch.waypoints);
-                }
-            });
-            
-            allWaypoints.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            this.unitWaypoints.set(unitName, allWaypoints);
-            
-            console.log(`📍 Loaded ${allWaypoints.length} waypoints for ${unitName}`);
-            this.createHistoricalPolyline(unitName, allWaypoints);
-            
-        } catch (error) {
-            console.error(`📍 Failed to load waypoints for ${unitName}:`, error);
-        }
-    }
-
-    // ✅ CREATE HISTORICAL POLYLINE
-    createHistoricalPolyline(unitName, waypoints) {
-        if (waypoints.length < 2) return;
-        
-        const routePoints = waypoints.map(wp => [wp.lat, wp.lng]);
-        const routeColor = this.getHistoricalRouteColor(unitName);
-        
-        try {
-            const historicalPolyline = L.polyline(routePoints, {
-                color: routeColor,
-                weight: 6,
-                opacity: this.waypointConfig.polylineColorOpacity,
-                lineCap: 'round',
-                lineJoin: 'round',
-                className: 'historical-route-line',
-                smoothFactor: this.waypointConfig.polylineSmoothness
-            });
-            
-            if (this.showRoutes) {
-                historicalPolyline.addTo(this.map);
-            }
-            
-            historicalPolyline.bindPopup(this.createHistoricalRoutePopup(unitName, waypoints));
-            this.historicalPolylines.set(unitName, historicalPolyline);
-            
-        } catch (error) {
-            console.error(`📍 Failed to create polyline for ${unitName}:`, error);
-        }
-    }
-
-    // ✅ HISTORICAL ROUTE POPUP
-    createHistoricalRoutePopup(unitName, waypoints) {
-        const firstPoint = waypoints[0];
-        const lastPoint = waypoints[waypoints.length - 1];
-        const totalDistance = this.calculateRouteDistance(waypoints);
-        
-        return `
-            <div class="historical-route-popup">
-                <div class="popup-header">
-                    <h6>📊 Historical Route - ${unitName}</h6>
-                </div>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Total Waypoints:</span>
-                        <span class="info-value">${waypoints.length}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Start Time:</span>
-                        <span class="info-value">${new Date(firstPoint.timestamp).toLocaleTimeString('id-ID')}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">End Time:</span>
-                        <span class="info-value">${new Date(lastPoint.timestamp).toLocaleTimeString('id-ID')}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Route Distance:</span>
-                        <span class="info-value">${totalDistance.toFixed(2)} km</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // ✅ CALCULATE ROUTE DISTANCE
-    calculateRouteDistance(waypoints) {
-        let totalDistance = 0;
-        for (let i = 1; i < waypoints.length; i++) {
-            const prev = waypoints[i - 1];
-            const curr = waypoints[i];
-            const distance = this.calculateDistance(prev.lat, prev.lng, curr.lat, curr.lng);
-            totalDistance += distance;
-        }
-        return totalDistance;
-    }
-
-    // ✅ CALCULATE DISTANCE BETWEEN TWO POINTS
-    calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371; // Earth's radius in kilometers
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    // ✅ HISTORICAL ROUTE COLOR
-    getHistoricalRouteColor(unitName) {
-        const baseColor = this.getRouteColor(unitName);
-        return this.lightenColor(baseColor, 20); // Make historical routes lighter
-    }
-
-    lightenColor(color, percent) {
-        const num = parseInt(color.replace("#", ""), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = (num >> 16) + amt;
-        const G = (num >> 8 & 0x00FF) + amt;
-        const B = (num & 0x0000FF) + amt;
-        return "#" + (
-            0x1000000 +
-            (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
-            (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
-            (B < 255 ? B < 1 ? 0 : B : 255)
-        ).toString(16).slice(1);
-    }
-
-    // ✅ SETUP WAYPOINT BATCH LISTENER
-    setupWaypointBatchListener(unitName) {
-        if (this.waypointListeners.has(unitName)) {
-            return; // Listener already exists
-        }
-        
-        const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
-        
-        const listener = waypointsRef.on('child_added', (snapshot) => {
-            const newBatch = snapshot.val();
-            if (newBatch && newBatch.waypoints) {
-                this.handleNewWaypointBatch(unitName, newBatch.waypoints);
-            }
-        });
-        
-        this.waypointListeners.set(unitName, listener);
-        console.log(`📍 Waypoint batch listener setup for: ${unitName}`);
-    }
-
-    // ✅ HANDLE NEW WAYPOINT BATCH
-    handleNewWaypointBatch(unitName, newWaypoints) {
-        const existingWaypoints = this.unitWaypoints.get(unitName) || [];
-        const updatedWaypoints = [...existingWaypoints, ...newWaypoints];
-        
-        // Sort by timestamp
-        updatedWaypoints.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // Limit to max points
-        if (updatedWaypoints.length > this.waypointConfig.maxPointsPerPolyline) {
-            updatedWaypoints.splice(0, updatedWaypoints.length - this.waypointConfig.maxPointsPerPolyline);
-        }
-        
-        this.unitWaypoints.set(unitName, updatedWaypoints);
-        this.updateHistoricalPolyline(unitName, updatedWaypoints);
-        
-        console.log(`📍 Updated ${unitName} with ${newWaypoints.length} new waypoints, total: ${updatedWaypoints.length}`);
-    }
-
-    // ✅ UPDATE HISTORICAL POLYLINE
-    updateHistoricalPolyline(unitName, waypoints) {
-        const routePoints = waypoints.map(wp => [wp.lat, wp.lng]);
-        
-        if (this.historicalPolylines.has(unitName)) {
-            try {
-                this.historicalPolylines.get(unitName).setLatLngs(routePoints);
-                // Update popup with new data
-                this.historicalPolylines.get(unitName).bindPopup(
-                    this.createHistoricalRoutePopup(unitName, waypoints)
-                );
-            } catch (error) {
-                console.error(`📍 Failed to update polyline for ${unitName}, recreating:`, error);
-                this.map.removeLayer(this.historicalPolylines.get(unitName));
-                this.historicalPolylines.delete(unitName);
-                this.createHistoricalPolyline(unitName, waypoints);
-            }
-        } else {
-            this.createHistoricalPolyline(unitName, waypoints);
-        }
-    }
-
-    // ===== INTEGRATION POINTS - MODIFIED EXISTING METHODS =====
-    
-    // ✅ OVERRIDE UNIT CREATION - Add waypoint loading
-    createNewUnit(unitName, unitData) {
-        const unit = super.createNewUnit(unitName, unitData);
-        if (unit) {
-            // Load historical waypoints untuk unit ini
-            this.loadUnitHistoricalWaypoints(unitName);
-            // Setup real-time waypoint listener
-            this.setupWaypointBatchListener(unitName);
-        }
-        return unit;
-    }
-    
-    // ✅ OVERRIDE UNIT REMOVAL - Cleanup waypoint data
-    removeUnitCompletely(unitName) {
-        // Cleanup waypoint data
-        this.unitWaypoints.delete(unitName);
-        
-        // Cleanup historical polyline
-        if (this.historicalPolylines.has(unitName)) {
-            this.map.removeLayer(this.historicalPolylines.get(unitName));
-            this.historicalPolylines.delete(unitName);
-        }
-        
-        // Cleanup waypoint listener
-        if (this.waypointListeners.has(unitName)) {
-            const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
-            waypointsRef.off('child_added', this.waypointListeners.get(unitName));
-            this.waypointListeners.delete(unitName);
-        }
-        
-        // Call parent cleanup
-        super.removeUnitCompletely(unitName);
-    }
-    
-    // ✅ OVERRIDE POPUP CREATION - Add waypoint info
-    createUnitPopup(unit) {
-        const basePopup = super.createUnitPopup(unit);
-        const waypoints = this.unitWaypoints.get(unit.name) || [];
-        const hasHistoricalData = waypoints.length > 0;
-        
-        const waypointInfo = `
-            <div class="waypoint-info-section mt-3">
-                <hr>
-                <h6>📍 Enhanced Waypoint Data</h6>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Historical Waypoints:</span>
-                        <span class="info-value ${hasHistoricalData ? 'text-success' : 'text-muted'}">
-                            ${hasHistoricalData ? waypoints.length + ' points' : 'No data'}
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Data Interval:</span>
-                        <span class="info-value">1 second</span>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        return basePopup.replace('</div>', waypointInfo + '</div>');
-    }
-
-    // ✅ DOWNLOAD WAYPOINT DATA
-    downloadWaypointData(unitName = null) {
-        const exportData = {
-            exportedAt: new Date().toISOString(),
-            totalUnits: unitName ? 1 : this.unitWaypoints.size,
-            system: 'Enhanced SAGM GPS Tracking with Historical Polyline',
-            waypoints: {}
-        };
-
-        if (unitName) {
-            // Export single unit
-            const waypoints = this.unitWaypoints.get(unitName) || [];
-            exportData.waypoints[unitName] = {
-                unit: unitName,
-                totalWaypoints: waypoints.length,
-                routeDistance: this.calculateRouteDistance(waypoints),
-                waypoints: waypoints
-            };
-        } else {
-            // Export all units
-            this.unitWaypoints.forEach((waypoints, unitName) => {
-                exportData.waypoints[unitName] = {
-                    unit: unitName,
-                    totalWaypoints: waypoints.length,
-                    routeDistance: this.calculateRouteDistance(waypoints),
-                    waypoints: waypoints.slice(-1000) // Last 1000 points for performance
-                };
-            });
-        }
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `sagm-waypoints-${unitName || 'all'}-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.logData(`Waypoint data exported: ${unitName || 'all units'}`, 'success', {
-            file: link.download,
-            totalWaypoints: Object.values(exportData.waypoints).reduce((sum, unit) => sum + unit.totalWaypoints, 0)
-        });
-    }
-
-    // ✅ TOGGLE HISTORICAL ROUTES VISIBILITY
-    toggleHistoricalRoutes() {
-        this.showRoutes = !this.showRoutes;
-        
-        this.historicalPolylines.forEach((polyline, unitName) => {
-            if (this.showRoutes) {
-                if (!this.map.hasLayer(polyline)) {
-                    polyline.addTo(this.map);
-                }
-            } else {
-                if (this.map.hasLayer(polyline)) {
-                    this.map.removeLayer(polyline);
-                }
-            }
-        });
-        
-        console.log(`📍 Historical routes ${this.showRoutes ? 'shown' : 'hidden'}`);
-        this.logData(`Historical routes ${this.showRoutes ? 'ditampilkan' : 'disembunyikan'}`, 'system');
-    }
-
-    // ✅ CLEAR HISTORICAL DATA FOR UNIT
-    clearHistoricalData(unitName) {
-        if (confirm(`Yakin ingin menghapus data historis untuk ${unitName}?`)) {
-            this.unitWaypoints.delete(unitName);
-            
-            if (this.historicalPolylines.has(unitName)) {
-                this.map.removeLayer(this.historicalPolylines.get(unitName));
-                this.historicalPolylines.delete(unitName);
-            }
-            
-            this.logData(`Historical data cleared for ${unitName}`, 'info');
-            this.updateMapMarkers(); // Refresh markers to update popups
-        }
-    }
-}
-
-// ENHANCED SAGM GPS TRACKING SYSTEM WITH SMOOTH ANIMATION CHAT
+// ==== FIX: DEFINE BASE CLASS FIRST ====
 class OptimizedSAGMGpsTracking {
     constructor() {
         console.log('🚀 Initializing Enhanced GPS Tracking System with Smooth Animation Chat...');
@@ -2480,6 +2119,367 @@ class OptimizedSAGMGpsTracking {
         }
         
         console.log('✅ System cleanup with chat support completed');
+    }
+}
+
+// ==== ENHANCED HISTORICAL POLYLINE SYSTEM ====
+class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
+    constructor() {
+        super();
+        
+        // Enhanced Waypoint Properties
+        this.unitWaypoints = new Map();        // unitId -> waypoints[]
+        this.historicalPolylines = new Map();  // unitId -> polyline  
+        this.waypointListeners = new Map();    // unitId -> firebase listeners
+        
+        this.waypointConfig = {
+            maxPointsPerPolyline: 61200,
+            polylineSmoothness: 1.0,
+            waypointBatchSize: 100,
+            polylineColorOpacity: 0.7
+        };
+
+        console.log('📍 Enhanced Historical Polyline System initialized');
+    }
+
+    // ✅ LOAD HISTORICAL WAYPOINTS
+    async loadUnitHistoricalWaypoints(unitName) {
+        try {
+            console.log(`📍 Loading historical waypoints for: ${unitName}`);
+            
+            const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
+            const snapshot = await waypointsRef.once('value');
+            const batchesData = snapshot.val();
+            
+            if (!batchesData) return;
+            
+            const allWaypoints = [];
+            Object.values(batchesData).forEach(batch => {
+                if (batch.waypoints) {
+                    allWaypoints.push(...batch.waypoints);
+                }
+            });
+            
+            allWaypoints.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            this.unitWaypoints.set(unitName, allWaypoints);
+            
+            console.log(`📍 Loaded ${allWaypoints.length} waypoints for ${unitName}`);
+            this.createHistoricalPolyline(unitName, allWaypoints);
+            
+        } catch (error) {
+            console.error(`📍 Failed to load waypoints for ${unitName}:`, error);
+        }
+    }
+
+    // ✅ CREATE HISTORICAL POLYLINE
+    createHistoricalPolyline(unitName, waypoints) {
+        if (waypoints.length < 2) return;
+        
+        const routePoints = waypoints.map(wp => [wp.lat, wp.lng]);
+        const routeColor = this.getHistoricalRouteColor(unitName);
+        
+        try {
+            const historicalPolyline = L.polyline(routePoints, {
+                color: routeColor,
+                weight: 6,
+                opacity: this.waypointConfig.polylineColorOpacity,
+                lineCap: 'round',
+                lineJoin: 'round',
+                className: 'historical-route-line',
+                smoothFactor: this.waypointConfig.polylineSmoothness
+            });
+            
+            if (this.showRoutes) {
+                historicalPolyline.addTo(this.map);
+            }
+            
+            historicalPolyline.bindPopup(this.createHistoricalRoutePopup(unitName, waypoints));
+            this.historicalPolylines.set(unitName, historicalPolyline);
+            
+        } catch (error) {
+            console.error(`📍 Failed to create polyline for ${unitName}:`, error);
+        }
+    }
+
+    // ✅ HISTORICAL ROUTE POPUP
+    createHistoricalRoutePopup(unitName, waypoints) {
+        const firstPoint = waypoints[0];
+        const lastPoint = waypoints[waypoints.length - 1];
+        const totalDistance = this.calculateRouteDistance(waypoints);
+        
+        return `
+            <div class="historical-route-popup">
+                <div class="popup-header">
+                    <h6>📊 Historical Route - ${unitName}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Total Waypoints:</span>
+                        <span class="info-value">${waypoints.length}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Start Time:</span>
+                        <span class="info-value">${new Date(firstPoint.timestamp).toLocaleTimeString('id-ID')}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">End Time:</span>
+                        <span class="info-value">${new Date(lastPoint.timestamp).toLocaleTimeString('id-ID')}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Route Distance:</span>
+                        <span class="info-value">${totalDistance.toFixed(2)} km</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // ✅ CALCULATE ROUTE DISTANCE
+    calculateRouteDistance(waypoints) {
+        let totalDistance = 0;
+        for (let i = 1; i < waypoints.length; i++) {
+            const prev = waypoints[i - 1];
+            const curr = waypoints[i];
+            const distance = this.calculateDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+            totalDistance += distance;
+        }
+        return totalDistance;
+    }
+
+    // ✅ CALCULATE DISTANCE BETWEEN TWO POINTS
+    calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // ✅ HISTORICAL ROUTE COLOR
+    getHistoricalRouteColor(unitName) {
+        const baseColor = this.getRouteColor(unitName);
+        return this.lightenColor(baseColor, 20); // Make historical routes lighter
+    }
+
+    lightenColor(color, percent) {
+        const num = parseInt(color.replace("#", ""), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = (num >> 16) + amt;
+        const G = (num >> 8 & 0x00FF) + amt;
+        const B = (num & 0x0000FF) + amt;
+        return "#" + (
+            0x1000000 +
+            (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+            (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+            (B < 255 ? B < 1 ? 0 : B : 255)
+        ).toString(16).slice(1);
+    }
+
+    // ✅ SETUP WAYPOINT BATCH LISTENER
+    setupWaypointBatchListener(unitName) {
+        if (this.waypointListeners.has(unitName)) {
+            return; // Listener already exists
+        }
+        
+        const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
+        
+        const listener = waypointsRef.on('child_added', (snapshot) => {
+            const newBatch = snapshot.val();
+            if (newBatch && newBatch.waypoints) {
+                this.handleNewWaypointBatch(unitName, newBatch.waypoints);
+            }
+        });
+        
+        this.waypointListeners.set(unitName, listener);
+        console.log(`📍 Waypoint batch listener setup for: ${unitName}`);
+    }
+
+    // ✅ HANDLE NEW WAYPOINT BATCH
+    handleNewWaypointBatch(unitName, newWaypoints) {
+        const existingWaypoints = this.unitWaypoints.get(unitName) || [];
+        const updatedWaypoints = [...existingWaypoints, ...newWaypoints];
+        
+        // Sort by timestamp
+        updatedWaypoints.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // Limit to max points
+        if (updatedWaypoints.length > this.waypointConfig.maxPointsPerPolyline) {
+            updatedWaypoints.splice(0, updatedWaypoints.length - this.waypointConfig.maxPointsPerPolyline);
+        }
+        
+        this.unitWaypoints.set(unitName, updatedWaypoints);
+        this.updateHistoricalPolyline(unitName, updatedWaypoints);
+        
+        console.log(`📍 Updated ${unitName} with ${newWaypoints.length} new waypoints, total: ${updatedWaypoints.length}`);
+    }
+
+    // ✅ UPDATE HISTORICAL POLYLINE
+    updateHistoricalPolyline(unitName, waypoints) {
+        const routePoints = waypoints.map(wp => [wp.lat, wp.lng]);
+        
+        if (this.historicalPolylines.has(unitName)) {
+            try {
+                this.historicalPolylines.get(unitName).setLatLngs(routePoints);
+                // Update popup with new data
+                this.historicalPolylines.get(unitName).bindPopup(
+                    this.createHistoricalRoutePopup(unitName, waypoints)
+                );
+            } catch (error) {
+                console.error(`📍 Failed to update polyline for ${unitName}, recreating:`, error);
+                this.map.removeLayer(this.historicalPolylines.get(unitName));
+                this.historicalPolylines.delete(unitName);
+                this.createHistoricalPolyline(unitName, waypoints);
+            }
+        } else {
+            this.createHistoricalPolyline(unitName, waypoints);
+        }
+    }
+
+    // ===== INTEGRATION POINTS - MODIFIED EXISTING METHODS =====
+    
+    // ✅ OVERRIDE UNIT CREATION - Add waypoint loading
+    createNewUnit(unitName, unitData) {
+        const unit = super.createNewUnit(unitName, unitData);
+        if (unit) {
+            // Load historical waypoints untuk unit ini
+            this.loadUnitHistoricalWaypoints(unitName);
+            // Setup real-time waypoint listener
+            this.setupWaypointBatchListener(unitName);
+        }
+        return unit;
+    }
+    
+    // ✅ OVERRIDE UNIT REMOVAL - Cleanup waypoint data
+    removeUnitCompletely(unitName) {
+        // Cleanup waypoint data
+        this.unitWaypoints.delete(unitName);
+        
+        // Cleanup historical polyline
+        if (this.historicalPolylines.has(unitName)) {
+            this.map.removeLayer(this.historicalPolylines.get(unitName));
+            this.historicalPolylines.delete(unitName);
+        }
+        
+        // Cleanup waypoint listener
+        if (this.waypointListeners.has(unitName)) {
+            const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
+            waypointsRef.off('child_added', this.waypointListeners.get(unitName));
+            this.waypointListeners.delete(unitName);
+        }
+        
+        // Call parent cleanup
+        super.removeUnitCompletely(unitName);
+    }
+    
+    // ✅ OVERRIDE POPUP CREATION - Add waypoint info
+    createUnitPopup(unit) {
+        const basePopup = super.createUnitPopup(unit);
+        const waypoints = this.unitWaypoints.get(unit.name) || [];
+        const hasHistoricalData = waypoints.length > 0;
+        
+        const waypointInfo = `
+            <div class="waypoint-info-section mt-3">
+                <hr>
+                <h6>📍 Enhanced Waypoint Data</h6>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Historical Waypoints:</span>
+                        <span class="info-value ${hasHistoricalData ? 'text-success' : 'text-muted'}">
+                            ${hasHistoricalData ? waypoints.length + ' points' : 'No data'}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Data Interval:</span>
+                        <span class="info-value">1 second</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        return basePopup.replace('</div>', waypointInfo + '</div>');
+    }
+
+    // ✅ DOWNLOAD WAYPOINT DATA
+    downloadWaypointData(unitName = null) {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalUnits: unitName ? 1 : this.unitWaypoints.size,
+            system: 'Enhanced SAGM GPS Tracking with Historical Polyline',
+            waypoints: {}
+        };
+
+        if (unitName) {
+            // Export single unit
+            const waypoints = this.unitWaypoints.get(unitName) || [];
+            exportData.waypoints[unitName] = {
+                unit: unitName,
+                totalWaypoints: waypoints.length,
+                routeDistance: this.calculateRouteDistance(waypoints),
+                waypoints: waypoints
+            };
+        } else {
+            // Export all units
+            this.unitWaypoints.forEach((waypoints, unitName) => {
+                exportData.waypoints[unitName] = {
+                    unit: unitName,
+                    totalWaypoints: waypoints.length,
+                    routeDistance: this.calculateRouteDistance(waypoints),
+                    waypoints: waypoints.slice(-1000) // Last 1000 points for performance
+                };
+            });
+        }
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `sagm-waypoints-${unitName || 'all'}-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.logData(`Waypoint data exported: ${unitName || 'all units'}`, 'success', {
+            file: link.download,
+            totalWaypoints: Object.values(exportData.waypoints).reduce((sum, unit) => sum + unit.totalWaypoints, 0)
+        });
+    }
+
+    // ✅ TOGGLE HISTORICAL ROUTES VISIBILITY
+    toggleHistoricalRoutes() {
+        this.showRoutes = !this.showRoutes;
+        
+        this.historicalPolylines.forEach((polyline, unitName) => {
+            if (this.showRoutes) {
+                if (!this.map.hasLayer(polyline)) {
+                    polyline.addTo(this.map);
+                }
+            } else {
+                if (this.map.hasLayer(polyline)) {
+                    this.map.removeLayer(polyline);
+                }
+            }
+        });
+        
+        console.log(`📍 Historical routes ${this.showRoutes ? 'shown' : 'hidden'}`);
+        this.logData(`Historical routes ${this.showRoutes ? 'ditampilkan' : 'disembunyikan'}`, 'system');
+    }
+
+    // ✅ CLEAR HISTORICAL DATA FOR UNIT
+    clearHistoricalData(unitName) {
+        if (confirm(`Yakin ingin menghapus data historis untuk ${unitName}?`)) {
+            this.unitWaypoints.delete(unitName);
+            
+            if (this.historicalPolylines.has(unitName)) {
+                this.map.removeLayer(this.historicalPolylines.get(unitName));
+                this.historicalPolylines.delete(unitName);
+            }
+            
+            this.logData(`Historical data cleared for ${unitName}`, 'info');
+            this.updateMapMarkers(); // Refresh markers to update popups
+        }
     }
 }
 
