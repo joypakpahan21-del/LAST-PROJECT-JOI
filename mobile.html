@@ -5,20 +5,496 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DT Driver - Enhanced GPS Logger</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="style-mobile.css" rel="stylesheet">
-    
-    <!-- FIREBASE SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
     
     <style>
-        /* CSS styles tetap sama seperti sebelumnya */
-        /* ... (semua CSS dari kode sebelumnya) ... */
+        /* Enhanced Waypoint Datalogger Styles */
+        .waypoint-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+        }
+        
+        .waypoint-stats {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        .waypoint-status {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .speed-gauge {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #198754;
+            line-height: 1;
+        }
+        
+        .distance-counter {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0d6efd;
+            line-height: 1;
+        }
+        
+        .connection-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .connection-status.connected {
+            background-color: #198754;
+            box-shadow: 0 0 8px #198754;
+        }
+        
+        .connection-status.disconnected {
+            background-color: #dc3545;
+            box-shadow: 0 0 8px #dc3545;
+        }
+        
+        /* Enhanced Chat Styles */
+        .chat-toggle-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            border-radius: 25px;
+            padding: 12px 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .chat-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        .chat-window {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            z-index: 1001;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #198754, #20c997);
+            color: white;
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .chat-input-container {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            background: white;
+        }
+        
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+        
+        .message-sent {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message-received {
+            background: #e9ecef;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-sender {
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #6c757d;
+            padding: 8px;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #6c757d;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        .chat-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6c757d;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .chat-window {
+                width: 90vw;
+                right: 5vw;
+                height: 60vh;
+                bottom: 70px;
+            }
+            
+            .chat-toggle-btn {
+                right: 15px;
+                bottom: 15px;
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+            
+            .waypoint-stats {
+                font-size: 1rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .chat-window {
+                width: 95vw;
+                right: 2.5vw;
+                height: 55vh;
+            }
+            
+            .speed-gauge, .distance-counter {
+                font-size: 1.7rem;
+            }
+        }
+
+        /* Additional Styles */
+        .vehicle-info {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 12px;
+        }
+
+        .control-btn {
+            margin-bottom: 10px;
+            padding: 12px;
+            font-weight: bold;
+        }
+
+        .data-log {
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
-    <!-- HTML structure tetap sama seperti sebelumnya -->
-    <!-- ... (semua HTML dari kode sebelumnya) ... -->
+    <!-- Login Screen -->
+    <div class="container-fluid min-vh-100 d-flex align-items-center justify-content-center p-3">
+        <div class="login-container p-4 w-100" style="max-width: 400px;" id="loginScreen">
+            <div class="text-center mb-4">
+                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" 
+                     style="width: 80px; height: 80px; font-size: 2rem;">
+                    🚚
+                </div>
+                <h3 class="mt-3 text-dark">DT GPS Logger</h3>
+                <p class="text-muted">Enhanced Waypoint Tracking System</p>
+            </div>
+            
+            <form id="loginForm">
+                <div class="mb-3">
+                    <label class="form-label">Nama Driver</label>
+                    <input type="text" class="form-control" id="driverName" placeholder="Masukkan nama lengkap" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nomor Unit DT</label>
+                    <select class="form-select" id="unitNumber" required>
+                        <option value="">Pilih Unit DT</option>
+                        <option value="DT-06">DT-06 - Dump Truck 2018</option>
+                        <option value="DT-07">DT-07 - Dump Truck 2018</option>
+                        <option value="DT-12">DT-12 - Dump Truck 2020</option>
+                        <option value="DT-13">DT-13 - Dump Truck 2020</option>
+                        <option value="DT-15">DT-15 - Dump Truck 2020</option>
+                        <option value="DT-16">DT-16 - Dump Truck 2020</option>
+                        <option value="DT-17">DT-17 - Dump Truck 2020</option>
+                        <option value="DT-18">DT-18 - Dump Truck 2020</option>
+                        <option value="DT-23">DT-23 - Dump Truck 2021</option>
+                        <option value="DT-24">DT-24 - Dump Truck 2021</option>
+                        <option value="DT-25">DT-25 - Dump Truck 2022</option>
+                        <option value="DT-26">DT-26 - Dump Truck 2022</option>
+                        <option value="DT-27">DT-27 - Dump Truck 2022</option>
+                        <option value="DT-28">DT-28 - Dump Truck 2022</option>
+                        <option value="DT-29">DT-29 - Dump Truck 2022</option>
+                        <option value="DT-32">DT-32 - Dump Truck 2024</option>
+                        <option value="DT-33">DT-33 - Dump Truck 2025</option>
+                        <option value="DT-34">DT-34 - Dump Truck 2025</option>
+                        <option value="DT-35">DT-35 - Dump Truck 2025</option>
+                        <option value="DT-36">DT-36 - Dump Truck 2020</option>
+                        <option value="DT-37">DT-37 - Dump Truck 2020</option>
+                        <option value="DT-38">DT-38 - Dump Truck 2020</option>
+                        <option value="DT-39">DT-39 - Dump Truck 2020</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                    🚀 Login & Start GPS
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Driver App Screen -->
+    <div class="driver-app" id="driverApp" style="display: none;">
+        <!-- Header -->
+        <div class="row align-items-center m-3">
+            <div class="col-8">
+                <h5 class="mb-0">🚚 DT Driver</h5>
+                <small class="text-muted" id="currentTime">--:--:--</small>
+            </div>
+            <div class="col-4 text-end">
+                <span class="connection-status" id="connectionDot"></span>
+                <span id="connectionStatus">MENYAMBUNG...</span>
+            </div>
+        </div>
+
+        <!-- Vehicle Info -->
+        <div class="vehicle-info p-3 m-3">
+            <div class="row align-items-center">
+                <div class="col-8">
+                    <h4 class="mb-1 fw-bold" id="vehicleName">-</h4>
+                    <small>Driver: <span id="driverDisplayName">-</span></small>
+                </div>
+                <div class="col-4 text-end">
+                    <div class="bg-white text-dark rounded px-2 py-1">
+                        <small class="fw-bold" id="vehicleStatus">READY</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✅ ENHANCED WAYPOINT DATALOGGER CARD -->
+        <div class="card waypoint-card m-3">
+            <div class="card-body">
+                <h6 class="card-title mb-3">📍 ENHANCED WAYPOINT DATALOGGER</h6>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <small class="d-block opacity-75">Waypoints</small>
+                        <div class="waypoint-stats" id="waypointCount">0</div>
+                    </div>
+                    <div class="col-4">
+                        <small class="d-block opacity-75">Unsynced</small>
+                        <div class="waypoint-stats" id="unsyncedCount">0</div>
+                    </div>
+                    <div class="col-4">
+                        <small class="d-block opacity-75">Interval</small>
+                        <div class="waypoint-stats">1s</div>
+                    </div>
+                </div>
+                <div class="mt-2 text-center">
+                    <small class="waypoint-status" id="waypointStatus">Mengumpulkan waypoint...</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-time Stats -->
+        <div class="row m-2">
+            <div class="col-6">
+                <div class="stats-card text-center">
+                    <small class="d-block text-muted">KECEPATAN</small>
+                    <div class="speed-gauge" id="currentSpeed">0</div>
+                    <small class="text-muted">km/h</small>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stats-card text-center">
+                    <small class="d-block text-muted">JARAK HARI INI</small>
+                    <div class="distance-counter" id="todayDistance">0.0</div>
+                    <small class="text-muted">kilometer</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- GPS Data -->
+        <div class="card m-3">
+            <div class="card-body">
+                <h6 class="card-title">📍 DATA GPS REAL-TIME</h6>
+                <div class="gps-data p-3">
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <small class="text-muted d-block">LATITUDE</small>
+                            <strong id="currentLat">-</strong>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <small class="text-muted d-block">LONGITUDE</small>
+                            <strong id="currentLng">-</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">AKURASI</small>
+                            <strong id="gpsAccuracy">-</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">ARAH</small>
+                            <strong id="gpsBearing">-</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="row m-2">
+            <div class="col-6">
+                <button class="btn btn-success w-100 control-btn" id="startJourneyBtn">
+                    🚀 MULAI
+                </button>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-warning w-100 control-btn" id="pauseJourneyBtn">
+                    ⏸️ JEDA
+                </button>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-info w-100 control-btn" id="reportIssueBtn">
+                    🚨 LAPOR
+                </button>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-danger w-100 control-btn" id="endJourneyBtn">
+                    ✅ SELESAI
+                </button>
+            </div>
+        </div>
+
+        <!-- Session Info -->
+        <div class="card m-3">
+            <div class="card-body">
+                <h6 class="card-title">📊 INFO SESI</h6>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <small class="text-muted d-block">DURASI</small>
+                        <strong id="sessionDuration">00:00:00</strong>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted d-block">DATA POINTS</small>
+                        <strong id="dataPoints">0</strong>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted d-block">RATA-RATA</small>
+                        <strong id="avgSpeed">0</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Log -->
+        <div class="card m-3">
+            <div class="card-body">
+                <h6 class="card-title">📝 LOG TRANSMISI DATA</h6>
+                <div class="data-log" id="dataLogs">
+                    <div class="alert alert-info py-2 mb-2">
+                        <small>System: Menunggu inisialisasi GPS...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logout Button -->
+        <div class="m-3">
+            <button class="btn btn-danger w-100 py-2 fw-bold" id="logoutBtn">
+                🔓 Logout
+            </button>
+        </div>
+    </div>
+
+    <!-- ✅ ENHANCED CHAT INTERFACE -->
+    <div id="chatContainer">
+        <!-- Chat Toggle Button -->
+        <button id="chatToggle" class="btn btn-primary chat-toggle-btn">
+            💬 Chat <span id="unreadBadge" class="badge bg-danger" style="display: none;"></span>
+        </button>
+        
+        <!-- Chat Window -->
+        <div id="chatWindow" class="chat-window">
+            <div class="chat-header">
+                <h6 class="mb-0">💬 Chat dengan Monitor</h6>
+                <button type="button" class="btn-close btn-close-white" id="closeChatBtn"></button>
+            </div>
+            
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan monitor...</small>
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div class="input-group">
+                    <input type="text" id="chatInput" class="form-control" 
+                           placeholder="Ketik pesan...">
+                    <button class="btn btn-primary" type="button" id="sendChatBtn">
+                        Kirim
+                    </button>
+                </div>
+                <small class="text-muted d-block mt-1">Tekan Enter untuk mengirim</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
 
     <script>
 // ==== FIREBASE CONFIG ====
@@ -43,7 +519,7 @@ class CircularBuffer {
         this.buffer = new Array(capacity);
         this.head = 0;
         this.tail = 0;
-        this._count = 0; // Gunakan _count sebagai property internal
+        this._count = 0;
         this.isFull = false;
     }
 
@@ -90,7 +566,6 @@ class CircularBuffer {
         this.buffer = new Array(this.capacity);
     }
 
-    // ✅ FIX: Getter untuk count
     get count() {
         return this.isFull ? this.capacity : this._count;
     }
@@ -104,17 +579,15 @@ class EnhancedStorageManager {
             SYNC_STATUS: 'enhanced_sync_status',
             SESSION_DATA: 'enhanced_session_data'
         };
-        this.maxStorageSize = 5 * 1024 * 1024; // 5MB
+        this.maxStorageSize = 5 * 1024 * 1024;
     }
 
     saveWaypoint(waypoint) {
         try {
             const existing = this.loadAllWaypoints();
             
-            // Check storage limits
             if (existing.length >= 61200) {
-                // Remove oldest waypoints
-                existing.splice(0, Math.floor(existing.length * 0.1)); // Remove oldest 10%
+                existing.splice(0, Math.floor(existing.length * 0.1));
             }
             
             existing.push(waypoint);
@@ -180,46 +653,26 @@ class EnhancedStorageManager {
 
     compressWaypoints(waypoints) {
         return waypoints.map(wp => ({
-            i: wp.id,           // id
-            a: wp.lat,          // lat
-            o: wp.lng,          // lng  
-            c: wp.accuracy,     // accuracy
-            s: wp.speed,        // speed
-            b: wp.bearing,      // bearing
-            t: wp.timestamp,    // timestamp
-            d: wp.timeDisplay,  // timeDisplay
-            z: wp.sessionId,    // sessionId
-            u: wp.unit,         // unit
-            r: wp.driver,       // driver
-            y: wp.synced ? 1 : 0, // synced
-            n: wp.isOnline ? 1 : 0 // isOnline
+            i: wp.id, a: wp.lat, o: wp.lng, c: wp.accuracy,
+            s: wp.speed, b: wp.bearing, t: wp.timestamp,
+            d: wp.timeDisplay, z: wp.sessionId, u: wp.unit,
+            r: wp.driver, y: wp.synced ? 1 : 0, n: wp.isOnline ? 1 : 0
         }));
     }
 
     decompressWaypoints(compressed) {
         return compressed.map(wp => ({
-            id: wp.i,
-            lat: wp.a,
-            lng: wp.o,
-            accuracy: wp.c,
-            speed: wp.s,
-            bearing: wp.b,
-            timestamp: wp.t,
-            timeDisplay: wp.d,
-            sessionId: wp.z,
-            unit: wp.u,
-            driver: wp.r,
-            synced: wp.y === 1,
-            isOnline: wp.n === 1
+            id: wp.i, lat: wp.a, lng: wp.o, accuracy: wp.c,
+            speed: wp.s, bearing: wp.b, timestamp: wp.t,
+            timeDisplay: wp.d, sessionId: wp.z, unit: wp.u,
+            driver: wp.r, synced: wp.y === 1, isOnline: wp.n === 1
         }));
     }
 
     updateSyncStatus(status) {
         const existing = this.getSyncStatus();
         localStorage.setItem(this.STORAGE_KEYS.SYNC_STATUS, JSON.stringify({
-            ...existing,
-            ...status,
-            updatedAt: new Date().toISOString()
+            ...existing, ...status, updatedAt: new Date().toISOString()
         }));
     }
 
@@ -227,23 +680,14 @@ class EnhancedStorageManager {
         try {
             const data = localStorage.getItem(this.STORAGE_KEYS.SYNC_STATUS);
             return data ? JSON.parse(data) : {
-                totalWaypoints: 0,
-                unsyncedCount: 0,
-                lastSync: null,
-                lastSave: null
+                totalWaypoints: 0, unsyncedCount: 0, lastSync: null, lastSave: null
             };
         } catch (error) {
-            return {
-                totalWaypoints: 0,
-                unsyncedCount: 0,
-                lastSync: null,
-                lastSave: null
-            };
+            return { totalWaypoints: 0, unsyncedCount: 0, lastSync: null, lastSave: null };
         }
     }
 
     handleStorageFull(waypoints) {
-        // Remove oldest 25% of waypoints
         const keepCount = Math.floor(waypoints.length * 0.75);
         const trimmed = waypoints.slice(-keepCount);
         this.saveToStorage(trimmed);
@@ -252,30 +696,26 @@ class EnhancedStorageManager {
 
     handleStorageError(error, waypoint) {
         console.error('Storage error:', error);
-        // Implement fallback strategy here
     }
 }
 
 // ✅ ENHANCED MOBILE GPS LOGGER
 class EnhancedDTGPSLogger {
     constructor() {
-        // ✅ ENHANCED WAYPOINT CONFIG - 3600×17 = 61,200 waypoints
         this.waypointConfig = {
-            collectionInterval: 1000, // 1 detik
-            maxWaypoints: 61200,      // 3600×17 waypoints
+            collectionInterval: 1000,
+            maxWaypoints: 61200,
             batchSize: 100,
-            syncInterval: 30000,      // Sync every 30 detik saat online
+            syncInterval: 30000,
             storageKey: 'enhanced_waypoints'
         };
 
-        // ✅ ENHANCED WAYPOINT MANAGEMENT
         this.waypointBuffer = new CircularBuffer(this.waypointConfig.maxWaypoints);
         this.unsyncedWaypoints = new Set();
         this.waypointCollector = null;
         this.syncManager = null;
         this.storageManager = new EnhancedStorageManager();
         
-        // Existing properties
         this.driverData = null;
         this.watchId = null;
         this.isTracking = false;
@@ -288,19 +728,16 @@ class EnhancedDTGPSLogger {
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
         
-        // Enhanced distance calculation
         this.lastUpdateTime = null;
         this.currentSpeed = 0;
         this.movingStartTime = null;
         this.isCurrentlyMoving = false;
         
-        // Complete history tracking
         this.offlineHistory = [];
         this.maxOfflinePoints = 1000;
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory();
         
-        // ✅ CHAT SYSTEM PROPERTIES
         this.chatRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
@@ -310,8 +747,7 @@ class EnhancedDTGPSLogger {
         this.isTyping = false;
         this.typingTimeout = null;
         
-        // ✅ PERBAIKAN: Flag untuk testing
-        this.isTesting = true; // Set true untuk testing, false untuk production
+        this.isTesting = true;
         
         this.offlineQueue = new OfflineQueueManager();
         
@@ -325,51 +761,91 @@ class EnhancedDTGPSLogger {
         setInterval(() => this.updateTime(), 1000);
         setInterval(() => this.checkNetworkStatus(), 5000);
         
-        // ✅ LOAD EXISTING UNSYNCED WAYPOINTS
         this.loadUnsyncedWaypoints();
     }
 
     setupEventListeners() {
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleLogin();
-        });
+        // ✅ PERBAIKAN: Gunakan event delegation dan cek elemen tersedia
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleLogin();
+            });
+        }
+
+        // Setup button event listeners
+        this.setupButtonListeners();
+    }
+
+    setupButtonListeners() {
+        // Control buttons
+        const startBtn = document.getElementById('startJourneyBtn');
+        const pauseBtn = document.getElementById('pauseJourneyBtn');
+        const endBtn = document.getElementById('endJourneyBtn');
+        const reportBtn = document.getElementById('reportIssueBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        // Chat buttons
+        const chatToggle = document.getElementById('chatToggle');
+        const closeChatBtn = document.getElementById('closeChatBtn');
+        const sendChatBtn = document.getElementById('sendChatBtn');
+        const chatInput = document.getElementById('chatInput');
+
+        if (startBtn) startBtn.addEventListener('click', () => this.startJourney());
+        if (pauseBtn) pauseBtn.addEventListener('click', () => this.pauseJourney());
+        if (endBtn) endBtn.addEventListener('click', () => this.endJourney());
+        if (reportBtn) reportBtn.addEventListener('click', () => this.reportIssue());
+        if (logoutBtn) logoutBtn.addEventListener('click', () => this.logout());
+
+        if (chatToggle) chatToggle.addEventListener('click', () => this.toggleChat());
+        if (closeChatBtn) closeChatBtn.addEventListener('click', () => this.toggleChat());
+        if (sendChatBtn) sendChatBtn.addEventListener('click', () => this.sendChatMessage());
+
+        if (chatInput) {
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.sendChatMessage();
+                }
+            });
+        }
+    }
+
+    sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        if (input && input.value.trim()) {
+            this.sendMessage(input.value);
+            input.value = '';
+        }
     }
 
     handleLogin() {
-        const driverName = document.getElementById('driverName').value;
-        const unitNumber = document.getElementById('unitNumber').value;
+        const driverName = document.getElementById('driverName');
+        const unitNumber = document.getElementById('unitNumber');
 
-        if (driverName && unitNumber) {
+        if (driverName && unitNumber && driverName.value && unitNumber.value) {
             this.driverData = {
-                name: driverName,
-                unit: unitNumber,
-                year: this.getVehicleYear(unitNumber),
+                name: driverName.value,
+                unit: unitNumber.value,
+                year: this.getVehicleYear(unitNumber.value),
                 sessionId: this.generateSessionId()
             };
 
-            this.firebaseRef = database.ref('/units/' + unitNumber);
+            this.firebaseRef = database.ref('/units/' + this.driverData.unit);
             
-            // ✅ ENHANCED: Clean data format sebelum kirim ke Firebase
             const cleanData = {
-                driver: driverName,
-                unit: unitNumber,
+                driver: this.driverData.name,
+                unit: this.driverData.unit,
                 sessionId: this.driverData.sessionId,
                 journeyStatus: 'ready',
                 lastUpdate: new Date().toLocaleTimeString('id-ID'),
-                lat: 0,
-                lng: 0,
-                speed: 0,
-                distance: 0,
-                fuel: 100,
-                accuracy: 0,
-                timestamp: new Date().toISOString()
+                lat: 0, lng: 0, speed: 0, distance: 0,
+                fuel: 100, accuracy: 0, timestamp: new Date().toISOString()
             };
 
             this.firebaseRef.set(cleanData);
-
             this.showDriverApp();
-            this.startWaypointCollection(); // ✅ START ENHANCED WAYPOINT COLLECTION
+            this.startWaypointCollection();
             this.startGPSTracking();
             this.startDataTransmission();
             
@@ -386,11 +862,10 @@ class EnhancedDTGPSLogger {
             'DT-06': '2018', 'DT-07': '2018',
             'DT-12': '2020', 'DT-13': '2020', 'DT-15': '2020', 'DT-16': '2020', 
             'DT-17': '2020', 'DT-18': '2020', 'DT-36': '2020', 'DT-37': '2020',
-            'DT-38': '2020', 'DT-39': '2020',
-            'DT-23': '2021', 'DT-24': '2021',
-            'DT-25': '2022', 'DT-26': '2022', 'DT-27': '2022', 'DT-28': '2022', 'DT-29': '2022',
-            'DT-32': '2024',
-            'DT-33': '2025', 'DT-34': '2025', 'DT-35': '2025'
+            'DT-38': '2020', 'DT-39': '2020', 'DT-23': '2021', 'DT-24': '2021',
+            'DT-25': '2022', 'DT-26': '2022', 'DT-27': '2022', 'DT-28': '2022', 
+            'DT-29': '2022', 'DT-32': '2024', 'DT-33': '2025', 'DT-34': '2025', 
+            'DT-35': '2025'
         };
         return yearMap[unit] || 'Unknown';
     }
@@ -400,36 +875,34 @@ class EnhancedDTGPSLogger {
     }
 
     showDriverApp() {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('driverApp').style.display = 'block';
+        const loginScreen = document.getElementById('loginScreen');
+        const driverApp = document.getElementById('driverApp');
         
-        document.getElementById('vehicleName').textContent = this.driverData.unit;
-        document.getElementById('driverDisplayName').textContent = this.driverData.name;
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (driverApp) driverApp.style.display = 'block';
+        
+        const vehicleName = document.getElementById('vehicleName');
+        const driverDisplayName = document.getElementById('driverDisplayName');
+        
+        if (vehicleName) vehicleName.textContent = this.driverData.unit;
+        if (driverDisplayName) driverDisplayName.textContent = this.driverData.name;
         
         this.sessionStartTime = new Date();
         this.lastUpdateTime = new Date();
         this.updateSessionDuration();
-        
-        // ✅ UPDATE WAYPOINT DISPLAY
         this.updateWaypointDisplay();
-        
-        // ✅ SETUP ENHANCED CHAT SYSTEM SETELAH LOGIN
         this.setupChatSystem();
     }
 
-    // ✅ ENHANCED WAYPOINT COLLECTION SYSTEM
     startWaypointCollection() {
         console.log('📍 Starting enhanced waypoint collection (1 second interval)');
         
-        // Clear existing collector
         this.stopWaypointCollection();
         
-        // Start new collector dengan interval 1 detik
         this.waypointCollector = setInterval(() => {
             this.collectWaypoint();
         }, this.waypointConfig.collectionInterval);
         
-        // Start background sync
         this.syncManager = setInterval(() => {
             if (this.isOnline) {
                 this.syncWaypointsToServer();
@@ -472,41 +945,28 @@ class EnhancedDTGPSLogger {
                     driver: this.driverData?.name || 'unknown',
                     synced: false,
                     isOnline: this.isOnline,
-                    // ✅ TAMBAHAN: Flag untuk accuracy rendah
                     lowAccuracy: position.coords.accuracy > 100
                 };
 
-                // ✅ PERBAIKAN: Validasi koordinat yang lebih longgar
                 if (!this.isValidCoordinate(waypoint.lat, waypoint.lng)) {
                     console.warn('Invalid coordinates, skipping waypoint:', waypoint);
-                    
-                    // ✅ TAMBAHAN: Tetap simpan ke log meski accuracy rendah
                     if (waypoint.lowAccuracy) {
                         this.addLog(`📍 GPS accuracy rendah (${waypoint.accuracy}m), tetap menyimpan`, 'warning');
-                        // Tetap proses waypoint meski accuracy rendah
                     } else {
                         return;
                     }
                 }
 
-                // ✅ ADD TO CIRCULAR BUFFER
                 this.waypointBuffer.push(waypoint);
                 this.unsyncedWaypoints.add(waypoint.id);
-                
-                // ✅ SAVE TO STORAGE
                 this.storageManager.saveWaypoint(waypoint);
-                
-                // ✅ UPDATE REAL-TIME DISPLAY
                 this.updateGPSDisplay(waypoint);
-                
-                // ✅ UPDATE WAYPOINT COUNTER
                 this.updateWaypointDisplay();
                 
-                // ✅ INCREMENT DATA POINTS
                 this.dataPoints++;
-                document.getElementById('dataPoints').textContent = this.dataPoints;
+                const dataPointsEl = document.getElementById('dataPoints');
+                if (dataPointsEl) dataPointsEl.textContent = this.dataPoints;
                 
-                // ✅ LOG BERHASIL
                 console.log(`✅ Waypoint collected: ${waypoint.lat}, ${waypoint.lng}, Accuracy: ${waypoint.accuracy}m`);
                 
             },
@@ -515,64 +975,65 @@ class EnhancedDTGPSLogger {
             },
             {
                 enableHighAccuracy: true,
-                timeout: 10000,  // ✅ PERPANJANG TIMEOUT
-                maximumAge: 30000 // ✅ GUNAKAN DATA YANG LEBIH BARU
+                timeout: 10000,
+                maximumAge: 30000
             }
         );
     }
 
-    // ✅ PERBAIKAN: VALIDASI KOORDINAT YANG LEBIH LONGGAAR
     isValidCoordinate(lat, lng) {
-        // Untuk testing - terima semua koordinat
         if (this.isTesting) {
             console.log(`🔍 Testing mode: Accepting coordinates ${lat}, ${lng}`);
             return true;
         }
         
-        // Validasi untuk area Indonesia (Riau dan sekitarnya)
         if (lat < -10 || lat > 6 || lng < 95 || lng > 119) {
             console.warn(`Koordinat di luar Indonesia: ${lat}, ${lng}`);
             return false;
         }
         
-        // Validasi angka
         if (isNaN(lat) || isNaN(lng)) {
             console.warn('Koordinat bukan angka:', lat, lng);
             return false;
         }
         
-        // Validasi nilai ekstrem
         if (lat === 0 && lng === 0) {
             console.warn('Koordinat default (0,0)');
             return false;
         }
         
-        // ✅ TERIMA KOORDINAT MESKI AKURASI RENDAH
         return true;
     }
 
     updateGPSDisplay(waypoint) {
-        document.getElementById('currentLat').textContent = waypoint.lat.toFixed(6);
-        document.getElementById('currentLng').textContent = waypoint.lng.toFixed(6);
-        document.getElementById('currentSpeed').textContent = waypoint.speed.toFixed(1);
-        document.getElementById('gpsAccuracy').textContent = waypoint.accuracy.toFixed(1) + ' m';
-        document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
+        const elements = {
+            'currentLat': waypoint.lat.toFixed(6),
+            'currentLng': waypoint.lng.toFixed(6),
+            'currentSpeed': waypoint.speed.toFixed(1),
+            'gpsAccuracy': waypoint.accuracy.toFixed(1) + ' m',
+            'gpsBearing': waypoint.bearing ? waypoint.bearing + '°' : '-'
+        };
+
+        Object.keys(elements).forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = elements[id];
+        });
     }
 
     updateWaypointDisplay() {
-        // Update waypoint counters in UI
-        document.getElementById('waypointCount').textContent = this.waypointBuffer.count;
-        document.getElementById('unsyncedCount').textContent = this.unsyncedWaypoints.size;
-        
-        const waypointStatusElement = document.getElementById('waypointStatus');
-        if (waypointStatusElement) {
-            waypointStatusElement.textContent = this.isOnline ? 
+        const waypointCount = document.getElementById('waypointCount');
+        const unsyncedCount = document.getElementById('unsyncedCount');
+        const waypointStatus = document.getElementById('waypointStatus');
+
+        if (waypointCount) waypointCount.textContent = this.waypointBuffer.count;
+        if (unsyncedCount) unsyncedCount.textContent = this.unsyncedWaypoints.size;
+        if (waypointStatus) {
+            waypointStatus.textContent = this.isOnline ? 
                 '🟢 Mengumpulkan waypoint...' : 
                 `🔴 Offline (${this.unsyncedWaypoints.size} menunggu sync)`;
         }
     }
 
-    // ✅ ENHANCED SYNC MANAGEMENT
     async syncWaypointsToServer() {
         if (!this.isOnline || !this.driverData) {
             console.log('❌ Cannot sync: Offline or no driver data');
@@ -595,21 +1056,18 @@ class EnhancedDTGPSLogger {
                 await this.uploadBatch(batch, index);
                 successfulBatches++;
                 
-                // ✅ MARK AS SYNCED
                 batch.forEach(waypoint => {
                     waypoint.synced = true;
                     this.unsyncedWaypoints.delete(waypoint.id);
                 });
                 
-                // ✅ UPDATE STORAGE
                 this.storageManager.markWaypointsAsSynced(batch.map(wp => wp.id));
-                
                 this.addLog(`📡 Batch ${index + 1}/${batches.length} synced (${batch.length} waypoints)`, 'success');
                 
             } catch (error) {
                 console.error(`❌ Batch ${index + 1} sync failed:`, error);
                 this.addLog(`❌ Batch ${index + 1} sync failed`, 'error');
-                break; // Stop on first failure
+                break;
             }
         }
 
@@ -662,18 +1120,15 @@ class EnhancedDTGPSLogger {
         console.log(`📂 Loaded ${unsynced.length} waypoints from storage`);
     }
 
-    // ✅ ENHANCED CHAT METHOD: Setup chat system
+    // ✅ CHAT METHODS
     setupChatSystem() {
         if (!this.driverData) return;
         
         console.log('💬 Setting up enhanced chat system for unit:', this.driverData.unit);
         
         this.chatRef = database.ref('/chat/' + this.driverData.unit);
-        
-        // Clear previous listeners
         this.chatRef.off();
         
-        // Listen untuk pesan baru
         this.chatRef.on('child_added', (snapshot) => {
             const message = snapshot.val();
             if (message && message.id !== this.lastMessageId) {
@@ -681,7 +1136,6 @@ class EnhancedDTGPSLogger {
             }
         });
         
-        // Listen untuk typing indicators
         const typingRef = database.ref('/typing/' + this.driverData.unit);
         typingRef.on('value', (snapshot) => {
             const typingData = snapshot.val();
@@ -689,16 +1143,13 @@ class EnhancedDTGPSLogger {
         });
         
         this.chatInitialized = true;
-        this.setupChatInputHandlers();
         console.log('💬 Enhanced chat system activated for unit:', this.driverData.unit);
         this.addLog('Sistem chat aktif - bisa komunikasi real-time dengan monitor', 'success');
     }
 
-    // ✅ ENHANCED CHAT METHOD: Handle pesan baru
     handleNewMessage(message) {
         if (!message || message.sender === this.driverData.name) return;
         
-        // Prevent duplicates
         const messageExists = this.chatMessages.some(msg => 
             msg.id === message.id || 
             (msg.timestamp === message.timestamp && msg.sender === message.sender)
@@ -708,7 +1159,6 @@ class EnhancedDTGPSLogger {
         
         this.chatMessages.push(message);
         
-        // Update unread count hanya jika chat tertutup atau message dari monitor
         if (!this.isChatOpen || message.sender !== this.driverData.name) {
             this.unreadCount++;
         }
@@ -719,13 +1169,10 @@ class EnhancedDTGPSLogger {
             this.showChatNotification(message);
         }
         
-        // Play notification sound
         this.playNotificationSound();
-        
         console.log('💬 New message received:', message);
     }
 
-    // ✅ ENHANCED CHAT METHOD: Kirim pesan
     async sendMessage(messageText) {
         if (!messageText.trim() || !this.chatRef || !this.driverData) return;
         
@@ -738,8 +1185,7 @@ class EnhancedDTGPSLogger {
             unit: this.driverData.unit,
             timestamp: new Date().toISOString(),
             timeDisplay: new Date().toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
+                hour: '2-digit', minute: '2-digit' 
             }),
             type: 'driver',
             status: 'sent'
@@ -749,27 +1195,21 @@ class EnhancedDTGPSLogger {
             await this.chatRef.push(messageData);
             this.lastMessageId = messageId;
             
-            // Add to local messages immediately for instant feedback
             this.chatMessages.push(messageData);
             this.updateChatUI();
-            
             this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
-            
-            // Clear typing indicator
             this.stopTyping();
             
         } catch (error) {
             console.error('Failed to send message:', error);
             this.addLog('❌ Gagal mengirim pesan', 'error');
             
-            // Mark message as failed
             messageData.status = 'failed';
             this.chatMessages.push(messageData);
             this.updateChatUI();
         }
     }
 
-    // ✅ TYPING INDICATOR METHODS
     startTyping() {
         if (!this.driverData) return;
         
@@ -819,7 +1259,6 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    // ✅ ENHANCED CHAT METHOD: Update chat UI
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -827,20 +1266,17 @@ class EnhancedDTGPSLogger {
         
         if (!messageList) return;
         
-        // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
             unreadBadge.style.display = this.unreadCount > 0 ? 'inline' : 'none';
         }
         
-        // Update chat toggle button
         if (chatToggle) {
             chatToggle.innerHTML = this.unreadCount > 0 ? 
                 `💬 Chat <span class="badge bg-danger">${this.unreadCount}</span>` : 
                 '💬 Chat';
         }
         
-        // Render messages
         messageList.innerHTML = '';
         
         if (this.chatMessages.length === 0) {
@@ -852,11 +1288,9 @@ class EnhancedDTGPSLogger {
             return;
         }
         
-        // Group messages by date
         const groupedMessages = this.groupMessagesByDate(this.chatMessages);
         
         Object.keys(groupedMessages).forEach(date => {
-            // Add date separator
             if (Object.keys(groupedMessages).length > 1) {
                 const dateElement = document.createElement('div');
                 dateElement.className = 'chat-date-separator';
@@ -864,44 +1298,33 @@ class EnhancedDTGPSLogger {
                 messageList.appendChild(dateElement);
             }
             
-            // Add messages for this date
             groupedMessages[date].forEach(message => {
                 const messageElement = this.createMessageElement(message);
                 messageList.appendChild(messageElement);
             });
         });
         
-        // Add typing indicator
         const typingIndicator = document.createElement('div');
         typingIndicator.id = 'typingIndicator';
         typingIndicator.style.display = 'none';
         messageList.appendChild(typingIndicator);
         
-        // Auto scroll to bottom
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ GROUP MESSAGES BY DATE
     groupMessagesByDate(messages) {
         const grouped = {};
         
         messages.forEach(message => {
             const messageDate = new Date(message.timestamp);
             const dateKey = messageDate.toLocaleDateString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
             
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = [];
-            }
-            
+            if (!grouped[dateKey]) grouped[dateKey] = [];
             grouped[dateKey].push(message);
         });
         
-        // Sort messages within each date by timestamp
         Object.keys(grouped).forEach(date => {
             grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         });
@@ -909,7 +1332,6 @@ class EnhancedDTGPSLogger {
         return grouped;
     }
 
-    // ✅ CREATE MESSAGE ELEMENT
     createMessageElement(message) {
         const messageElement = document.createElement('div');
         const isSentMessage = message.sender === this.driverData.name;
@@ -932,7 +1354,6 @@ class EnhancedDTGPSLogger {
         return messageElement;
     }
 
-    // ✅ NOTIFICATION SOUND
     playNotificationSound() {
         try {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -955,41 +1376,6 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    // ✅ ENHANCED CHAT INPUT HANDLING
-    setupChatInputHandlers() {
-        const chatInput = document.getElementById('chatInput');
-        if (!chatInput) return;
-        
-        let typingTimer;
-        
-        chatInput.addEventListener('input', () => {
-            // Start typing indicator
-            this.startTyping();
-            
-            // Clear previous timer
-            clearTimeout(typingTimer);
-            
-            // Set timer to stop typing indicator after 2 seconds of inactivity
-            typingTimer = setTimeout(() => {
-                this.stopTyping();
-            }, 2000);
-        });
-        
-        chatInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                this.sendMessage(chatInput.value);
-                chatInput.value = '';
-                this.stopTyping();
-            }
-        });
-        
-        chatInput.addEventListener('blur', () => {
-            this.stopTyping();
-        });
-    }
-
-    // ✅ CHAT METHOD: Toggle chat window
     toggleChat() {
         this.isChatOpen = !this.isChatOpen;
         const chatWindow = document.getElementById('chatWindow');
@@ -1000,7 +1386,6 @@ class EnhancedDTGPSLogger {
             if (this.isChatOpen) {
                 this.unreadCount = 0;
                 this.updateChatUI();
-                // Focus input field
                 setTimeout(() => {
                     const chatInput = document.getElementById('chatInput');
                     if (chatInput) chatInput.focus();
@@ -1009,19 +1394,6 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    // ✅ CHAT METHOD: Handle chat input
-    handleChatInput(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            const input = document.getElementById('chatInput');
-            if (input && input.value.trim()) {
-                this.sendMessage(input.value);
-                input.value = '';
-            }
-        }
-    }
-
-    // ✅ CHAT METHOD: Show notification
     showChatNotification(message) {
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-info';
@@ -1054,7 +1426,6 @@ class EnhancedDTGPSLogger {
         }, 5000);
     }
 
-    // ✅ CHAT METHOD: Escape HTML untuk keamanan
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -1071,8 +1442,8 @@ class EnhancedDTGPSLogger {
         
         const options = {
             enableHighAccuracy: true,
-            timeout: 10000,  // ✅ PERPANJANG TIMEOUT
-            maximumAge: 30000 // ✅ GUNAKAN DATA YANG LEBIH BARU
+            timeout: 10000,
+            maximumAge: 30000
         };
 
         this.watchId = navigator.geolocation.watchPosition(
@@ -1092,7 +1463,6 @@ class EnhancedDTGPSLogger {
         }, 2000);
     }
 
-    // Simpan semua titik ke localStorage
     saveToCompleteHistory(positionData) {
         if (!this.driverData) return;
         
@@ -1104,25 +1474,19 @@ class EnhancedDTGPSLogger {
             saveTimestamp: new Date().toISOString()
         };
         
-        // Load existing history
         let history = this.loadCompleteHistory();
-        
-        // Add new point
         history.push(historyPoint);
         
-        // Maintain size limit
         if (history.length > this.maxOfflinePoints) {
             history = history.slice(-this.maxOfflinePoints);
         }
         
-        // Save back to storage
         localStorage.setItem('gps_complete_history', JSON.stringify(history));
         this.completeHistory = history;
         
         console.log(`💾 Saved to history: ${history.length} points`);
     }
 
-    // Load history dari localStorage
     loadCompleteHistory() {
         try {
             const saved = localStorage.getItem('gps_complete_history');
@@ -1133,7 +1497,6 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    // Enhanced position update dengan perhitungan jarak yang akurat
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
@@ -1142,82 +1505,64 @@ class EnhancedDTGPSLogger {
         const bearing = position.coords.heading;
         const timestamp = new Date();
         
-        // ✅ PERBAIKAN: Validasi yang lebih longgar
         if (!this.isValidCoordinate(lat, lng)) {
             console.warn('Invalid GPS coordinates received:', { lat, lng, accuracy });
             
-            // ✅ TETAP TAMPILKAN DI UI MESKI ACCURACY RENDAH
-            document.getElementById('currentLat').textContent = lat.toFixed(6);
-            document.getElementById('currentLng').textContent = lng.toFixed(6);
-            document.getElementById('currentSpeed').textContent = speed.toFixed(1);
-            document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
-            document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
-            
+            this.updatePositionDisplay(lat, lng, speed, accuracy, bearing);
             this.addLog(`📍 GPS accuracy rendah (${accuracy}m)`, 'warning');
             return;
         }
 
-        // Simpan ke complete history (SELALU)
         this.saveToCompleteHistory({
-            lat: lat,
-            lng: lng,
-            speed: speed,
-            accuracy: accuracy,
-            bearing: bearing,
-            timestamp: timestamp.toISOString(),
-            isOnline: this.isOnline
+            lat: lat, lng: lng, speed: speed, accuracy: accuracy,
+            bearing: bearing, timestamp: timestamp.toISOString(), isOnline: this.isOnline
         });
 
-        // Update UI
-        document.getElementById('currentLat').textContent = lat.toFixed(6);
-        document.getElementById('currentLng').textContent = lng.toFixed(6);
-        document.getElementById('currentSpeed').textContent = speed.toFixed(1);
-        document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
-        document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
-
-        // Hitung jarak berdasarkan kecepatan dan waktu
+        this.updatePositionDisplay(lat, lng, speed, accuracy, bearing);
         this.calculateDistanceWithSpeed(speed, timestamp);
 
-        // Simpan data terbaru
         this.lastPosition = { 
-            lat, 
-            lng, 
-            speed, 
-            accuracy, 
-            bearing, 
-            timestamp,
-            distance: this.totalDistance
+            lat, lng, speed, accuracy, bearing, timestamp, distance: this.totalDistance
         };
 
         this.dataPoints++;
-        document.getElementById('dataPoints').textContent = this.dataPoints;
+        const dataPointsEl = document.getElementById('dataPoints');
+        if (dataPointsEl) dataPointsEl.textContent = this.dataPoints;
 
-        // Update average speed
         this.updateAverageSpeed();
-        
         console.log(`📍 GPS Update: ${lat.toFixed(6)}, ${lng.toFixed(6)}, Speed: ${speed.toFixed(1)} km/h`);
     }
 
-    // Enhanced distance calculation menggunakan rumus S = V × t
+    updatePositionDisplay(lat, lng, speed, accuracy, bearing) {
+        const elements = {
+            'currentLat': lat.toFixed(6),
+            'currentLng': lng.toFixed(6),
+            'currentSpeed': speed.toFixed(1),
+            'gpsAccuracy': accuracy.toFixed(1) + ' m',
+            'gpsBearing': bearing ? bearing.toFixed(0) + '°' : '-'
+        };
+
+        Object.keys(elements).forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = elements[id];
+        });
+    }
+
     calculateDistanceWithSpeed(currentSpeed, currentTime) {
         if (!this.lastUpdateTime) {
             this.lastUpdateTime = currentTime;
             return;
         }
 
-        // Hitung selisih waktu dalam jam
         const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600;
         
-        // Hanya hitung jika ada pergerakan (speed > 2 km/h untuk menghindari drift GPS)
         if (currentSpeed > 2 && this.journeyStatus === 'started') {
-            // Rumus: Jarak (km) = Kecepatan (km/jam) × Waktu (jam)
             const distanceIncrement = currentSpeed * timeDiff;
             
-            // Hanya tambahkan jika perhitungan valid
             if (distanceIncrement > 0 && distanceIncrement < 1) {
                 this.totalDistance += distanceIncrement;
-                document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
-                
+                const todayDistanceEl = document.getElementById('todayDistance');
+                if (todayDistanceEl) todayDistanceEl.textContent = this.totalDistance.toFixed(3);
                 this.addLog(`📏 +${(distanceIncrement * 1000).toFixed(1)}m (${currentSpeed.toFixed(1)} km/h)`, 'info');
             }
             
@@ -1232,24 +1577,12 @@ class EnhancedDTGPSLogger {
         this.currentSpeed = currentSpeed;
     }
 
-    // Alternatif: Perhitungan jarak menggunakan koordinat GPS
-    calculateDistanceWithCoordinates(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
     updateAverageSpeed() {
         if (this.dataPoints > 0 && this.sessionStartTime) {
             const duration = (new Date() - this.sessionStartTime) / 3600000;
             const avgSpeed = duration > 0 ? this.totalDistance / duration : 0;
-            document.getElementById('avgSpeed').textContent = avgSpeed.toFixed(1);
+            const avgSpeedEl = document.getElementById('avgSpeed');
+            if (avgSpeedEl) avgSpeedEl.textContent = avgSpeed.toFixed(1);
         }
     }
 
@@ -1257,7 +1590,6 @@ class EnhancedDTGPSLogger {
         if (!this.firebaseRef || !this.lastPosition) return;
 
         try {
-            // ✅ ENHANCED: Clean and validate data before sending
             const gpsData = {
                 driver: this.driverData.name,
                 unit: this.driverData.unit,
@@ -1276,7 +1608,6 @@ class EnhancedDTGPSLogger {
                 fuel: this.calculateFuelLevel()
             };
 
-            // Validate data before sending
             if (!this.isValidCoordinate(gpsData.lat, gpsData.lng)) {
                 console.warn('Invalid coordinates, skipping Firebase update');
                 return;
@@ -1309,10 +1640,9 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    // ✅ NEW: Calculate fuel level based on distance
     calculateFuelLevel() {
         const baseFuel = 100;
-        const fuelConsumptionRate = 0.25; // liters per km
+        const fuelConsumptionRate = 0.25;
         const fuelUsed = this.totalDistance * fuelConsumptionRate;
         const remainingFuel = Math.max(0, baseFuel - fuelUsed);
         return Math.min(100, Math.max(0, Math.round(remainingFuel)));
@@ -1322,7 +1652,6 @@ class EnhancedDTGPSLogger {
         return Math.max(20, Math.floor(Math.random() * 100));
     }
 
-    // ✅ ENHANCED NETWORK HANDLING
     checkNetworkStatus() {
         const wasOnline = this.isOnline;
         this.isOnline = navigator.onLine;
@@ -1332,7 +1661,6 @@ class EnhancedDTGPSLogger {
                 this.addLog('📱 Koneksi pulih - sync semua waypoint', 'success');
                 this.updateConnectionStatus(true);
                 
-                // ✅ IMMEDIATE SYNC WHEN COMING ONLINE
                 setTimeout(() => {
                     this.syncWaypointsToServer();
                     this.offlineQueue.processQueue();
@@ -1353,21 +1681,24 @@ class EnhancedDTGPSLogger {
         const status = document.getElementById('connectionStatus');
         
         if (connected) {
-            dot.className = 'connection-status connected';
-            status.textContent = 'TERHUBUNG';
-            status.className = 'text-success';
+            if (dot) dot.className = 'connection-status connected';
+            if (status) {
+                status.textContent = 'TERHUBUNG';
+                status.className = 'text-success';
+            }
         } else {
-            dot.className = 'connection-status disconnected';
-            status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint menunggu)`;
-            status.className = 'text-danger';
-            
-            const queueSize = this.offlineQueue.getQueueSize();
-            if (queueSize > 0) {
-                status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint, ${queueSize} data antrian)`;
+            if (dot) dot.className = 'connection-status disconnected';
+            if (status) {
+                status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint menunggu)`;
+                status.className = 'text-danger';
+                
+                const queueSize = this.offlineQueue.getQueueSize();
+                if (queueSize > 0) {
+                    status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint, ${queueSize} data antrian)`;
+                }
             }
         }
         
-        // Update waypoint display status
         this.updateWaypointDisplay();
     }
 
@@ -1392,6 +1723,8 @@ class EnhancedDTGPSLogger {
 
     addLog(message, type = 'info') {
         const logContainer = document.getElementById('dataLogs');
+        if (!logContainer) return;
+
         const alertClass = {
             'info': 'alert-info',
             'success': 'alert-success', 
@@ -1413,8 +1746,10 @@ class EnhancedDTGPSLogger {
     }
 
     updateTime() {
-        document.getElementById('currentTime').textContent = 
-            new Date().toLocaleTimeString('id-ID');
+        const currentTimeEl = document.getElementById('currentTime');
+        if (currentTimeEl) {
+            currentTimeEl.textContent = new Date().toLocaleTimeString('id-ID');
+        }
     }
 
     updateSessionDuration() {
@@ -1426,8 +1761,11 @@ class EnhancedDTGPSLogger {
         const minutes = Math.floor((diff % 3600000) / 60000);
         const seconds = Math.floor((diff % 60000) / 1000);
         
-        document.getElementById('sessionDuration').textContent = 
-            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        const sessionDurationEl = document.getElementById('sessionDuration');
+        if (sessionDurationEl) {
+            sessionDurationEl.textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
         
         setTimeout(() => this.updateSessionDuration(), 1000);
     }
@@ -1435,34 +1773,51 @@ class EnhancedDTGPSLogger {
     startJourney() {
         this.journeyStatus = 'started';
         this.lastUpdateTime = new Date();
-        document.getElementById('vehicleStatus').textContent = 'ON TRIP';
-        document.getElementById('vehicleStatus').className = 'bg-success text-white rounded px-2 py-1';
+        const vehicleStatus = document.getElementById('vehicleStatus');
+        if (vehicleStatus) {
+            vehicleStatus.textContent = 'ON TRIP';
+            vehicleStatus.className = 'bg-success text-white rounded px-2 py-1';
+        }
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
-        
         this.sendToFirebase();
     }
 
     pauseJourney() {
         this.journeyStatus = 'paused';
-        document.getElementById('vehicleStatus').textContent = 'PAUSED';
-        document.getElementById('vehicleStatus').className = 'bg-warning text-dark rounded px-2 py-1';
+        const vehicleStatus = document.getElementById('vehicleStatus');
+        if (vehicleStatus) {
+            vehicleStatus.textContent = 'PAUSED';
+            vehicleStatus.className = 'bg-warning text-dark rounded px-2 py-1';
+        }
         this.addLog('Perjalanan dijeda', 'warning');
-        
         this.sendToFirebase();
     }
 
     endJourney() {
         this.journeyStatus = 'ended';
-        document.getElementById('vehicleStatus').textContent = 'COMPLETED';
-        document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
+        const vehicleStatus = document.getElementById('vehicleStatus');
+        if (vehicleStatus) {
+            vehicleStatus.textContent = 'COMPLETED';
+            vehicleStatus.className = 'bg-info text-white rounded px-2 py-1';
+        }
         this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
-        
         this.sendToFirebase();
         this.syncCompleteHistory();
         
-        // ✅ SYNC ALL WAYPOINTS BEFORE ENDING
         if (this.isOnline) {
             this.syncWaypointsToServer();
+        }
+    }
+
+    reportIssue() {
+        const issues = [
+            'Mesin bermasalah', 'Ban bocor', 'Bahan bakar habis',
+            'Kecelakaan kecil', 'Lainnya'
+        ];
+        
+        const issue = prompt('Lapor masalah:\n' + issues.join('\n'));
+        if (issue) {
+            this.addLog(`Laporan: ${issue}`, 'warning');
         }
     }
 
@@ -1477,72 +1832,67 @@ class EnhancedDTGPSLogger {
             this.firebaseRef.remove();
         }
         
-        // ✅ STOP WAYPOINT COLLECTION
         this.stopWaypointCollection();
-        
         this.isTracking = false;
     }
 
-    // ✅ ENHANCED LOGOUT
     logout() {
-        // Sync semua data sebelum logout
-        if (this.isOnline) {
-            this.syncWaypointsToServer();
-            this.syncCompleteHistory();
+        if (confirm('Yakin ingin logout?')) {
+            if (this.isOnline) {
+                this.syncWaypointsToServer();
+                this.syncCompleteHistory();
+            }
+            
+            this.stopWaypointCollection();
+            
+            if (this.chatRef) {
+                this.chatRef.off();
+            }
+            
+            this.stopTyping();
+            this.stopTracking();
+            
+            const sessionSummary = {
+                driver: this.driverData.name,
+                unit: this.driverData.unit,
+                duration: document.getElementById('sessionDuration')?.textContent || '00:00:00',
+                totalDistance: this.totalDistance.toFixed(3),
+                dataPoints: this.dataPoints,
+                waypointsCollected: this.waypointBuffer.count,
+                unsyncedWaypoints: this.unsyncedWaypoints.size,
+                avgSpeed: document.getElementById('avgSpeed')?.textContent || '0',
+                sessionId: this.driverData.sessionId
+            };
+            
+            console.log('Session Summary:', sessionSummary);
+            this.addLog(`Session ended - ${this.waypointBuffer.count} waypoints collected`, 'info');
+            
+            this.waypointBuffer.clear();
+            this.unsyncedWaypoints.clear();
+            
+            this.driverData = null;
+            this.firebaseRef = null;
+            this.chatRef = null;
+            this.chatMessages = [];
+            this.unreadCount = 0;
+            this.isChatOpen = false;
+            this.chatInitialized = false;
+            
+            const loginScreen = document.getElementById('loginScreen');
+            const driverApp = document.getElementById('driverApp');
+            const loginForm = document.getElementById('loginForm');
+            
+            if (loginScreen) loginScreen.style.display = 'block';
+            if (driverApp) driverApp.style.display = 'none';
+            if (loginForm) loginForm.reset();
+            
+            this.totalDistance = 0;
+            this.dataPoints = 0;
+            this.lastPosition = null;
+            this.lastUpdateTime = null;
         }
-        
-        // Cleanup waypoint collection
-        this.stopWaypointCollection();
-        
-        // Cleanup chat listener
-        if (this.chatRef) {
-            this.chatRef.off();
-        }
-        
-        // Stop typing indicator
-        this.stopTyping();
-        
-        this.stopTracking();
-        
-        const sessionSummary = {
-            driver: this.driverData.name,
-            unit: this.driverData.unit,
-            duration: document.getElementById('sessionDuration').textContent,
-            totalDistance: this.totalDistance.toFixed(3),
-            dataPoints: this.dataPoints,
-            waypointsCollected: this.waypointBuffer.count,
-            unsyncedWaypoints: this.unsyncedWaypoints.size,
-            avgSpeed: document.getElementById('avgSpeed').textContent,
-            sessionId: this.driverData.sessionId
-        };
-        
-        console.log('Session Summary:', sessionSummary);
-        this.addLog(`Session ended - ${this.waypointBuffer.count} waypoints collected`, 'info');
-        
-        // Reset waypoint data
-        this.waypointBuffer.clear();
-        this.unsyncedWaypoints.clear();
-        
-        this.driverData = null;
-        this.firebaseRef = null;
-        this.chatRef = null;
-        this.chatMessages = [];
-        this.unreadCount = 0;
-        this.isChatOpen = false;
-        this.chatInitialized = false;
-        
-        document.getElementById('loginScreen').style.display = 'block';
-        document.getElementById('driverApp').style.display = 'none';
-        document.getElementById('loginForm').reset();
-        
-        // Reset semua data
-        this.totalDistance = 0;
-        this.dataPoints = 0;
-        this.lastPosition = null;
-        this.lastUpdateTime = null;
     }
 
-    // Sync semua history ke Firebase
     async syncCompleteHistory() {
         if (!this.isOnline || !this.firebaseRef || !this.driverData) {
             console.log('❌ Cannot sync history: offline or no driver data');
@@ -1560,22 +1910,15 @@ class EnhancedDTGPSLogger {
         }
         
         try {
-            // Kirim ke Firebase under history node
             const historyRef = database.ref('/history/' + this.driverData.unit + '/' + this.driverData.sessionId);
             
-            // Push semua data sebagai object
             const historyObject = {};
             sessionHistory.forEach((point, index) => {
                 historyObject['point_' + index] = {
-                    lat: point.lat,
-                    lng: point.lng,
-                    speed: point.speed,
-                    accuracy: point.accuracy,
-                    bearing: point.bearing,
-                    timestamp: point.timestamp,
-                    isOnline: point.isOnline,
-                    driver: point.driver,
-                    unit: point.unit
+                    lat: point.lat, lng: point.lng, speed: point.speed,
+                    accuracy: point.accuracy, bearing: point.bearing,
+                    timestamp: point.timestamp, isOnline: point.isOnline,
+                    driver: point.driver, unit: point.unit
                 };
             });
             
@@ -1708,71 +2051,6 @@ class OfflineQueueManager {
     clearQueue() {
         this.queue = [];
         this.saveQueueToStorage();
-    }
-}
-
-// ✅ GLOBAL FUNCTIONS UNTUK CHAT
-function sendChatMessage() {
-    if (window.dtLogger) {
-        const input = document.getElementById('chatInput');
-        if (input && input.value.trim()) {
-            window.dtLogger.sendMessage(input.value);
-            input.value = '';
-        }
-    }
-}
-
-function toggleChat() {
-    if (window.dtLogger) {
-        window.dtLogger.toggleChat();
-    }
-}
-
-function handleChatInput(event) {
-    if (window.dtLogger) {
-        window.dtLogger.handleChatInput(event);
-    }
-}
-
-// Global functions untuk button controls
-function startJourney() {
-    if (window.dtLogger) {
-        window.dtLogger.startJourney();
-    }
-}
-
-function pauseJourney() {
-    if (window.dtLogger) {
-        window.dtLogger.pauseJourney();
-    }
-}
-
-function endJourney() {
-    if (window.dtLogger) {
-        window.dtLogger.endJourney();
-    }
-}
-
-function reportIssue() {
-    const issues = [
-        'Mesin bermasalah',
-        'Ban bocor', 
-        'Bahan bakar habis',
-        'Kecelakaan kecil',
-        'Lainnya'
-    ];
-    
-    const issue = prompt('Lapor masalah:\n' + issues.join('\n'));
-    if (issue && window.dtLogger) {
-        window.dtLogger.addLog(`Laporan: ${issue}`, 'warning');
-    }
-}
-
-function logout() {
-    if (window.dtLogger) {
-        if (confirm('Yakin ingin logout?')) {
-            window.dtLogger.logout();
-        }
     }
 }
 
