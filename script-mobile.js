@@ -13,8 +13,245 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-class DTGPSLogger {
+// ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION
+class CircularBuffer {
+    constructor(capacity) {
+        this.capacity = capacity; // 61,200
+        this.buffer = new Array(capacity);
+        this.head = 0;
+        this.tail = 0;
+        this.count = 0;
+        this.isFull = false;
+    }
+
+    push(item) {
+        this.buffer[this.tail] = item;
+        this.tail = (this.tail + 1) % this.capacity;
+        
+        if (this.isFull) {
+            this.head = (this.head + 1) % this.capacity;
+        } else {
+            this.count++;
+            if (this.count === this.capacity) {
+                this.isFull = true;
+            }
+        }
+    }
+
+    getAll() {
+        if (this.count === 0) return [];
+        
+        const result = [];
+        if (this.isFull) {
+            for (let i = 0; i < this.capacity; i++) {
+                const index = (this.head + i) % this.capacity;
+                result.push(this.buffer[index]);
+            }
+        } else {
+            for (let i = 0; i < this.count; i++) {
+                result.push(this.buffer[i]);
+            }
+        }
+        return result;
+    }
+
+    getUnsynced() {
+        return this.getAll().filter(wp => !wp.synced);
+    }
+
+    clear() {
+        this.head = 0;
+        this.tail = 0;
+        this.count = 0;
+        this.isFull = false;
+        this.buffer = new Array(this.capacity);
+    }
+
+    get count() {
+        return this.isFull ? this.capacity : this.tail;
+    }
+}
+
+// ✅ ENHANCED STORAGE MANAGER
+class EnhancedStorageManager {
     constructor() {
+        this.STORAGE_KEYS = {
+            WAYPOINTS: 'enhanced_gps_waypoints',
+            SYNC_STATUS: 'enhanced_sync_status',
+            SESSION_DATA: 'enhanced_session_data'
+        };
+        this.maxStorageSize = 5 * 1024 * 1024; // 5MB
+    }
+
+    saveWaypoint(waypoint) {
+        try {
+            const existing = this.loadAllWaypoints();
+            
+            // Check storage limits
+            if (existing.length >= 61200) {
+                // Remove oldest waypoints
+                existing.splice(0, Math.floor(existing.length * 0.1)); // Remove oldest 10%
+            }
+            
+            existing.push(waypoint);
+            this.saveToStorage(existing);
+            
+            this.updateSyncStatus({
+                totalWaypoints: existing.length,
+                unsyncedCount: existing.filter(w => !w.synced).length,
+                lastSave: new Date().toISOString()
+            });
+            
+        } catch (error) {
+            console.error('Failed to save waypoint:', error);
+            this.handleStorageError(error, waypoint);
+        }
+    }
+
+    loadAllWaypoints() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEYS.WAYPOINTS);
+            return data ? JSON.parse(data) : [];
+        } catch (error) {
+            console.error('Failed to load waypoints:', error);
+            return [];
+        }
+    }
+
+    loadUnsyncedWaypoints() {
+        const all = this.loadAllWaypoints();
+        return all.filter(waypoint => !waypoint.synced);
+    }
+
+    markWaypointsAsSynced(waypointIds) {
+        const all = this.loadAllWaypoints();
+        const updated = all.map(waypoint => {
+            if (waypointIds.includes(waypoint.id)) {
+                return { ...waypoint, synced: true };
+            }
+            return waypoint;
+        });
+        
+        this.saveToStorage(updated);
+        
+        this.updateSyncStatus({
+            totalWaypoints: updated.length,
+            unsyncedCount: updated.filter(w => !w.synced).length,
+            lastSync: new Date().toISOString()
+        });
+    }
+
+    saveToStorage(waypoints) {
+        try {
+            const compressed = this.compressWaypoints(waypoints);
+            localStorage.setItem(this.STORAGE_KEYS.WAYPOINTS, JSON.stringify(compressed));
+        } catch (error) {
+            if (error.name === 'QuotaExceededError') {
+                this.handleStorageFull(waypoints);
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    compressWaypoints(waypoints) {
+        return waypoints.map(wp => ({
+            i: wp.id,           // id
+            a: wp.lat,          // lat
+            o: wp.lng,          // lng  
+            c: wp.accuracy,     // accuracy
+            s: wp.speed,        // speed
+            b: wp.bearing,      // bearing
+            t: wp.timestamp,    // timestamp
+            d: wp.timeDisplay,  // timeDisplay
+            z: wp.sessionId,    // sessionId
+            u: wp.unit,         // unit
+            r: wp.driver,       // driver
+            y: wp.synced ? 1 : 0, // synced
+            n: wp.isOnline ? 1 : 0 // isOnline
+        }));
+    }
+
+    decompressWaypoints(compressed) {
+        return compressed.map(wp => ({
+            id: wp.i,
+            lat: wp.a,
+            lng: wp.o,
+            accuracy: wp.c,
+            speed: wp.s,
+            bearing: wp.b,
+            timestamp: wp.t,
+            timeDisplay: wp.d,
+            sessionId: wp.z,
+            unit: wp.u,
+            driver: wp.r,
+            synced: wp.y === 1,
+            isOnline: wp.n === 1
+        }));
+    }
+
+    updateSyncStatus(status) {
+        const existing = this.getSyncStatus();
+        localStorage.setItem(this.STORAGE_KEYS.SYNC_STATUS, JSON.stringify({
+            ...existing,
+            ...status,
+            updatedAt: new Date().toISOString()
+        }));
+    }
+
+    getSyncStatus() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEYS.SYNC_STATUS);
+            return data ? JSON.parse(data) : {
+                totalWaypoints: 0,
+                unsyncedCount: 0,
+                lastSync: null,
+                lastSave: null
+            };
+        } catch (error) {
+            return {
+                totalWaypoints: 0,
+                unsyncedCount: 0,
+                lastSync: null,
+                lastSave: null
+            };
+        }
+    }
+
+    handleStorageFull(waypoints) {
+        // Remove oldest 25% of waypoints
+        const keepCount = Math.floor(waypoints.length * 0.75);
+        const trimmed = waypoints.slice(-keepCount);
+        this.saveToStorage(trimmed);
+        console.warn(`Storage full, trimmed to ${trimmed.length} waypoints`);
+    }
+
+    handleStorageError(error, waypoint) {
+        console.error('Storage error:', error);
+        // Implement fallback strategy here
+    }
+}
+
+// ✅ ENHANCED MOBILE GPS LOGGER
+class EnhancedDTGPSLogger {
+    constructor() {
+        // ✅ ENHANCED WAYPOINT CONFIG - 3600×17 = 61,200 waypoints
+        this.waypointConfig = {
+            collectionInterval: 1000, // 1 detik
+            maxWaypoints: 61200,      // 3600×17 waypoints
+            batchSize: 100,
+            syncInterval: 30000,      // Sync every 30 detik saat online
+            storageKey: 'enhanced_waypoints'
+        };
+
+        // ✅ ENHANCED WAYPOINT MANAGEMENT
+        this.waypointBuffer = new CircularBuffer(this.waypointConfig.maxWaypoints);
+        this.unsyncedWaypoints = new Set();
+        this.waypointCollector = null;
+        this.syncManager = null;
+        this.storageManager = new EnhancedStorageManager();
+        
+        // Existing properties
         this.driverData = null;
         this.watchId = null;
         this.isTracking = false;
@@ -39,7 +276,7 @@ class DTGPSLogger {
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory();
         
-        // ✅ CHAT SYSTEM PROPERTIES - SESUAI DENGAN HTML BARU
+        // ✅ CHAT SYSTEM PROPERTIES
         this.chatRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
@@ -57,6 +294,9 @@ class DTGPSLogger {
         this.checkNetworkStatus();
         setInterval(() => this.updateTime(), 1000);
         setInterval(() => this.checkNetworkStatus(), 5000);
+        
+        // ✅ LOAD EXISTING UNSYNCED WAYPOINTS
+        this.loadUnsyncedWaypoints();
     }
 
     setupEventListeners() {
@@ -99,6 +339,7 @@ class DTGPSLogger {
             this.firebaseRef.set(cleanData);
 
             this.showDriverApp();
+            this.startWaypointCollection(); // ✅ START ENHANCED WAYPOINT COLLECTION
             this.startGPSTracking();
             this.startDataTransmission();
             
@@ -139,11 +380,234 @@ class DTGPSLogger {
         this.lastUpdateTime = new Date();
         this.updateSessionDuration();
         
-        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN - SESUAI DENGAN HTML BARU
+        // ✅ UPDATE WAYPOINT DISPLAY
+        this.updateWaypointDisplay();
+        
+        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
         this.setupChatSystem();
     }
 
-    // ✅ CHAT METHOD: Setup chat system - SESUAI DENGAN HTML BARU
+    // ✅ ENHANCED WAYPOINT COLLECTION SYSTEM
+    startWaypointCollection() {
+        console.log('📍 Starting enhanced waypoint collection (1 second interval)');
+        
+        // Clear existing collector
+        this.stopWaypointCollection();
+        
+        // Start new collector dengan interval 1 detik
+        this.waypointCollector = setInterval(() => {
+            this.collectWaypoint();
+        }, this.waypointConfig.collectionInterval);
+        
+        // Start background sync
+        this.syncManager = setInterval(() => {
+            if (this.isOnline) {
+                this.syncWaypointsToServer();
+            }
+        }, this.waypointConfig.syncInterval);
+        
+        this.addLog('🚀 Enhanced waypoint collection started (1s interval)', 'success');
+    }
+
+    stopWaypointCollection() {
+        if (this.waypointCollector) {
+            clearInterval(this.waypointCollector);
+            this.waypointCollector = null;
+        }
+        if (this.syncManager) {
+            clearInterval(this.syncManager);
+            this.syncManager = null;
+        }
+    }
+
+    collectWaypoint() {
+        if (!navigator.geolocation) {
+            console.error('GPS not supported');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const waypoint = {
+                    id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    lat: parseFloat(position.coords.latitude.toFixed(6)),
+                    lng: parseFloat(position.coords.longitude.toFixed(6)),
+                    accuracy: parseFloat(position.coords.accuracy.toFixed(1)),
+                    speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
+                    bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
+                    timestamp: new Date().toISOString(),
+                    timeDisplay: new Date().toLocaleTimeString('id-ID'),
+                    sessionId: this.driverData?.sessionId || 'unknown',
+                    unit: this.driverData?.unit || 'unknown',
+                    driver: this.driverData?.name || 'unknown',
+                    synced: false,
+                    isOnline: this.isOnline
+                };
+
+                // ✅ VALIDATE COORDINATES (Kebun Tempuling area)
+                if (!this.isValidCoordinate(waypoint.lat, waypoint.lng)) {
+                    console.warn('Invalid coordinates, skipping waypoint:', waypoint);
+                    return;
+                }
+
+                // ✅ ADD TO CIRCULAR BUFFER
+                this.waypointBuffer.push(waypoint);
+                this.unsyncedWaypoints.add(waypoint.id);
+                
+                // ✅ SAVE TO STORAGE
+                this.storageManager.saveWaypoint(waypoint);
+                
+                // ✅ UPDATE REAL-TIME DISPLAY
+                this.updateGPSDisplay(waypoint);
+                
+                // ✅ UPDATE WAYPOINT COUNTER
+                this.updateWaypointDisplay();
+                
+                // ✅ INCREMENT DATA POINTS
+                this.dataPoints++;
+                document.getElementById('dataPoints').textContent = this.dataPoints;
+                
+            },
+            (error) => {
+                this.handleGPSError(error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            }
+        );
+    }
+
+    isValidCoordinate(lat, lng) {
+        // Validate for Kebun Tempuling area
+        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
+            return false;
+        }
+        if (isNaN(lat) || isNaN(lng)) {
+            return false;
+        }
+        return true;
+    }
+
+    updateGPSDisplay(waypoint) {
+        document.getElementById('currentLat').textContent = waypoint.lat.toFixed(6);
+        document.getElementById('currentLng').textContent = waypoint.lng.toFixed(6);
+        document.getElementById('currentSpeed').textContent = waypoint.speed.toFixed(1);
+        document.getElementById('gpsAccuracy').textContent = waypoint.accuracy.toFixed(1) + ' m';
+        document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
+    }
+
+    updateWaypointDisplay() {
+        // Update waypoint counters in UI if elements exist
+        const waypointCountElement = document.getElementById('waypointCount');
+        const unsyncedCountElement = document.getElementById('unsyncedCount');
+        const waypointStatusElement = document.getElementById('waypointStatus');
+        
+        if (waypointCountElement) {
+            waypointCountElement.textContent = this.waypointBuffer.count;
+        }
+        if (unsyncedCountElement) {
+            unsyncedCountElement.textContent = this.unsyncedWaypoints.size;
+        }
+        if (waypointStatusElement) {
+            waypointStatusElement.textContent = this.isOnline ? 
+                'Mengumpulkan waypoint...' : 
+                `Offline (${this.unsyncedWaypoints.size} menunggu sync)`;
+        }
+    }
+
+    // ✅ ENHANCED SYNC MANAGEMENT
+    async syncWaypointsToServer() {
+        if (!this.isOnline || !this.driverData) {
+            console.log('❌ Cannot sync: Offline or no driver data');
+            return;
+        }
+
+        const unsynced = this.getUnsyncedWaypoints();
+        if (unsynced.length === 0) {
+            console.log('✅ All waypoints synced');
+            return;
+        }
+
+        console.log(`🔄 Syncing ${unsynced.length} waypoints to server...`);
+        
+        const batches = this.createBatches(unsynced, this.waypointConfig.batchSize);
+        let successfulBatches = 0;
+
+        for (const [index, batch] of batches.entries()) {
+            try {
+                await this.uploadBatch(batch, index);
+                successfulBatches++;
+                
+                // ✅ MARK AS SYNCED
+                batch.forEach(waypoint => {
+                    waypoint.synced = true;
+                    this.unsyncedWaypoints.delete(waypoint.id);
+                });
+                
+                // ✅ UPDATE STORAGE
+                this.storageManager.markWaypointsAsSynced(batch.map(wp => wp.id));
+                
+                this.addLog(`📡 Batch ${index + 1}/${batches.length} synced (${batch.length} waypoints)`, 'success');
+                
+            } catch (error) {
+                console.error(`❌ Batch ${index + 1} sync failed:`, error);
+                this.addLog(`❌ Batch ${index + 1} sync failed`, 'error');
+                break; // Stop on first failure
+            }
+        }
+
+        if (successfulBatches > 0) {
+            this.addLog(`✅ ${successfulBatches} batches synced successfully`, 'success');
+            this.updateWaypointDisplay();
+        }
+    }
+
+    async uploadBatch(batch, batchIndex) {
+        const batchId = `batch_${this.driverData.unit}_${Date.now()}_${batchIndex}`;
+        const batchRef = database.ref(`/waypoints/${this.driverData.unit}/batches/${batchId}`);
+        
+        const batchData = {
+            batchId: batchId,
+            unit: this.driverData.unit,
+            sessionId: this.driverData.sessionId,
+            driver: this.driverData.name,
+            waypoints: batch,
+            uploadedAt: new Date().toISOString(),
+            batchSize: batch.length,
+            totalWaypoints: this.waypointBuffer.count,
+            batchIndex: batchIndex
+        };
+
+        await batchRef.set(batchData);
+        console.log(`✅ Batch ${batchIndex} uploaded: ${batch.length} waypoints`);
+    }
+
+    getUnsyncedWaypoints() {
+        return this.waypointBuffer.getAll().filter(wp => !wp.synced);
+    }
+
+    createBatches(array, batchSize) {
+        const batches = [];
+        for (let i = 0; i < array.length; i += batchSize) {
+            batches.push(array.slice(i, i + batchSize));
+        }
+        return batches;
+    }
+
+    loadUnsyncedWaypoints() {
+        const unsynced = this.storageManager.loadUnsyncedWaypoints();
+        unsynced.forEach(waypoint => {
+            this.waypointBuffer.push(waypoint);
+            if (!waypoint.synced) {
+                this.unsyncedWaypoints.add(waypoint.id);
+            }
+        });
+        console.log(`📂 Loaded ${unsynced.length} waypoints from storage`);
+    }
+
+    // ✅ CHAT METHOD: Setup chat system
     setupChatSystem() {
         if (!this.driverData) return;
         
@@ -199,7 +663,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ CHAT METHOD: Update chat UI - SESUAI DENGAN HTML BARU
+    // ✅ CHAT METHOD: Update chat UI
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -252,7 +716,7 @@ class DTGPSLogger {
         messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ CHAT METHOD: Toggle chat window - SESUAI DENGAN HTML BARU
+    // ✅ CHAT METHOD: Toggle chat window
     toggleChat() {
         this.isChatOpen = !this.isChatOpen;
         const chatWindow = document.getElementById('chatWindow');
@@ -272,7 +736,7 @@ class DTGPSLogger {
         }
     }
 
-    // ✅ CHAT METHOD: Handle chat input - SESUAI DENGAN HTML BARU
+    // ✅ CHAT METHOD: Handle chat input
     handleChatInput(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -286,7 +750,6 @@ class DTGPSLogger {
 
     // ✅ CHAT METHOD: Show notification
     showChatNotification(message) {
-        // Buat notification element
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-info';
         notification.innerHTML = `
@@ -311,7 +774,6 @@ class DTGPSLogger {
         
         document.body.appendChild(notification);
         
-        // Auto remove setelah 5 detik
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -452,21 +914,6 @@ class DTGPSLogger {
         this.updateAverageSpeed();
     }
 
-    // ✅ NEW: Validate GPS coordinates
-    isValidCoordinate(lat, lng) {
-        // Check for reasonable coordinates (Kebun Tempuling area)
-        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
-            return false;
-        }
-        
-        // Check for NaN values
-        if (isNaN(lat) || isNaN(lng)) {
-            return false;
-        }
-        
-        return true;
-    }
-
     // Enhanced distance calculation menggunakan rumus S = V × t
     calculateDistanceWithSpeed(currentSpeed, currentTime) {
         if (!this.lastUpdateTime) {
@@ -591,24 +1038,25 @@ class DTGPSLogger {
         return Math.max(20, Math.floor(Math.random() * 100));
     }
 
+    // ✅ ENHANCED NETWORK HANDLING
     checkNetworkStatus() {
         const wasOnline = this.isOnline;
         this.isOnline = navigator.onLine;
         
         if (wasOnline !== this.isOnline) {
             if (this.isOnline) {
-                this.addLog('📱 Koneksi pulih - sync semua data', 'success');
+                this.addLog('📱 Koneksi pulih - sync semua waypoint', 'success');
                 this.updateConnectionStatus(true);
                 
-                // Sync bertahap
-                this.offlineQueue.processQueue();
-                
+                // ✅ IMMEDIATE SYNC WHEN COMING ONLINE
                 setTimeout(() => {
+                    this.syncWaypointsToServer();
+                    this.offlineQueue.processQueue();
                     this.syncCompleteHistory();
-                }, 3000);
+                }, 2000);
                 
             } else {
-                this.addLog('📱 Koneksi terputus - menyimpan data lokal', 'warning');
+                this.addLog('📱 Koneksi terputus - menyimpan waypoint lokal', 'warning');
                 this.updateConnectionStatus(false);
             }
         }
@@ -626,14 +1074,17 @@ class DTGPSLogger {
             status.className = 'text-success';
         } else {
             dot.className = 'connection-status disconnected';
-            status.textContent = 'OFFLINE';
+            status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint menunggu)`;
             status.className = 'text-danger';
             
             const queueSize = this.offlineQueue.getQueueSize();
             if (queueSize > 0) {
-                status.textContent = `OFFLINE (${queueSize} data antrian)`;
+                status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint, ${queueSize} data antrian)`;
             }
         }
+        
+        // Update waypoint display status
+        this.updateWaypointDisplay();
     }
 
     handleGPSError(error) {
@@ -724,6 +1175,11 @@ class DTGPSLogger {
         
         this.sendToFirebase();
         this.syncCompleteHistory();
+        
+        // ✅ SYNC ALL WAYPOINTS BEFORE ENDING
+        if (this.isOnline) {
+            this.syncWaypointsToServer();
+        }
     }
 
     stopTracking() {
@@ -737,17 +1193,29 @@ class DTGPSLogger {
             this.firebaseRef.remove();
         }
         
+        // ✅ STOP WAYPOINT COLLECTION
+        this.stopWaypointCollection();
+        
         this.isTracking = false;
     }
 
+    // ✅ ENHANCED LOGOUT
     logout() {
+        // Sync semua data sebelum logout
+        if (this.isOnline) {
+            this.syncWaypointsToServer();
+            this.syncCompleteHistory();
+        }
+        
+        // Cleanup waypoint collection
+        this.stopWaypointCollection();
+        
         // Cleanup chat listener
         if (this.chatRef) {
             this.chatRef.off();
         }
         
         this.stopTracking();
-        this.syncCompleteHistory();
         
         const sessionSummary = {
             driver: this.driverData.name,
@@ -755,12 +1223,18 @@ class DTGPSLogger {
             duration: document.getElementById('sessionDuration').textContent,
             totalDistance: this.totalDistance.toFixed(3),
             dataPoints: this.dataPoints,
+            waypointsCollected: this.waypointBuffer.count,
+            unsyncedWaypoints: this.unsyncedWaypoints.size,
             avgSpeed: document.getElementById('avgSpeed').textContent,
             sessionId: this.driverData.sessionId
         };
         
         console.log('Session Summary:', sessionSummary);
-        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
+        this.addLog(`Session ended - ${this.waypointBuffer.count} waypoints collected`, 'info');
+        
+        // Reset waypoint data
+        this.waypointBuffer.clear();
+        this.unsyncedWaypoints.clear();
         
         this.driverData = null;
         this.firebaseRef = null;
@@ -950,7 +1424,7 @@ class OfflineQueueManager {
     }
 }
 
-// ✅ GLOBAL FUNCTIONS UNTUK CHAT - SESUAI DENGAN HTML BARU
+// ✅ GLOBAL FUNCTIONS UNTUK CHAT
 function sendChatMessage() {
     if (window.dtLogger) {
         const input = document.getElementById('chatInput');
@@ -1015,9 +1489,9 @@ function logout() {
     }
 }
 
-// Initialize app
+// Initialize app dengan EnhancedDTGPSLogger
 document.addEventListener('DOMContentLoaded', function() {
-    window.dtLogger = new DTGPSLogger();
+    window.dtLogger = new EnhancedDTGPSLogger();
 });
 
 // Handle page visibility changes
