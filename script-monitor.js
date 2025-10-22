@@ -1946,6 +1946,13 @@ class OptimizedSAGMGpsTracking {
                     <button class="btn btn-sm btn-danger w-100 mt-1" onclick="forceCleanup()">
                         🧹 Force Cleanup
                     </button>
+                    <!-- Tombol tambahan untuk debugging -->
+                    <button class="btn btn-sm btn-info w-100 mt-1" onclick="testWaypointValidation()">
+                        🔧 Test Waypoint Validation
+                    </button>
+                    <button class="btn btn-sm btn-success w-100 mt-1" onclick="window.gpsSystem.toggleHistoricalRoutes()">
+                        📍 Toggle Historical Routes
+                    </button>
                 </div>
             </div>
         `;
@@ -2531,6 +2538,32 @@ function toggleHistoricalRoutes() {
 function clearHistoricalData(unitName) {
     if (window.gpsSystem && window.gpsSystem.clearHistoricalData) {
         window.gpsSystem.clearHistoricalData(unitName);
+    }
+}
+
+// ✅ TEST WAYPOINT VALIDATION FUNCTION
+function testWaypointValidation() {
+    if (window.gpsSystem) {
+        const testWaypoints = [
+            { lat: -0.4345, lng: 102.9674, timestamp: new Date().toISOString() },
+            { lat: undefined, lng: 102.9674, timestamp: new Date().toISOString() },
+            { lat: -0.4345, lng: undefined, timestamp: new Date().toISOString() },
+            { lat: "invalid", lng: 102.9674, timestamp: new Date().toISOString() },
+            { lat: -0.4345, lng: 102.9674, timestamp: new Date().toISOString() }
+        ];
+        
+        const validCount = testWaypoints.filter(wp => window.gpsSystem.validateWaypointData(wp)).length;
+        
+        const result = `Waypoint Validation Test:
+Total Waypoints: ${testWaypoints.length}
+Valid Waypoints: ${validCount}
+Invalid Waypoints: ${testWaypoints.length - validCount}
+Success Rate: ${((validCount / testWaypoints.length) * 100).toFixed(1)}%`;
+        
+        alert(result);
+        console.log('🔧 Waypoint Validation Test:', result);
+    } else {
+        alert('GPS System belum diinisialisasi');
     }
 }
 
