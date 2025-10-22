@@ -232,7 +232,7 @@ class EnhancedStorageManager {
     }
 }
 
-// ✅ PERBAIKAN UTAMA: Enhanced Mobile GPS Logger dengan Fix GPS Accuracy
+// ✅ PERBAIKAN UTAMA: Enhanced Mobile GPS Logger dengan HAVERSINE FORMULA
 class EnhancedDTGPSLogger {
     constructor() {
         // ✅ ENHANCED WAYPOINT CONFIG - 3600×17 = 61,200 waypoints
@@ -264,11 +264,12 @@ class EnhancedDTGPSLogger {
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
         
-        // Enhanced distance calculation
-        this.lastUpdateTime = null;
+        // ✅ STEP 8: Enhanced properties untuk Haversine Formula
         this.currentSpeed = 0;
         this.movingStartTime = null;
         this.isCurrentlyMoving = false;
+        this.speedHistory = [];        // Untuk moving average
+        this.lastUpdateTime = null;
         
         // Complete history tracking
         this.offlineHistory = [];
@@ -288,7 +289,7 @@ class EnhancedDTGPSLogger {
         this.simulatedInterval = null;
         this.simulationActive = false;
         this.gpsErrorCount = 0;
-        this.maxGpsErrors = 3;
+        this.maxGpsErrors = 2; // Ubah dari 3 jadi 2
         
         this.offlineQueue = new OfflineQueueManager();
         
@@ -382,7 +383,7 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    // ✅ PERBAIKAN: Simulated GPS System
+    // ✅ PERBAIKAN: Simulated GPS System dengan Haversine
     startSimulatedGPS() {
         console.log('🎮 Starting simulated GPS system');
         this.gpsMode = 'simulated';
@@ -432,37 +433,32 @@ class EnhancedDTGPSLogger {
             this.currentRouteIndex = nextIndex;
         }
         
-        const speed = 20 + Math.random() * 40;
-        
-        const waypoint = {
-            id: `wp_sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        const simulatedPosition = {
             lat: parseFloat(lat.toFixed(6)),
             lng: parseFloat(lng.toFixed(6)),
             accuracy: 5 + Math.random() * 10,
-            speed: parseFloat(speed.toFixed(1)),
+            speed: 20 + Math.random() * 40, // Speed GPS simulated
             bearing: Math.round(Math.random() * 360),
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            sessionId: this.driverData?.sessionId || 'unknown',
-            unit: this.driverData?.unit || 'unknown',
-            driver: this.driverData?.name || 'unknown',
-            synced: false,
+            timestamp: new Date(),
             isOnline: this.isOnline,
-            lowAccuracy: false,
             isSimulated: true
         };
 
-        this.processWaypoint(waypoint);
+        // ✅ STEP 6: GUNAKAN HAVERSINE JUGA UNTUK SIMULATED
+        this.calculateDistanceWithCoordinates(simulatedPosition);
+
+        // ✅ PROCESS WAYPOINT
+        this.processWaypoint({
+            ...simulatedPosition,
+            id: `wp_sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            sessionId: this.driverData?.sessionId || 'unknown',
+            unit: this.driverData?.unit || 'unknown', 
+            driver: this.driverData?.name || 'unknown',
+            synced: false,
+            lowAccuracy: false
+        });
         
-        this.lastPosition = {
-            lat: waypoint.lat,
-            lng: waypoint.lng,
-            speed: waypoint.speed,
-            accuracy: waypoint.accuracy,
-            bearing: waypoint.bearing,
-            timestamp: new Date(),
-            distance: this.totalDistance
-        };
+        this.lastPosition = simulatedPosition;
     }
 
     simulateMovement() {
@@ -470,150 +466,131 @@ class EnhancedDTGPSLogger {
         this.generateSimulatedWaypoint();
     }
 
-   // ✅ CARI METHOD INI dan GANTI dengan kode baru:
-startRealGPSTracking() {
-    if (!navigator.geolocation) {
-        this.addLog('❌ GPS tidak didukung di browser ini', 'error');
-        this.switchToSimulatedMode();
-        return;
+    // ✅ SOLUSI 1: Force GPS High Accuracy
+    startRealGPSTracking() {
+        if (!navigator.geolocation) {
+            this.addLog('❌ GPS tidak didukung di browser ini', 'error');
+            this.switchToSimulatedMode();
+            return;
+        }
+
+        // ✅ PERBAIKAN: Force high accuracy dengan timeout lebih ketat
+        const options = {
+            enableHighAccuracy: true,    // ✅ PASTIKAN high accuracy
+            timeout: 10000,              // ✅ Timeout 10 detik
+            maximumAge: 0                // ✅ Jangan gunakan cache
+        };
+
+        // ✅ PERBAIKAN: Clear previous watch terlebih dahulu
+        if (this.watchId) {
+            navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
+        }
+
+        this.watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const accuracy = position.coords.accuracy;
+                
+                // ✅ VALIDASI: Tolak data dengan akurasi terlalu rendah
+                if (accuracy > 100) {
+                    console.warn(`❌ Akurasi GPS terlalu rendah: ${accuracy}m - data ditolak`);
+                    this.addLog(`❌ Akurasi GPS ${accuracy}m terlalu rendah - coba outdoor`, 'warning');
+                    return; // ❌ TOLAK DATA
+                }
+                
+                this.handleRealPositionUpdate(position);
+            },
+            (error) => this.handleGPSError(error),
+            options
+        );
+
+        this.isTracking = true;
+        this.addLog('📍 Real GPS tracking dengan high accuracy', 'success');
     }
 
-    // ✅ PERBAIKAN: Force high accuracy dengan timeout lebih ketat
-    const options = {
-        enableHighAccuracy: true,    // ✅ PASTIKAN high accuracy
-        timeout: 10000,              // ✅ Timeout 10 detik
-        maximumAge: 0                // ✅ Jangan gunakan cache
-    };
-
-    // ✅ PERBAIKAN: Clear previous watch terlebih dahulu
-    if (this.watchId) {
-        navigator.geolocation.clearWatch(this.watchId);
-        this.watchId = null;
+    stopRealGPSTracking() {
+        if (this.watchId) {
+            navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
+        }
+        this.isTracking = false;
     }
 
-    this.watchId = navigator.geolocation.watchPosition(
-        (position) => {
-            const accuracy = position.coords.accuracy;
-            
-            // ✅ VALIDASI: Tolak data dengan akurasi terlalu rendah
-            if (accuracy > 100) {
-                console.warn(`❌ Akurasi GPS terlalu rendah: ${accuracy}m - data ditolak`);
-                this.addLog(`❌ Akurasi GPS ${accuracy}m terlalu rendah - coba outdoor`, 'warning');
-                return; // ❌ TOLAK DATA
-            }
-            
-            this.handleRealPositionUpdate(position);
-        },
-        (error) => this.handleGPSError(error),
-        options
-    );
-
-    this.isTracking = true;
-    this.addLog('📍 Real GPS tracking dengan high accuracy', 'success');
-}
-    // ✅ PERBAIKAN KRITIS: Handle real position dengan menerima accuracy rendah
+    // ✅ STEP 4: Enhanced Position Update dengan Haversine
     handleRealPositionUpdate(position) {
         const accuracy = position.coords.accuracy;
         
-        // ✅ PERBAIKAN: Terima data meski accuracy rendah, tidak return early
+        // ✅ TERIMA DATA MESKI ACCURACY RENDAH TAPI BERI WARNING
         if (accuracy > 100) {
-            console.warn(`GPS accuracy rendah: ${accuracy}m - tapi tetap diproses`);
-            this.addLog(`⚠️ Akurasi GPS rendah (${accuracy}m) - data tetap disimpan`, 'warning');
-            // TIDAK return, biarkan proses berlanjut
+            console.warn(`⚠️ Akurasi GPS rendah: ${accuracy}m - data tetap diproses`);
+            this.addLog(`⚠️ Akurasi GPS rendah (${accuracy}m)`, 'warning');
         }
 
-        // Reset error count jika berhasil dapat data
-        this.gpsErrorCount = 0;
-
-        const waypoint = {
-            id: `wp_real_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        const currentPosition = {
             lat: parseFloat(position.coords.latitude.toFixed(6)),
             lng: parseFloat(position.coords.longitude.toFixed(6)),
             accuracy: parseFloat(accuracy.toFixed(1)),
             speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
             bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            timestamp: new Date(),
+            isOnline: this.isOnline,
+            isSimulated: false
+        };
+
+        // ✅ VALIDASI KOORDINAT
+        if (!this.isValidCoordinate(currentPosition.lat, currentPosition.lng)) {
+            console.warn('❌ Invalid coordinates, skipping waypoint');
+            return;
+        }
+
+        // ✅ STEP 1: PERHITUNGAN JARAK & KECEPATAN DENGAN HAVERSINE
+        this.calculateDistanceWithCoordinates(currentPosition);
+
+        // ✅ STEP 5: PROCESS WAYPOINT UNTUK DATA COLLECTION
+        this.processWaypoint({
+            ...currentPosition,
+            id: `wp_real_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             sessionId: this.driverData?.sessionId || 'unknown',
             unit: this.driverData?.unit || 'unknown',
             driver: this.driverData?.name || 'unknown',
             synced: false,
-            isOnline: this.isOnline,
-            lowAccuracy: accuracy > 50,
-            isSimulated: false
-        };
-
-        // ✅ VALIDATE COORDINATES (Kebun Tempuling area)
-        if (!this.isValidCoordinate(waypoint.lat, waypoint.lng)) {
-            console.warn('Invalid coordinates, skipping waypoint:', waypoint);
-            return;
-        }
-
-        this.processWaypoint(waypoint);
-        
-        // Simpan ke complete history
-        this.saveToCompleteHistory({
-            lat: waypoint.lat,
-            lng: waypoint.lng,
-            speed: waypoint.speed,
-            accuracy: waypoint.accuracy,
-            bearing: waypoint.bearing,
-            timestamp: waypoint.timestamp,
-            isOnline: this.isOnline
+            lowAccuracy: accuracy > 50
         });
 
-        this.lastPosition = {
-            lat: waypoint.lat,
-            lng: waypoint.lng,
-            speed: waypoint.speed,
-            accuracy: waypoint.accuracy,
-            bearing: waypoint.bearing,
-            timestamp: new Date(),
-            distance: this.totalDistance
-        };
+        // ✅ SIMPAN SEBAGAI POSISI TERAKHIR
+        this.lastPosition = currentPosition;
     }
 
-    // ✅ PERBAIKAN: Enhanced GPS Error Handling dengan auto-fallback
-   // ✅ CARI METHOD INI dan GANTI dengan kode baru:
-handleGPSError(error) {
-    this.gpsErrorCount++;
-    
-    let message = 'GPS Error: ';
-    switch(error.code) {
-        case error.PERMISSION_DENIED:
-            message += 'Izin GPS ditolak - ';
-            message += '📱 BUKA SETTINGS → SITE SETTINGS → LOCATION → ALLOW';
-            // ✅ AUTO-SWITCH IMMEDIATE
-            this.addLog('🔄 Auto-switch ke Simulated GPS karena izin ditolak', 'warning');
-            this.switchToSimulatedMode();
-            return;
-            
-        case error.POSITION_UNAVAILABLE:
-            message += 'Posisi tidak tersedia - pastikan GPS device aktif';
-            break;
-            
-        case error.TIMEOUT:
-            message += 'Timeout - coba area dengan sinyal better';
-            break;
-            
-        default:
-            message += 'Error tidak diketahui';
-            break;
-    }
-    
-    // Auto-switch setelah 2 error (bukan 3)
-    if (this.gpsErrorCount >= 2 && this.gpsMode === 'real') {
-        this.addLog(`🔄 Auto-switch ke Simulated GPS setelah ${this.gpsErrorCount} error`, 'warning');
-        this.switchToSimulatedMode();
-        return;
-    }
-    
-    this.addLog(message, 'error');
-}
+    // ✅ SOLUSI 2: Enhanced GPS Error Handling
+    handleGPSError(error) {
+        this.gpsErrorCount++;
         
-        // ✅ AUTO-SWITCH ke simulated setelah beberapa error berturut-turut
-        if (this.gpsErrorCount >= this.maxGpsErrors && this.gpsMode === 'real') {
-            this.addLog(`🔄 Auto-switch ke Simulated GPS setelah ${this.maxGpsErrors} error`, 'warning');
+        let message = 'GPS Error: ';
+        switch(error.code) {
+            case error.PERMISSION_DENIED:
+                message += 'Izin GPS ditolak - ';
+                message += '📱 BUKA SETTINGS → SITE SETTINGS → LOCATION → ALLOW';
+                // ✅ AUTO-SWITCH IMMEDIATE
+                this.addLog('🔄 Auto-switch ke Simulated GPS karena izin ditolak', 'warning');
+                this.switchToSimulatedMode();
+                return;
+                
+            case error.POSITION_UNAVAILABLE:
+                message += 'Posisi tidak tersedia - pastikan GPS device aktif';
+                break;
+                
+            case error.TIMEOUT:
+                message += 'Timeout - coba area dengan sinyal better';
+                break;
+                
+            default:
+                message += 'Error tidak diketahui';
+                break;
+        }
+        
+        // Auto-switch setelah 2 error (bukan 3)
+        if (this.gpsErrorCount >= 2 && this.gpsMode === 'real') {
+            this.addLog(`🔄 Auto-switch ke Simulated GPS setelah ${this.gpsErrorCount} error`, 'warning');
             this.switchToSimulatedMode();
             return;
         }
@@ -621,21 +598,151 @@ handleGPSError(error) {
         this.addLog(message, 'error');
     }
 
-    // ✅ COMMON WAYPOINT PROCESSING
+    // ✅ STEP 1: GANTI METHOD PERHITUNGAN LAMA DENGAN HAVERSINE
+    calculateDistanceWithCoordinates(currentPosition) {
+        if (!this.lastPosition || !this.lastPosition.lat || !this.lastPosition.timestamp) {
+            // Simpan position pertama sebagai reference
+            this.lastPosition = currentPosition;
+            return 0;
+        }
+
+        // ✅ HITUNG JARAK DENGAN HAVERSINE FORMULA
+        const distanceKm = this.haversineDistance(
+            this.lastPosition.lat, 
+            this.lastPosition.lng,
+            currentPosition.lat, 
+            currentPosition.lng
+        );
+
+        // ✅ HITUNG SELISIH WAKTU (dalam jam)
+        const timeDiffMs = currentPosition.timestamp - this.lastPosition.timestamp;
+        const timeDiffHours = timeDiffMs / 1000 / 3600;
+
+        // ✅ FILTER: Abaikan jika waktu terlalu singkat atau jarak tidak signifikan
+        if (timeDiffMs < 1000) { // Minimal 1 detik
+            console.log('⏱️ Waktu terlalu singkat, skip perhitungan');
+            return 0;
+        }
+
+        // ✅ FILTER BERDASARKAN AKURASI GPS
+        const maxAccuracy = 50; // Meter
+        if (currentPosition.accuracy > maxAccuracy) {
+            console.warn(`🎯 Akurasi GPS ${currentPosition.accuracy}m terlalu rendah, skip perhitungan`);
+            return 0;
+        }
+
+        // ✅ FILTER JARAK MINIMAL (menghindari GPS drift)
+        const minDistance = 0.005; // 5 meter
+        if (distanceKm < minDistance) {
+            console.log(`📏 Jarak ${(distanceKm * 1000).toFixed(1)}m terlalu pendek, skip`);
+            return 0;
+        }
+
+        // ✅ HITUNG KECEPATAN SEBENARNYA
+        let actualSpeed = 0;
+        if (timeDiffHours > 0) {
+            actualSpeed = distanceKm / timeDiffHours; // km/jam
+            
+            // ✅ FILTER KECEPATAN TIDAK REALISTIS
+            const MAX_REALISTIC_SPEED = 120; // km/h untuk dump truck
+            if (actualSpeed > MAX_REALISTIC_SPEED) {
+                console.warn(`🚫 Kecepatan ${actualSpeed.toFixed(1)} km/h tidak realistis, diabaikan`);
+                return 0;
+            }
+        }
+
+        // ✅ UPDATE TOTAL JARAK HANYA JIKA SEDANG BERGERAK
+        if (actualSpeed > 2 && this.journeyStatus === 'started') { // Minimal 2 km/h
+            this.totalDistance += distanceKm;
+            
+            // ✅ SMOOTHING KECEPATAN DENGAN MOVING AVERAGE
+            this.currentSpeed = this.smoothSpeed(actualSpeed);
+            
+            // ✅ UPDATE UI
+            document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
+            document.getElementById('currentSpeed').textContent = this.currentSpeed.toFixed(1);
+            
+            console.log(`📏 +${(distanceKm * 1000).toFixed(1)}m | 🚀 ${actualSpeed.toFixed(1)} km/h | Total: ${this.totalDistance.toFixed(3)}km`);
+            
+            // ✅ UPDATE RATA-RATA KECEPATAN
+            this.updateAverageSpeed();
+            
+            return distanceKm;
+        }
+        
+        return 0;
+    }
+
+    // ✅ STEP 2: METHOD HAVERSINE DISTANCE
+    haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius bumi dalam kilometer
+        
+        // Konversi derajat ke radian
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c; // Jarak dalam kilometer
+        
+        return distance;
+    }
+
+    // ✅ STEP 3: METHOD SMOOTHING KECEPATAN
+    smoothSpeed(newSpeed) {
+        if (!this.speedHistory) {
+            this.speedHistory = [];
+        }
+        
+        // ✅ SIMPAN MAX 5 NILAI TERAKHIR UNTUK MOVING AVERAGE
+        this.speedHistory.push(newSpeed);
+        if (this.speedHistory.length > 5) {
+            this.speedHistory.shift();
+        }
+        
+        // ✅ HITUNG RATA-RATA
+        const sum = this.speedHistory.reduce((a, b) => a + b, 0);
+        const average = sum / this.speedHistory.length;
+        
+        return average;
+    }
+
+    // ✅ STEP 7: METHOD UPDATE AVERAGE SPEED
+    updateAverageSpeed() {
+        if (this.dataPoints > 0 && this.sessionStartTime && this.totalDistance > 0) {
+            const durationHours = (new Date() - this.sessionStartTime) / 3600000;
+            const avgSpeed = durationHours > 0 ? this.totalDistance / durationHours : 0;
+            
+            document.getElementById('avgSpeed').textContent = avgSpeed.toFixed(1);
+        }
+    }
+
+    // ✅ STEP 5: UPDATE METHOD PROCESS WAYPOINT
     processWaypoint(waypoint) {
+        // ✅ VALIDASI KOORDINAT
+        if (!this.isValidCoordinate(waypoint.lat, waypoint.lng)) {
+            console.warn('❌ Invalid coordinates, skipping waypoint:', waypoint);
+            return;
+        }
+
+        // ✅ SIMPAN KE BUFFER & STORAGE
         this.waypointBuffer.push(waypoint);
         this.unsyncedWaypoints.add(waypoint.id);
         this.storageManager.saveWaypoint(waypoint);
+        
+        // ✅ UPDATE DISPLAY
         this.updateGPSDisplay(waypoint);
         this.updateWaypointDisplay();
         
+        // ✅ INCREMENT DATA POINTS
         this.dataPoints++;
-        const dataPointsEl = document.getElementById('dataPoints');
-        if (dataPointsEl) dataPointsEl.textContent = this.dataPoints;
+        document.getElementById('dataPoints').textContent = this.dataPoints;
 
-        this.calculateDistanceWithSpeed(waypoint.speed, new Date());
-
-        console.log(`📍 ${waypoint.isSimulated ? '🎮 Simulated' : '📡 Real'} GPS: ${waypoint.lat}, ${waypoint.lng}, Speed: ${waypoint.speed} km/h, Accuracy: ${waypoint.accuracy}m`);
+        console.log(`📍 ${waypoint.isSimulated ? '🎮 Simulated' : '📡 Real'} GPS: ${waypoint.lat}, ${waypoint.lng}, Speed: ${this.currentSpeed.toFixed(1)} km/h`);
     }
 
     // ✅ SIMULATION TEST METHODS
@@ -734,54 +841,54 @@ handleGPSError(error) {
             this.updateChatUI();
         }
     }
-// ✅ TAMBAHKAN METHOD BARU INI di dalam class EnhancedDTGPSLogger:
 
-// ✅ METHOD BARU: Cek status GPS device
-async checkGPSCapabilities() {
-    return new Promise((resolve) => {
-        if (!navigator.geolocation) {
-            resolve({ supported: false, message: 'GPS tidak didukung' });
-            return;
-        }
+    // ✅ SOLUSI 3: GPS Diagnostic Check
+    async checkGPSCapabilities() {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve({ supported: false, message: 'GPS tidak didukung' });
+                return;
+            }
 
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0
-        };
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            };
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const accuracy = position.coords.accuracy;
-                resolve({
-                    supported: true,
-                    accuracy: accuracy,
-                    highAccuracy: accuracy < 50,
-                    message: `GPS aktif - Akurasi: ${accuracy}m`
-                });
-            },
-            (error) => {
-                resolve({
-                    supported: true,
-                    accuracy: null,
-                    highAccuracy: false,
-                    message: `GPS error: ${this.getGPSErrorMessage(error)}`
-                });
-            },
-            options
-        );
-    });
-}
-
-// ✅ METHOD BARU: Get GPS error message yang user-friendly
-getGPSErrorMessage(error) {
-    switch(error.code) {
-        case error.PERMISSION_DENIED: return 'IZIN DITOLAK - klik 🔒 di address bar';
-        case error.POSITION_UNAVAILABLE: return 'GPS DEVICE MATI - hidupkan GPS';
-        case error.TIMEOUT: return 'TIMEOUT - coba area terbuka';
-        default: return 'Unknown error';
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const accuracy = position.coords.accuracy;
+                    resolve({
+                        supported: true,
+                        accuracy: accuracy,
+                        highAccuracy: accuracy < 50,
+                        message: `GPS aktif - Akurasi: ${accuracy}m`
+                    });
+                },
+                (error) => {
+                    resolve({
+                        supported: true,
+                        accuracy: null,
+                        highAccuracy: false,
+                        message: `GPS error: ${this.getGPSErrorMessage(error)}`
+                    });
+                },
+                options
+            );
+        });
     }
-}
+
+    // ✅ METHOD BARU: Get GPS error message yang user-friendly
+    getGPSErrorMessage(error) {
+        switch(error.code) {
+            case error.PERMISSION_DENIED: return 'IZIN DITOLAK - klik 🔒 di address bar';
+            case error.POSITION_UNAVAILABLE: return 'GPS DEVICE MATI - hidupkan GPS';
+            case error.TIMEOUT: return 'TIMEOUT - coba area terbuka';
+            default: return 'Unknown error';
+        }
+    }
+
     sendChatMessage() {
         const input = document.getElementById('chatInput');
         if (input && input.value.trim()) {
@@ -992,51 +1099,39 @@ getGPSErrorMessage(error) {
         return 'SESS_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-   // ✅ CARI METHOD INI dan GANTI dengan kode baru:
-async showDriverApp() {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('driverApp').style.display = 'block';
-    
-    document.getElementById('vehicleName').textContent = this.driverData.unit;
-    document.getElementById('driverDisplayName').textContent = this.driverData.name;
-    
-    this.sessionStartTime = new Date();
-    this.lastUpdateTime = new Date();
-    this.updateSessionDuration();
-    
-    // ✅ UPDATE WAYPOINT DISPLAY
-    this.updateWaypointDisplay();
-    
-    // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
-    this.setupChatSystem();
-    
-    this.updateGPSModeIndicator();
-    
-    // ✅ PERBAIKAN: Cek GPS capabilities dulu
-    const gpsCheck = await this.checkGPSCapabilities();
-    this.addLog(`📡 Status GPS: ${gpsCheck.message}`, 
-                gpsCheck.highAccuracy ? 'success' : 'warning');
-
-    // Delay startup GPS
-    setTimeout(() => {
-        if (this.gpsMode === 'simulated') {
-            this.startSimulatedGPS();
-        } else {
-            if (gpsCheck.supported && !gpsCheck.highAccuracy) {
-                this.addLog('⚠️ GPS device terdeteksi tapi akurasi rendah', 'warning');
-            }
-            this.startRealGPSTracking();
-        }
-    }, 1000);
-    
-    this.addLog(`✅ Login berhasil - ${this.driverData.name} (${this.driverData.unit}) - Mode: ${this.gpsMode.toUpperCase()}`, 'success');
-}
+    // ✅ SOLUSI 4: Perbaiki showDriverApp dengan GPS Diagnostic
+    async showDriverApp() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('driverApp').style.display = 'block';
         
-        // ✅ PERBAIKAN: Delay startup GPS untuk hindari conflict
+        document.getElementById('vehicleName').textContent = this.driverData.unit;
+        document.getElementById('driverDisplayName').textContent = this.driverData.name;
+        
+        this.sessionStartTime = new Date();
+        this.lastUpdateTime = new Date();
+        this.updateSessionDuration();
+        
+        // ✅ UPDATE WAYPOINT DISPLAY
+        this.updateWaypointDisplay();
+        
+        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
+        this.setupChatSystem();
+        
+        this.updateGPSModeIndicator();
+        
+        // ✅ PERBAIKAN: Cek GPS capabilities dulu
+        const gpsCheck = await this.checkGPSCapabilities();
+        this.addLog(`📡 Status GPS: ${gpsCheck.message}`, 
+                    gpsCheck.highAccuracy ? 'success' : 'warning');
+
+        // Delay startup GPS
         setTimeout(() => {
             if (this.gpsMode === 'simulated') {
                 this.startSimulatedGPS();
             } else {
+                if (gpsCheck.supported && !gpsCheck.highAccuracy) {
+                    this.addLog('⚠️ GPS device terdeteksi tapi akurasi rendah', 'warning');
+                }
                 this.startRealGPSTracking();
             }
         }, 1000);
@@ -1085,44 +1180,34 @@ async showDriverApp() {
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                const waypoint = {
-                    id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                const currentPosition = {
                     lat: parseFloat(position.coords.latitude.toFixed(6)),
                     lng: parseFloat(position.coords.longitude.toFixed(6)),
                     accuracy: parseFloat(position.coords.accuracy.toFixed(1)),
                     speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
                     bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
-                    timestamp: new Date().toISOString(),
-                    timeDisplay: new Date().toLocaleTimeString('id-ID'),
-                    sessionId: this.driverData?.sessionId || 'unknown',
-                    unit: this.driverData?.unit || 'unknown',
-                    driver: this.driverData?.name || 'unknown',
-                    synced: false,
+                    timestamp: new Date(),
                     isOnline: this.isOnline
                 };
 
                 // ✅ VALIDATE COORDINATES (Kebun Tempuling area)
-                if (!this.isValidCoordinate(waypoint.lat, waypoint.lng)) {
-                    console.warn('Invalid coordinates, skipping waypoint:', waypoint);
+                if (!this.isValidCoordinate(currentPosition.lat, currentPosition.lng)) {
+                    console.warn('Invalid coordinates, skipping waypoint');
                     return;
                 }
 
-                // ✅ ADD TO CIRCULAR BUFFER
-                this.waypointBuffer.push(waypoint);
-                this.unsyncedWaypoints.add(waypoint.id);
-                
-                // ✅ SAVE TO STORAGE
-                this.storageManager.saveWaypoint(waypoint);
-                
-                // ✅ UPDATE REAL-TIME DISPLAY
-                this.updateGPSDisplay(waypoint);
-                
-                // ✅ UPDATE WAYPOINT COUNTER
-                this.updateWaypointDisplay();
-                
-                // ✅ INCREMENT DATA POINTS
-                this.dataPoints++;
-                document.getElementById('dataPoints').textContent = this.dataPoints;
+                // ✅ GUNAKAN HAVERSINE UNTUK PERHITUNGAN
+                this.calculateDistanceWithCoordinates(currentPosition);
+
+                // ✅ PROCESS WAYPOINT
+                this.processWaypoint({
+                    ...currentPosition,
+                    id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    sessionId: this.driverData?.sessionId || 'unknown',
+                    unit: this.driverData?.unit || 'unknown',
+                    driver: this.driverData?.name || 'unknown',
+                    synced: false
+                });
                 
             },
             (error) => {
@@ -1150,7 +1235,7 @@ async showDriverApp() {
     updateGPSDisplay(waypoint) {
         document.getElementById('currentLat').textContent = waypoint.lat.toFixed(6);
         document.getElementById('currentLng').textContent = waypoint.lng.toFixed(6);
-        document.getElementById('currentSpeed').textContent = waypoint.speed.toFixed(1);
+        document.getElementById('currentSpeed').textContent = this.currentSpeed.toFixed(1); // Gunakan speed dari Haversine
         document.getElementById('gpsAccuracy').textContent = waypoint.accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
     }
@@ -1174,33 +1259,6 @@ async showDriverApp() {
         }
     }
 
-    calculateDistanceWithSpeed(currentSpeed, currentTime) {
-        if (!this.lastUpdateTime) {
-            this.lastUpdateTime = currentTime;
-            return;
-        }
-
-        const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600;
-        
-        if (currentSpeed > 2 && this.journeyStatus === 'started') {
-            const distanceIncrement = currentSpeed * timeDiff;
-            
-            if (distanceIncrement > 0 && distanceIncrement < 1) {
-                this.totalDistance += distanceIncrement;
-                document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
-            }
-            
-            this.isCurrentlyMoving = true;
-            this.movingStartTime = this.movingStartTime || currentTime;
-        } else {
-            this.isCurrentlyMoving = false;
-            this.movingStartTime = null;
-        }
-
-        this.lastUpdateTime = currentTime;
-        this.currentSpeed = currentSpeed;
-    }
-
     startDataTransmission() {
         this.sendInterval = setInterval(() => {
             if (this.lastPosition) {
@@ -1219,7 +1277,7 @@ async showDriverApp() {
                 unit: this.driverData.unit,
                 lat: parseFloat(this.lastPosition.lat.toFixed(6)),
                 lng: parseFloat(this.lastPosition.lng.toFixed(6)),
-                speed: parseFloat(this.lastPosition.speed.toFixed(1)),
+                speed: parseFloat(this.currentSpeed.toFixed(1)), // Gunakan speed dari Haversine
                 accuracy: parseFloat(this.lastPosition.accuracy.toFixed(1)),
                 bearing: this.lastPosition.bearing ? parseFloat(this.lastPosition.bearing.toFixed(0)) : null,
                 timestamp: new Date().toISOString(),
@@ -1242,7 +1300,7 @@ async showDriverApp() {
 
             if (this.isOnline) {
                 await this.firebaseRef.set(gpsData);
-                this.addLog(`📡 Data terkirim: ${this.lastPosition.speed.toFixed(1)} km/h | ${this.totalDistance.toFixed(3)} km`, 'success');
+                this.addLog(`📡 Data terkirim: ${this.currentSpeed.toFixed(1)} km/h | ${this.totalDistance.toFixed(3)} km`, 'success');
                 this.updateConnectionStatus(true);
                 
                 if (this.offlineQueue.getQueueSize() > 0) {
@@ -1490,6 +1548,8 @@ async showDriverApp() {
         this.dataPoints = 0;
         this.lastPosition = null;
         this.lastUpdateTime = null;
+        this.currentSpeed = 0;
+        this.speedHistory = [];
     }
 
     // ✅ ENHANCED SYNC MANAGEMENT
@@ -1863,4 +1923,3 @@ document.addEventListener('visibilitychange', function() {
         }
     }
 });
-
