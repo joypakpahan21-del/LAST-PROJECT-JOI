@@ -867,3 +867,120 @@ body {
     max-width: 200px;
     z-index: 1000;
 }
+/* ✅ ENHANCED HISTORICAL POLYLINE STYLES */
+.historical-route-line {
+    stroke-dasharray: 8, 8;
+    animation: historicalFlow 20s linear infinite;
+}
+
+@keyframes historicalFlow {
+    from {
+        stroke-dashoffset: 100;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.historical-route-popup {
+    min-width: 280px;
+    max-width: 350px;
+}
+
+.historical-route-popup .popup-header {
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.historical-route-popup .popup-header h6 {
+    color: #007bff;
+    margin: 0;
+    font-weight: 600;
+}
+
+/* Enhanced info grid untuk historical data */
+.historical-route-popup .info-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.historical-route-popup .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.historical-route-popup .info-label {
+    font-weight: 500;
+    color: #495057;
+    font-size: 0.85rem;
+}
+
+.historical-route-popup .info-value {
+    font-weight: 600;
+    color: #212529;
+    font-size: 0.85rem;
+}
+
+/* Waypoint analytics badge */
+.unit-item.has-historical-data {
+    border-left: 4px solid #28a745;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.waypoint-analytics-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Enhanced unit list dengan waypoint info */
+.unit-item .waypoint-stats {
+    background: rgba(40, 167, 69, 0.1);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-top: 8px;
+}
+
+.waypoint-stats small {
+    font-size: 0.75rem;
+    color: #28a745;
+    font-weight: 500;
+}
+
+/* Loading animation untuk waypoint data */
+.waypoint-loading {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive design untuk historical polyline */
+@media (max-width: 768px) {
+    .historical-route-popup {
+        min-width: 250px;
+        max-width: 300px;
+    }
+    
+    .historical-route-line {
+        weight: 4px; /* Thinner on mobile */
+    }
+}
