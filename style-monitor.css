@@ -834,3 +834,36 @@ body {
 .chat-window[style*="display: flex"] {
     animation: slideInUp 0.3s ease;
 }
+/* ✅ ENHANCED POLYLINE STYLES */
+.historical-route {
+    stroke-dasharray: 5, 5;
+    animation: flow 30s linear infinite;
+}
+
+@keyframes flow {
+    from {
+        stroke-dashoffset: 100;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.waypoint-marker {
+    background: rgba(74, 144, 226, 0.3);
+    border: 2px solid #4a90e2;
+    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+}
+
+.waypoint-info {
+    position: absolute;
+    background: white;
+    padding: 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    font-size: 12px;
+    max-width: 200px;
+    z-index: 1000;
+}
