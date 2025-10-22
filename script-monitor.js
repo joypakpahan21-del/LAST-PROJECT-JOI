@@ -10,624 +10,933 @@ const FIREBASE_CONFIG = {
 };
 
 // Initialize Firebase
-console.log('🚀 Initializing Comprehensive GPS Monitoring System...');
-
-if (!firebase.apps.length) {
-    firebase.initializeApp(FIREBASE_CONFIG);
-    console.log('✅ Firebase initialized successfully');
-} else {
-    console.log('ℹ️ Firebase already initialized');
-}
-
+firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-class ComprehensiveGPSMonitor {
+// ENHANCED SAGM GPS TRACKING SYSTEM WITH SMOOTH ANIMATION CHAT
+class OptimizedSAGMGpsTracking {
     constructor() {
-        console.log('🚀 Starting Comprehensive GPS Monitoring System...');
+        console.log('🚀 Initializing Enhanced GPS Tracking System with Smooth Animation Chat...');
         
-        // Core data structures
+        // 🔄 ENHANCED MEMORY MANAGEMENT
         this.units = new Map();
         this.markers = new Map();
-        this.accuracyCircles = new Map();
-        this.waypointHistory = new Map();
-        this.intervals = new Set();
-        this.routePolylines = new Map();
+        this.unitPolylines = new Map();
+        this.unitHistory = new Map();
+        this.unitSessions = new Map();
+        this.driverOnlineStatus = new Map();
+        this.lastDataTimestamps = new Map();
         
-        // Maps configuration
-        this.leafletMap = null;
-        this.googleMap = null;
-        this.infoWindow = null;
-        this.currentMapType = 'google'; // 'google' or 'leaflet'
+        // 🧹 ENHANCED CLEANUP SYSTEM
+        this.cleanupCallbacks = [];
+        this.intervals = new Set();
+        this.firebaseListeners = new Map();
+        this.cleanupInterval = null;
+        this.lastCleanupTime = null;
+        this.inactiveUnitTracker = new Map();
+        this.dataCorrectionQueue = new Map();
+        
+        // ⚡ PERFORMANCE OPTIMIZATION
+        this.updateDebounce = null;
+        this.lastRenderTime = 0;
+        this.renderThrottleMs = 500;
         
         // System state
+        this.map = null;
+        this.importantMarkers = [];
+        this.activeUnits = 0;
+        this.totalDistance = 0;
+        this.avgSpeed = 0;
+        this.totalFuelConsumption = 0;
+        this.lastUpdate = new Date();
+        this.autoRefreshInterval = null;
         this.firebaseListener = null;
-        this.isConnected = false;
-        this.connectionRef = null;
         
-        // Enhanced systems
-        this.chatRefs = new Map();
-        this.typingRefs = new Map();
-        this.chatMessages = new Map();
-        this.unreadCounts = new Map();
-        this.selectedChatUnit = null;
+        // ✅ ENHANCED CHAT SYSTEM WITH SMOOTH ANIMATION
+        this.monitorChatRefs = new Map();
+        this.monitorChatMessages = new Map();
+        this.monitorUnreadCounts = new Map();
+        this.activeChatUnit = null;
+        this.isMonitorChatOpen = false;
+        this.monitorChatInitialized = false;
+        this.isMonitorTyping = false;
+        this.monitorTypingTimeout = null;
         
-        // Waypoint management
-        this.showWaypoints = true;
-        this.waypointMarkers = new Map();
+        // Chat event handlers for cleanup
+        this.chatWindowClickHandler = null;
+        this.documentClickHandler = null;
+        this.escapeKeyHandler = null;
         
-        // GPS Accuracy Configuration
-        this.gpsAccuracyLevels = {
-            EXCELLENT: { max: 5, color: '#28a745', label: 'Excellent', icon: '🎯' },
-            GOOD: { max: 15, color: '#17a2b8', label: 'Good', icon: '✅' },
-            FAIR: { max: 30, color: '#ffc107', label: 'Fair', icon: '⚠️' },
-            POOR: { max: 50, color: '#dc3545', label: 'Poor', icon: '🔻' },
-            VERY_POOR: { max: Infinity, color: '#343a40', label: 'Very Poor', icon: '❌' }
+        // Route visualization - ENHANCED
+        this.showRoutes = true;
+        this.routeColors = new Map();
+        this.routeControls = null;
+        this.maxRoutePoints = 200;
+        
+        // Data Logger System
+        this.dataLogger = {
+            logs: [],
+            maxLogs: 1000,
+            logLevels: {
+                INFO: 'info',
+                SUCCESS: 'success', 
+                WARNING: 'warning',
+                ERROR: 'error',
+                GPS: 'gps',
+                SYSTEM: 'system'
+            },
+            autoExport: false,
+            exportInterval: null
+        };
+        
+        // Vehicle configuration
+        this.vehicleConfig = {
+            fuelEfficiency: 4.5,
+            maxSpeed: 80,
+            fuelTankCapacity: 100,
+            baseFuelConsumption: 0.25,
+            movingFuelConsumption: 0.22,
+            idleFuelConsumptionPerMin: 0.013
         };
 
-        // UI elements cache
-        this.uiElements = {};
-        
+        // Important locations
+        this.importantLocations = {
+            PKS_SAGM: { 
+                lat: -0.43452332690449164, 
+                lng: 102.96741072417917, 
+                name: "PKS SAGM",
+                type: "pks"
+            },
+            KANTOR_KEBUN: { 
+                lat: -0.3575865859028525, 
+                lng: 102.95047687287101, 
+                name: "Kantor Kebun PT SAGM",
+                type: "office"
+            }
+        };
+
+        this.config = {
+            center: [
+                (this.importantLocations.PKS_SAGM.lat + this.importantLocations.KANTOR_KEBUN.lat) / 2,
+                (this.importantLocations.PKS_SAGM.lng + this.importantLocations.KANTOR_KEBUN.lng) / 2
+            ],
+            zoom: 13
+        };
+
         this.initializeSystem();
     }
 
-    async initializeSystem() {
+    // ===== INITIALIZATION METHODS =====
+    initializeSystem() {
         try {
-            console.log('🔧 Initializing Comprehensive GPS Monitoring System...');
-            
-            // 1. Cache UI elements
-            this.cacheUIElements();
-            
-            // 2. Setup maps based on availability
-            await this.setupMaps();
-            
-            // 3. Setup UI handlers
-            this.setupUIEventHandlers();
-            
-            // 4. Test Firebase connection
-            await this.testFirebaseConnection();
-            
-            // 5. Setup Firebase listeners
-            this.setupFirebaseListeners();
-            
-            // 6. Start periodic tasks
+            console.log('🚀 Starting Enhanced GPS Tracking System with Smooth Animation Chat...');
+            this.setupMap();
+            this.setupEventHandlers();
+            this.connectToFirebase();
             this.startPeriodicTasks();
+            this.setupDataLogger();
+            this.testFirebaseConnection();
             
-            // 7. Setup enhanced chat system
-            this.setupEnhancedChatSystem();
+            // ✅ SETUP CHAT WINDOW BEHAVIOR WITH SMOOTH ANIMATION
+            this.setupChatWindowBehavior();
             
-            console.log('✅ Comprehensive GPS Monitoring System initialized successfully');
-            this.showNotification('System comprehensive dengan dual maps diaktifkan', 'success');
+            // ✅ ENHANCED CHAT SYSTEM
+            this.setupMonitorChatSystem();
+            
+            setTimeout(() => this.showDebugPanel(), 2000);
             
         } catch (error) {
-            console.error('❌ System initialization failed:', error);
-            this.showError('System initialization failed: ' + error.message);
+            console.error('System initialization failed:', error);
+            this.displayError('Gagal memulai sistem GPS');
         }
     }
 
-    cacheUIElements() {
-        this.uiElements = {
-            activeUnits: document.getElementById('activeUnits'),
-            totalDistance: document.getElementById('totalDistance'),
-            avgSpeed: document.getElementById('avgSpeed'),
-            totalFuel: document.getElementById('totalFuel'),
-            currentTime: document.getElementById('currentTime'),
-            firebaseStatus: document.getElementById('firebaseStatus'),
-            unitList: document.getElementById('unitList'),
-            totalWaypoints: document.getElementById('totalWaypoints'),
-            dataPeriod: document.getElementById('dataPeriod'),
-            storageUsed: document.getElementById('storageUsed'),
-            enhancedDataLogs: document.getElementById('enhancedDataLogs'),
-            activeUnitsDetail: document.getElementById('activeUnitsDetail'),
-            dataCount: document.getElementById('dataCount'),
-            loadingSpinner: document.getElementById('loadingSpinner')
-        };
-    }
-
-    async setupMaps() {
+    // ===== ENHANCED FIREBASE METHODS =====
+    connectToFirebase() {
         try {
-            console.log('🗺️ Setting up dual mapping system...');
+            console.log('🟡 Connecting to Firebase...');
             
-            // Setup Google Maps if available
-            if (typeof google !== 'undefined') {
-                await this.setupGoogleMaps();
-                this.currentMapType = 'google';
-                console.log('✅ Google Maps initialized');
-            } else {
-                console.log('⚠️ Google Maps not available, falling back to Leaflet');
-                await this.setupLeafletMap();
-                this.currentMapType = 'leaflet';
-            }
-            
-            // Add map controls
-            this.addMapControls();
-            
-        } catch (error) {
-            console.error('❌ Maps setup failed:', error);
-            // Fallback to Leaflet
-            await this.setupLeafletMap();
-            this.currentMapType = 'leaflet';
-        }
-    }
+            this.cleanupFirebaseListeners();
 
-    setupGoogleMaps() {
-        return new Promise((resolve, reject) => {
-            try {
-                const defaultCenter = { lat: -0.396056, lng: 102.958944 };
-                
-                const mapOptions = {
-                    center: defaultCenter,
-                    zoom: 13,
-                    mapTypeId: google.maps.MapTypeId.HYBRID,
-                    styles: [
-                        {
-                            featureType: "poi",
-                            elementType: "labels",
-                            stylers: [{ visibility: "on" }]
-                        }
-                    ]
-                };
-                
-                this.googleMap = new google.maps.Map(document.getElementById('googleMap'), mapOptions);
-                this.infoWindow = new google.maps.InfoWindow();
-                
-                // Hide Leaflet map container
-                const leafletMap = document.getElementById('map');
-                if (leafletMap) leafletMap.style.display = 'none';
-                
-                resolve();
-                
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    async setupLeafletMap() {
-        try {
-            console.log('🍃 Setting up Leaflet Map...');
-            
-            await this.waitForElement('#map');
-            
-            const mapElement = document.getElementById('map');
-            if (!mapElement) {
-                throw new Error('Map element not found');
-            }
-
-            // Style map element
-            mapElement.style.cssText = `
-                height: 500px !important;
-                width: 100% !important;
-                min-height: 400px;
-                border-radius: 8px;
-                background: #f8f9fa;
-                position: relative;
-            `;
-
-            // Hide Google Maps container
-            const googleMap = document.getElementById('googleMap');
-            if (googleMap) googleMap.style.display = 'none';
-
-            // Initialize Leaflet map
-            this.leafletMap = L.map('map', {
-                center: [-0.396056, 102.958944],
-                zoom: 13,
-                zoomControl: true,
-                attributionControl: true
-            });
-
-            // Add base layers
-            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 19
-            }).addTo(this.leafletMap);
-
-            // Try to add Google Satellite
-            try {
-                const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                    maxZoom: 20,
-                    subdomains: ['mt0','mt1','mt2','mt3'],
-                    attribution: '© Google'
-                });
-                
-                L.control.layers({
-                    "OpenStreetMap": osmLayer,
-                    "Google Satellite": googleSat
-                }).addTo(this.leafletMap);
-                
-            } catch (googleError) {
-                console.log('⚠️ Google Satellite failed, using OSM only');
-            }
-
-            // Add controls
-            L.control.scale({ imperial: false }).addTo(this.leafletMap);
-            this.addLeafletAccuracyLegend();
-            this.addImportantLocations();
-            
-            this.leafletMap.whenReady(() => {
-                console.log('✅ Leaflet map initialized successfully');
-                setTimeout(() => {
-                    this.leafletMap.invalidateSize(true);
-                }, 100);
-            });
-
-        } catch (error) {
-            console.error('❌ Leaflet map setup failed:', error);
-            throw error;
-        }
-    }
-
-    addMapControls() {
-        if (this.currentMapType === 'google' && this.googleMap) {
-            const waypointControl = document.createElement('div');
-            waypointControl.className = 'map-control';
-            waypointControl.innerHTML = `
-                <button class="btn btn-sm btn-light" onclick="window.comprehensiveMonitor.toggleWaypoints()">
-                    🎯 ${this.showWaypoints ? 'Hide' : 'Show'} Waypoints
-                </button>
-            `;
-            
-            this.googleMap.controls[google.maps.ControlPosition.TOP_RIGHT].push(waypointControl);
-        }
-    }
-
-    addLeafletAccuracyLegend() {
-        if (!this.leafletMap) return;
-        
-        const accuracyLegend = L.control({ position: 'bottomright' });
-        
-        accuracyLegend.onAdd = (map) => {
-            const div = L.DomUtil.create('div', 'accuracy-legend');
-            div.innerHTML = `
-                <h6>🎯 GPS Accuracy</h6>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #28a745"></div>
-                    <span>±5m (Excellent)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #17a2b8"></div>
-                    <span>±15m (Good)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #ffc107"></div>
-                    <span>±30m (Fair)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #dc3545"></div>
-                    <span>±50m (Poor)</span>
-                </div>
-                <div class="accuracy-legend-item">
-                    <div class="accuracy-color" style="background-color: #343a40"></div>
-                    <span>>50m (Very Poor)</span>
-                </div>
-            `;
-            return div;
-        };
-        
-        accuracyLegend.addTo(this.leafletMap);
-    }
-
-    addImportantLocations() {
-        if (!this.leafletMap) return;
-        
-        try {
-            const importantLocations = {
-                PKS_SAGM: { 
-                    lat: -0.43452332690449164, 
-                    lng: 102.96741072417917, 
-                    name: "PKS SAGM",
-                    type: "pks"
-                },
-                KANTOR_KEBUN: { 
-                    lat: -0.3575865859028525, 
-                    lng: 102.95047687287101, 
-                    name: "Kantor Kebun PT SAGM",
-                    type: "office"
-                }
-            };
-
-            Object.values(importantLocations).forEach(location => {
-                const icon = L.divIcon({
-                    className: 'important-marker',
-                    html: `<div class="marker-icon ${location.type}" title="${location.name}">${location.type === 'pks' ? '🏭' : '🏢'}</div>`,
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
-                });
-
-                L.marker([location.lat, location.lng], { icon: icon })
-                    .bindPopup(`
-                        <div class="location-popup">
-                            <strong>${location.name}</strong><br>
-                            Type: ${location.type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}<br>
-                            Status: Operational
-                        </div>
-                    `)
-                    .addTo(this.leafletMap);
-            });
-        } catch (error) {
-            console.log('⚠️ Important locations failed:', error);
-        }
-    }
-
-    setupUIEventHandlers() {
-        try {
-            // Search functionality
-            const searchInput = document.getElementById('searchUnit');
-            if (searchInput) {
-                searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
-            }
-
-            // Filter functionality
-            const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
-            filters.forEach(filterId => {
-                const filter = document.getElementById(filterId);
-                if (filter) {
-                    filter.addEventListener('change', () => this.applyFilters());
-                }
-            });
-
-            // Update clock every second
-            setInterval(() => {
-                this.updateElement('currentTime', new Date().toLocaleTimeString('id-ID'));
-            }, 1000);
-
-            // Map switch handler
-            const mapSwitch = document.getElementById('mapSwitch');
-            if (mapSwitch) {
-                mapSwitch.addEventListener('change', (e) => this.switchMapType(e.target.value));
-            }
-
-            console.log('✅ UI event handlers setup completed');
-        } catch (error) {
-            console.log('⚠️ UI event handlers setup failed:', error);
-        }
-    }
-
-    switchMapType(mapType) {
-        const leafletMap = document.getElementById('map');
-        const googleMap = document.getElementById('googleMap');
-        
-        if (mapType === 'leaflet') {
-            if (leafletMap) leafletMap.style.display = 'block';
-            if (googleMap) googleMap.style.display = 'none';
-            this.currentMapType = 'leaflet';
-            
-            if (this.leafletMap) {
-                setTimeout(() => {
-                    this.leafletMap.invalidateSize(true);
-                }, 100);
-            }
-        } else {
-            if (leafletMap) leafletMap.style.display = 'none';
-            if (googleMap) googleMap.style.display = 'block';
-            this.currentMapType = 'google';
-        }
-        
-        this.refreshAllMarkers();
-    }
-
-    async testFirebaseConnection() {
-        console.log('🔍 Testing Firebase connection...');
-        
-        this.showLoading(true);
-        
-        return new Promise((resolve, reject) => {
-            this.connectionRef = database.ref('.info/connected');
-            
-            const connectionHandler = this.connectionRef.on('value', (snapshot) => {
+            const connectionListener = database.ref('.info/connected').on('value', (snapshot) => {
                 const connected = snapshot.val();
-                console.log('📡 Firebase connection state:', connected);
+                this.updateConnectionStatus(connected);
                 
                 if (connected) {
-                    console.log('✅ Firebase connected successfully');
-                    this.isConnected = true;
-                    this.updateConnectionStatus(true);
-                    this.showLoading(false);
-                    
-                    database.ref('/units').once('value')
-                        .then((snapshot) => {
-                            const data = snapshot.val();
-                            const unitCount = data ? Object.keys(data).length : 0;
-                            console.log(`📊 Initial units count: ${unitCount}`);
-                            resolve(true);
-                        })
-                        .catch(error => {
-                            console.error('❌ Data access test failed:', error);
-                            reject(error);
-                        });
-                        
+                    this.logData('Firebase connected', 'success');
+                    setTimeout(() => this.forceCleanupInactiveUnits(), 2000);
                 } else {
-                    console.log('❌ Firebase disconnected');
-                    this.isConnected = false;
-                    this.updateConnectionStatus(false);
-                    this.showLoading(false);
-                    reject(new Error('Firebase not connected'));
+                    this.logData('Firebase disconnected', 'warning');
+                    this.markAllUnitsOffline();
                 }
             });
+            this.firebaseListeners.set('connection', connectionListener);
 
-            setTimeout(() => {
-                this.connectionRef.off('value', connectionHandler);
-                this.showLoading(false);
-                reject(new Error('Firebase connection timeout'));
-            }, 15000);
-        });
-    }
-
-    setupFirebaseListeners() {
-        console.log('📡 Setting up Firebase REAL-TIME listeners...');
-        
-        this.cleanupFirebaseListeners();
-
-        // Units data listener
-        this.firebaseListener = database.ref('/units').on('value', 
-            (snapshot) => {
-                console.log('🎯 Firebase units data change detected!');
-                
-                try {
-                    const data = snapshot.val();
-                    
-                    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-                        console.log(`🔄 Processing ${Object.keys(data).length} active units`);
-                        this.processRealTimeData(data);
-                    } else {
-                        console.log('ℹ️ No active units in Firebase database');
-                        this.clearAllUnits();
-                        this.showMessage('Tidak ada units aktif. Pastikan driver sudah login di aplikasi mobile.');
+            const unitsListener = database.ref('/units').on('value', 
+                (snapshot) => {
+                    try {
+                        const data = snapshot.val();
+                        if (data) {
+                            this.debouncedProcessRealTimeData(data);
+                        } else {
+                            console.log('⚠️ No data received from Firebase');
+                            this.forceCleanupInactiveUnits();
+                        }
+                    } catch (processError) {
+                        console.error('❌ Error processing data:', processError);
+                        this.logData('Data processing error', 'error', { error: processError.message });
                     }
-                } catch (error) {
-                    console.error('❌ Error processing Firebase data:', error);
-                    this.showError('Error processing real-time data: ' + error.message);
+                }, 
+                (error) => {
+                    console.error('❌ Firebase listener error:', error);
+                    this.logData('Firebase listener error', 'error', { 
+                        error: error.message,
+                        code: error.code
+                    });
+                    
+                    setTimeout(() => {
+                        console.log('🔄 Retrying Firebase connection...');
+                        this.connectToFirebase();
+                    }, 3000);
                 }
-            }, 
-            (error) => {
-                console.error('❌ Firebase listener error:', error);
-                
-                if (error.code === 'PERMISSION_DENIED') {
-                    this.showError('❌ FIREBASE PERMISSION DENIED\n\nPeriksa Firebase Security Rules');
-                } else {
-                    this.showError('Firebase connection error: ' + error.message);
-                }
-                
-                setTimeout(() => {
-                    this.setupFirebaseListeners();
-                }, 5000);
-            }
-        );
-        
-        // Waypoints data listener
-        this.waypointsListener = database.ref('/waypoints').on('value', 
-            (snapshot) => {
-                console.log('🎯 Firebase waypoints data change detected!');
-                this.processWaypointsData(snapshot.val());
-            }
-        );
-        
-        console.log('✅ Firebase real-time listeners setup completed');
+            );
+            this.firebaseListeners.set('units', unitsListener);
+
+            const removalListener = database.ref('/units').on('child_removed', (snapshot) => {
+                this.handleDataRemoval(snapshot.key);
+            });
+            this.firebaseListeners.set('removal', removalListener);
+
+            console.log('✅ Firebase listeners setup completed');
+            
+        } catch (error) {
+            console.error('🔥 Critical Firebase error:', error);
+            this.logData('Critical Firebase error', 'error', { error: error.message });
+            setTimeout(() => this.connectToFirebase(), 5000);
+        }
     }
 
+    debouncedProcessRealTimeData(data) {
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
+        }
+        this.updateDebounce = setTimeout(() => {
+            this.processRealTimeData(data);
+        }, 300);
+    }
+
+    // ===== ENHANCED PROCESS REAL-TIME DATA =====
     processRealTimeData(firebaseData) {
-        if (!firebaseData) return;
+        if (!firebaseData) {
+            this.logData('No real-time data from Firebase', 'warning');
+            this.forceCleanupInactiveUnits();
+            return;
+        }
 
         const unitCount = Object.keys(firebaseData).length;
-        console.log(`🔄 Processing ${unitCount} units from Firebase`);
-        
+        console.log(`🔄 Real-time update: ${unitCount} active units`);
+
         const activeUnits = new Set();
         const currentTime = Date.now();
         
+        Object.keys(firebaseData).forEach(unitName => {
+            this.inactiveUnitTracker.set(unitName, 0);
+        });
+
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
-            if (this.validateUnitData(unitName, unitData)) {
-                activeUnits.add(unitName);
-                this.updateOrCreateUnit(unitName, unitData, currentTime);
+            if (!this.validateUnitData(unitName, unitData)) {
+                this.correctUnitData(unitName, unitData);
+                return;
+            }
+
+            activeUnits.add(unitName);
+            this.lastDataTimestamps.set(unitName, currentTime);
+            this.driverOnlineStatus.set(unitName, true);
+
+            const existingUnit = this.units.get(unitName);
+            
+            if (existingUnit) {
+                this.refreshUnitData(existingUnit, unitData);
             } else {
-                console.log(`❌ Invalid data for ${unitName}, skipping`);
+                const newUnit = this.createNewUnit(unitName, unitData);
+                if (newUnit) {
+                    this.units.set(unitName, newUnit);
+                    this.unitSessions.set(unitName, {
+                        sessionId: unitData.sessionId,
+                        startTime: currentTime,
+                        lastActivity: currentTime
+                    });
+                    
+                    // Setup chat for new unit
+                    if (!this.monitorChatRefs.has(unitName)) {
+                        this.setupUnitChatListener(unitName);
+                    }
+                }
             }
         });
 
-        this.cleanupInactiveUnits(activeUnits);
-        this.updateDisplay();
+        this.gradualCleanupInactiveUnits(activeUnits);
+        this.updateStatistics();
+        this.scheduleRender();
+    }
+
+    // ✅ ENHANCED CHAT SYSTEM METHODS WITH SMOOTH ANIMATION
+    setupMonitorChatSystem() {
+        console.log('💬 Initializing enhanced monitor chat system with smooth animation...');
         
-        if (this.units.size > 0) {
-            this.showSuccess(`Real-time tracking active: ${this.units.size} units online`);
+        // Listen for new chat units
+        database.ref('/chat').on('child_added', (snapshot) => {
+            const unitName = snapshot.key;
+            console.log(`💬 New chat unit detected: ${unitName}`);
+            this.setupUnitChatListener(unitName);
+        });
+
+        database.ref('/chat').on('child_removed', (snapshot) => {
+            const unitName = snapshot.key;
+            this.cleanupUnitChatListener(unitName);
+        });
+
+        // Listen for all units to populate chat list
+        database.ref('/units').on('value', (snapshot) => {
+            const unitsData = snapshot.val();
+            if (unitsData) {
+                Object.keys(unitsData).forEach(unitName => {
+                    if (!this.monitorChatRefs.has(unitName)) {
+                        this.setupUnitChatListener(unitName);
+                    }
+                });
+            }
+        });
+
+        this.setupChatEventHandlers();
+        this.monitorChatInitialized = true;
+        
+        console.log('💬 Enhanced monitor chat system with smooth animation activated');
+        this.logData('Sistem chat monitor dengan animasi smooth diaktifkan', 'system');
+    }
+
+    // ✅ IMPROVED UNIT CHAT LISTENER
+    setupUnitChatListener(unitName) {
+        if (this.monitorChatRefs.has(unitName)) return;
+        
+        console.log(`💬 Setting up chat listener for unit: ${unitName}`);
+        
+        const chatRef = database.ref('/chat/' + unitName);
+        this.monitorChatRefs.set(unitName, chatRef);
+        this.monitorChatMessages.set(unitName, []);
+        this.monitorUnreadCounts.set(unitName, 0);
+        
+        // Clear previous listeners
+        chatRef.off();
+        
+        // Listen for new messages
+        chatRef.on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            this.handleMonitorChatMessage(unitName, message);
+        });
+        
+        // Listen for typing indicators
+        const typingRef = database.ref('/typing/' + unitName);
+        typingRef.on('value', (snapshot) => {
+            const typingData = snapshot.val();
+            this.handleMonitorTypingIndicator(unitName, typingData);
+        });
+
+        this.updateMonitorChatUnitSelect();
+        console.log(`💬 Now actively listening to chat for unit: ${unitName}`);
+    }
+
+    // ✅ IMPROVED MESSAGE HANDLING
+    handleMonitorChatMessage(unitName, message) {
+        if (!message || message.type === 'monitor') return;
+        
+        if (!this.monitorChatMessages.has(unitName)) {
+            this.monitorChatMessages.set(unitName, []);
+        }
+        
+        const messages = this.monitorChatMessages.get(unitName);
+        
+        // Prevent duplicates
+        const messageExists = messages.some(msg => 
+            msg.id === message.id || 
+            (msg.timestamp === message.timestamp && msg.sender === message.sender)
+        );
+        
+        if (messageExists) return;
+        
+        messages.push(message);
+        
+        // Update unread count if not viewing this chat
+        if (this.activeChatUnit !== unitName) {
+            const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
+            this.monitorUnreadCounts.set(unitName, currentCount + 1);
+        }
+        
+        this.updateMonitorChatUI();
+        this.updateMonitorChatUnitSelect();
+        
+        // Show notification if not viewing this chat
+        if (this.activeChatUnit !== unitName) {
+            this.showMonitorChatNotification(unitName, message);
+        }
+        
+        console.log(`💬 New message from ${unitName}:`, message);
+    }
+
+    // ✅ ENHANCED TOGGLE CHAT METHOD WITH SMOOTH ANIMATION
+    toggleMonitorChat() {
+        this.isMonitorChatOpen = !this.isMonitorChatOpen;
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatToggle = document.getElementById('monitorChatToggle');
+        
+        if (chatWindow) {
+            if (this.isMonitorChatOpen) {
+                // ✅ BUKA CHAT WINDOW DENGAN ANIMASI SMOOTH
+                chatWindow.style.display = 'flex';
+                
+                // Trigger reflow untuk memastikan animasi berjalan
+                void chatWindow.offsetWidth;
+                
+                // Apply animation
+                chatWindow.style.animation = 'slideInUp 0.3s ease-out forwards';
+                
+                // Update UI components
+                this.updateMonitorChatUnitSelect();
+                this.updateMonitorChatUI();
+                
+                // Auto-focus dengan delay untuk smooth experience
+                if (this.activeChatUnit) {
+                    setTimeout(() => {
+                        const chatInput = document.getElementById('monitorChatInput');
+                        if (chatInput) {
+                            chatInput.focus();
+                            chatInput.select();
+                        }
+                    }, 350);
+                }
+                
+                // Update toggle button state
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Tutup Chat <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
+                    chatToggle.classList.add('btn-secondary');
+                    chatToggle.classList.remove('btn-primary');
+                }
+                
+            } else {
+                // ✅ TUTUP CHAT WINDOW DENGAN ANIMASI SMOOTH
+                chatWindow.style.animation = 'slideOutDown 0.25s ease-in forwards';
+                
+                // Stop typing indicator immediately
+                this.stopMonitorTyping();
+                
+                // Update toggle button state
+                if (chatToggle) {
+                    chatToggle.innerHTML = '💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
+                    chatToggle.classList.add('btn-primary');
+                    chatToggle.classList.remove('btn-secondary');
+                }
+                
+                // Hide after animation completes
+                setTimeout(() => {
+                    if (!this.isMonitorChatOpen) {
+                        chatWindow.style.display = 'none';
+                        // Reset animation for next open
+                        chatWindow.style.animation = '';
+                    }
+                }, 250);
+            }
         }
     }
 
-    processWaypointsData(waypointsData) {
-        if (!waypointsData) return;
+    // ✅ ENHANCED CHAT WINDOW BEHAVIOR WITH PROPER CLEANUP
+    setupChatWindowBehavior() {
+        const chatWindow = document.getElementById('monitorChatWindow');
+        const chatToggle = document.getElementById('monitorChatToggle');
         
-        Object.entries(waypointsData).forEach(([unitName, sessions]) => {
-            Object.entries(sessions).forEach(([sessionId, waypointData]) => {
-                this.updateWaypointDisplay(unitName, waypointData);
+        if (chatWindow && chatToggle) {
+            // Store reference to bound functions for cleanup
+            this.chatWindowClickHandler = (e) => e.stopPropagation();
+            this.documentClickHandler = (e) => {
+                if (this.isMonitorChatOpen && 
+                    !chatWindow.contains(e.target) && 
+                    !chatToggle.contains(e.target)) {
+                    this.toggleMonitorChat();
+                }
+            };
+            this.escapeKeyHandler = (e) => {
+                if (e.key === 'Escape' && this.isMonitorChatOpen) {
+                    this.toggleMonitorChat();
+                }
+            };
+            
+            // Add event listeners
+            chatWindow.addEventListener('click', this.chatWindowClickHandler);
+            document.addEventListener('click', this.documentClickHandler);
+            document.addEventListener('keydown', this.escapeKeyHandler);
+        }
+    }
+
+    // ✅ CLEANUP CHAT EVENT LISTENERS
+    cleanupChatEventListeners() {
+        const chatWindow = document.getElementById('monitorChatWindow');
+        
+        if (chatWindow && this.chatWindowClickHandler) {
+            chatWindow.removeEventListener('click', this.chatWindowClickHandler);
+        }
+        
+        if (this.documentClickHandler) {
+            document.removeEventListener('click', this.documentClickHandler);
+        }
+        
+        if (this.escapeKeyHandler) {
+            document.removeEventListener('keydown', this.escapeKeyHandler);
+        }
+    }
+
+    // ✅ IMPROVED SEND MESSAGE METHOD
+    async sendMonitorMessage() {
+        const messageInput = document.getElementById('monitorChatInput');
+        const messageText = messageInput?.value.trim();
+        
+        if (!messageText || !this.activeChatUnit || !this.monitorChatRefs.has(this.activeChatUnit)) {
+            return;
+        }
+        
+        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        const messageData = {
+            id: messageId,
+            text: messageText,
+            sender: 'MONITOR',
+            unit: this.activeChatUnit,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }),
+            type: 'monitor',
+            status: 'sent'
+        };
+        
+        try {
+            const chatRef = this.monitorChatRefs.get(this.activeChatUnit);
+            await chatRef.push(messageData);
+            
+            // Add to local messages for instant feedback
+            if (!this.monitorChatMessages.has(this.activeChatUnit)) {
+                this.monitorChatMessages.set(this.activeChatUnit, []);
+            }
+            this.monitorChatMessages.get(this.activeChatUnit).push(messageData);
+            
+            this.updateMonitorChatUI();
+            this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
+            
+            // Clear input
+            if (messageInput) messageInput.value = '';
+            
+            // Stop typing indicator
+            this.stopMonitorTyping();
+            
+        } catch (error) {
+            console.error('Failed to send monitor message:', error);
+            this.logData('❌ Gagal mengirim pesan ke driver', 'error');
+        }
+    }
+
+    // ✅ TYPING INDICATOR METHODS FOR MONITOR
+    startMonitorTyping() {
+        if (!this.activeChatUnit) return;
+        
+        const typingRef = database.ref('/typing/' + this.activeChatUnit + '/monitor');
+        typingRef.set({
+            isTyping: true,
+            name: 'MONITOR',
+            timestamp: Date.now()
+        });
+        
+        this.isMonitorTyping = true;
+    }
+
+    stopMonitorTyping() {
+        if (!this.activeChatUnit || !this.isMonitorTyping) return;
+        
+        const typingRef = database.ref('/typing/' + this.activeChatUnit + '/monitor');
+        typingRef.set({
+            isTyping: false,
+            name: 'MONITOR', 
+            timestamp: Date.now()
+        });
+        
+        this.isMonitorTyping = false;
+    }
+
+    handleMonitorTypingIndicator(unitName, typingData) {
+        if (!typingData || unitName !== this.activeChatUnit) return;
+        
+        const driverTyping = typingData.driver;
+        const typingIndicator = document.getElementById('monitorTypingIndicator');
+        
+        if (typingIndicator && driverTyping && driverTyping.isTyping) {
+            typingIndicator.style.display = 'block';
+            typingIndicator.innerHTML = `
+                <div class="typing-indicator">
+                    <span>${driverTyping.name} sedang mengetik</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+        } else if (typingIndicator) {
+            typingIndicator.style.display = 'none';
+        }
+    }
+
+    // ✅ IMPROVED CHAT UI FOR MONITOR
+    updateMonitorChatUI() {
+        const messageList = document.getElementById('monitorChatMessages');
+        const unreadBadge = document.getElementById('monitorUnreadBadge');
+        const chatInput = document.getElementById('monitorChatInput');
+        const sendBtn = document.getElementById('monitorSendBtn');
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        
+        if (!messageList) return;
+        
+        // Calculate total unread count
+        let totalUnread = 0;
+        this.monitorUnreadCounts.forEach(count => totalUnread += count);
+        
+        // Update unread badge
+        if (unreadBadge) {
+            unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
+            unreadBadge.style.display = totalUnread > 0 ? 'inline' : 'none';
+        }
+        
+        const hasActiveUnit = !!this.activeChatUnit;
+        
+        // Update input and button states
+        if (chatInput) chatInput.disabled = !hasActiveUnit;
+        if (sendBtn) sendBtn.disabled = !hasActiveUnit;
+        if (unitSelect) unitSelect.value = this.activeChatUnit || '';
+        
+        // Update placeholder based on active unit
+        if (messageList && !hasActiveUnit) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Pilih unit untuk memulai percakapan...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        // Render messages for active unit
+        const activeMessages = this.monitorChatMessages.get(this.activeChatUnit) || [];
+        
+        if (activeMessages.length === 0) {
+            messageList.innerHTML = `
+                <div class="chat-placeholder text-center text-muted py-4">
+                    <small>Mulai percakapan dengan driver ${this.activeChatUnit}...</small>
+                </div>
+            `;
+            return;
+        }
+        
+        messageList.innerHTML = '';
+        
+        // Group messages by date
+        const groupedMessages = this.groupMonitorMessagesByDate(activeMessages);
+        
+        Object.keys(groupedMessages).forEach(date => {
+            // Add date separator
+            if (Object.keys(groupedMessages).length > 1) {
+                const dateElement = document.createElement('div');
+                dateElement.className = 'chat-date-separator';
+                dateElement.innerHTML = `<span>${date}</span>`;
+                messageList.appendChild(dateElement);
+            }
+            
+            // Add messages for this date
+            groupedMessages[date].forEach(message => {
+                const messageElement = this.createMonitorMessageElement(message);
+                messageList.appendChild(messageElement);
             });
         });
+        
+        // Add typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.id = 'monitorTypingIndicator';
+        typingIndicator.style.display = 'none';
+        messageList.appendChild(typingIndicator);
+        
+        // Auto scroll to bottom with smooth behavior
+        setTimeout(() => {
+            messageList.scrollTo({
+                top: messageList.scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 100);
     }
 
+    // ✅ GROUP MESSAGES FOR MONITOR
+    groupMonitorMessagesByDate(messages) {
+        const grouped = {};
+        
+        messages.forEach(message => {
+            const messageDate = new Date(message.timestamp);
+            const dateKey = messageDate.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = [];
+            }
+            
+            grouped[dateKey].push(message);
+        });
+        
+        // Sort messages within each date
+        Object.keys(grouped).forEach(date => {
+            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        });
+        
+        return grouped;
+    }
+
+    // ✅ CREATE MESSAGE ELEMENT FOR MONITOR
+    createMonitorMessageElement(message) {
+        const messageElement = document.createElement('div');
+        const isMonitorMessage = message.type === 'monitor';
+        
+        messageElement.className = `chat-message ${isMonitorMessage ? 'message-sent' : 'message-received'}`;
+        
+        messageElement.innerHTML = `
+            <div class="message-content">
+                ${!isMonitorMessage ? 
+                    `<div class="message-sender">${this.escapeHtml(message.sender)} (${message.unit})</div>` : ''}
+                <div class="message-text">${this.escapeHtml(message.text)}</div>
+                <div class="message-footer">
+                    <span class="message-time">${message.timeDisplay}</span>
+                    ${isMonitorMessage ? 
+                        `<span class="message-status">✓</span>` : ''}
+                </div>
+            </div>
+        `;
+        
+        return messageElement;
+    }
+
+    // ✅ IMPROVED CHAT EVENT HANDLERS
+    setupChatEventHandlers() {
+        const chatInput = document.getElementById('monitorChatInput');
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        
+        let typingTimer;
+        
+        // Chat input handlers
+        if (chatInput) {
+            chatInput.addEventListener('input', () => {
+                if (!this.activeChatUnit) return;
+                
+                this.startMonitorTyping();
+                
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    this.stopMonitorTyping();
+                }, 2000);
+            });
+            
+            chatInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    this.sendMonitorMessage();
+                }
+            });
+            
+            chatInput.addEventListener('blur', () => {
+                this.stopMonitorTyping();
+            });
+        }
+        
+        // Unit select handler
+        if (unitSelect) {
+            unitSelect.addEventListener('change', (e) => {
+                this.selectChatUnit(e.target.value);
+            });
+        }
+    }
+
+    // ✅ IMPROVED UNIT SELECTION
+    selectChatUnit(unitName) {
+        if (unitName === this.activeChatUnit) return;
+        
+        // Stop typing for previous unit
+        this.stopMonitorTyping();
+        
+        this.activeChatUnit = unitName;
+        
+        // Clear unread count for selected unit
+        if (unitName && this.monitorUnreadCounts.has(unitName)) {
+            this.monitorUnreadCounts.set(unitName, 0);
+        }
+        
+        this.updateMonitorChatUI();
+        this.updateMonitorChatUnitSelect();
+        
+        // Focus on input dengan smooth transition
+        const chatInput = document.getElementById('monitorChatInput');
+        if (chatInput) {
+            setTimeout(() => {
+                chatInput.focus();
+                chatInput.select();
+            }, 150);
+        }
+        
+        console.log(`💬 Now chatting with unit: ${unitName}`);
+        this.logData(`Memulai chat dengan unit ${unitName}`, 'info');
+    }
+
+    // ✅ IMPROVED UNIT SELECT UPDATE
+    updateMonitorChatUnitSelect() {
+        const unitSelect = document.getElementById('monitorChatUnitSelect');
+        if (!unitSelect) return;
+        
+        const currentValue = unitSelect.value;
+        
+        unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
+        
+        // Add all units that have chat capability
+        const allUnits = new Set([
+            ...this.monitorChatRefs.keys(),
+            ...Array.from(this.units.keys())
+        ]);
+        
+        allUnits.forEach(unitName => {
+            const unreadCount = this.monitorUnreadCounts.get(unitName) || 0;
+            const option = document.createElement('option');
+            option.value = unitName;
+            option.textContent = unreadCount > 0 ? 
+                `${unitName} 💬 (${unreadCount} baru)` : unitName;
+            unitSelect.appendChild(option);
+        });
+        
+        // Restore selection if still valid
+        if (currentValue && allUnits.has(currentValue)) {
+            unitSelect.value = currentValue;
+        } else if (this.activeChatUnit && allUnits.has(this.activeChatUnit)) {
+            unitSelect.value = this.activeChatUnit;
+        }
+    }
+
+    // ✅ HANDLE CHAT INPUT
+    handleMonitorChatInput(event) {
+        if (event.key === 'Enter') {
+            this.sendMonitorMessage();
+        }
+    }
+
+    // ✅ SHOW CHAT NOTIFICATION
+    showMonitorChatNotification(unitName, message) {
+        const notification = document.createElement('div');
+        notification.className = 'chat-notification alert alert-warning';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>💬 Pesan Baru dari ${unitName}</strong>
+                    <div class="small">${message.sender}: ${message.text}</div>
+                </div>
+                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    // ✅ CLEANUP UNIT CHAT LISTENER
+    cleanupUnitChatListener(unitName) {
+        if (this.monitorChatRefs.has(unitName)) {
+            const chatRef = this.monitorChatRefs.get(unitName);
+            chatRef.off();
+            
+            this.monitorChatRefs.delete(unitName);
+            this.monitorChatMessages.delete(unitName);
+            this.monitorUnreadCounts.delete(unitName);
+            
+            this.updateMonitorChatUnitSelect();
+            
+            if (this.activeChatUnit === unitName) {
+                this.activeChatUnit = null;
+                this.updateMonitorChatUI();
+            }
+            
+            console.log(`💬 Stopped listening to chat for unit: ${unitName}`);
+        }
+    }
+
+    // ✅ ESCAPE HTML FOR SECURITY
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ===== EXISTING GPS TRACKING METHODS =====
     validateUnitData(unitName, unitData) {
         if (!unitData) return false;
-        
-        const requiredFields = ['lat', 'lng', 'driver', 'unit'];
-        const missingFields = requiredFields.filter(field => !unitData.hasOwnProperty(field));
-        
-        if (missingFields.length > 0) {
-            console.log(`❌ Missing required fields for ${unitName}:`, missingFields);
-            return false;
-        }
+        if (unitData.lat === undefined || unitData.lng === undefined) return false;
         
         const lat = parseFloat(unitData.lat);
         const lng = parseFloat(unitData.lng);
-        
-        if (isNaN(lat) || isNaN(lng)) {
-            console.log(`❌ Invalid coordinates for ${unitName}`);
-            return false;
-        }
-        
-        if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
-            console.log(`❌ Coordinates out of range for ${unitName}: ${lat}, ${lng}`);
-            return false;
-        }
-        
-        if (unitData.lastUpdate && !this.validateTimestamp({ lastUpdate: unitData.lastUpdate })) {
-            console.log(`❌ Invalid timestamp for ${unitName}: ${unitData.lastUpdate}`);
-            return false;
-        }
-        
-        return true;
+        return !isNaN(lat) && !isNaN(lng);
     }
 
-    validateTimestamp(unit) {
-        if (!unit.lastUpdate) return false;
-        
-        try {
-            const timestamp = new Date(unit.lastUpdate);
-            if (isNaN(timestamp.getTime())) return false;
-            
-            const now = new Date();
-            if (timestamp > now) return false;
-            
-            const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-            if (timestamp < sevenDaysAgo) return false;
-            
-            return true;
-        } catch (error) {
-            return false;
-        }
+    correctUnitData(unitName, unitData) {
+        console.log(`🛠️ Correcting invalid data for ${unitName}`);
+        // Implementation for data correction
     }
 
-    updateOrCreateUnit(unitName, unitData, timestamp) {
-        const existingUnit = this.units.get(unitName);
-        
-        if (existingUnit) {
-            this.refreshUnitData(existingUnit, unitData, timestamp);
-        } else {
-            const newUnit = this.createNewUnit(unitName, unitData, timestamp);
-            if (newUnit) {
-                this.units.set(unitName, newUnit);
-                this.createUnitMarker(newUnit);
-                this.createAccuracyCircle(newUnit);
-                this.setupUnitChatSystem(unitName);
-                console.log(`✅ New unit created: ${unitName} - ${newUnit.driver}`);
-            }
-        }
-    }
+    createNewUnit(unitName, firebaseData) {
+        if (!this.validateUnitData(unitName, firebaseData)) return null;
 
-    createNewUnit(unitName, firebaseData, timestamp) {
         return {
             id: this.getUnitId(unitName),
             name: unitName,
-            driver: firebaseData.driver || 'Unknown Driver',
-            unit: firebaseData.unit || unitName,
-            latitude: parseFloat(firebaseData.lat) || -0.396056,
-            longitude: parseFloat(firebaseData.lng) || 102.958944,
-            speed: parseFloat(firebaseData.speed) || 0,
-            distance: parseFloat(firebaseData.distance) || 0,
-            accuracy: parseFloat(firebaseData.accuracy) || 0,
-            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
-            status: this.determineStatus(firebaseData.journeyStatus),
-            fuelLevel: firebaseData.fuel || this.calculateFuelLevel(parseFloat(firebaseData.distance) || 0),
-            isOnline: true,
             afdeling: this.determineAfdeling(unitName),
-            sessionId: firebaseData.sessionId,
-            lastUpdateTime: timestamp,
+            status: this.determineStatus(firebaseData.journeyStatus),
+            latitude: parseFloat(firebaseData.lat),
+            longitude: parseFloat(firebaseData.lng),
+            speed: parseFloat(firebaseData.speed) || 0,
+            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+            distance: parseFloat(firebaseData.distance) || 0,
+            fuelLevel: this.computeFuelLevel(100, firebaseData.distance, firebaseData.journeyStatus),
+            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
+            driver: firebaseData.driver || 'Unknown',
+            accuracy: parseFloat(firebaseData.accuracy) || 0,
             batteryLevel: firebaseData.batteryLevel || null,
-            waypointsCount: firebaseData.waypointsCount || 0
+            lastLat: parseFloat(firebaseData.lat),
+            lastLng: parseFloat(firebaseData.lng),
+            isOnline: true,
+            sessionId: firebaseData.sessionId,
+            lastFuelUpdate: Date.now()
         };
     }
 
@@ -665,1056 +974,991 @@ class ComprehensiveGPSMonitor {
         return statusMap[journeyStatus] || 'active';
     }
 
-    calculateFuelLevel(distance) {
-        const baseFuel = 100;
-        const fuelConsumptionRate = 0.25;
-        const fuelUsed = distance * fuelConsumptionRate;
-        return Math.max(0, baseFuel - fuelUsed);
-    }
-
-    refreshUnitData(unit, firebaseData, timestamp) {
-        const oldLat = unit.latitude;
-        const oldLng = unit.longitude;
+    refreshUnitData(unit, firebaseData) {
+        const now = Date.now();
         
-        unit.latitude = parseFloat(firebaseData.lat) || unit.latitude;
-        unit.longitude = parseFloat(firebaseData.lng) || unit.longitude;
-        unit.speed = parseFloat(firebaseData.speed) || 0;
-        unit.distance = parseFloat(firebaseData.distance) || unit.distance;
-        unit.accuracy = parseFloat(firebaseData.accuracy) || unit.accuracy;
-        unit.lastUpdate = firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID');
-        unit.driver = firebaseData.driver || unit.driver;
+        unit.latitude = firebaseData.lat || unit.latitude;
+        unit.longitude = firebaseData.lng || unit.longitude;
+        unit.speed = firebaseData.speed || unit.speed;
         unit.status = this.determineStatus(firebaseData.journeyStatus) || unit.status;
-        unit.fuelLevel = firebaseData.fuel || this.calculateFuelLevel(unit.distance);
-        unit.isOnline = true;
-        unit.lastUpdateTime = timestamp;
+        unit.lastUpdate = firebaseData.lastUpdate || unit.lastUpdate;
+        unit.driver = firebaseData.driver || unit.driver;
+        unit.accuracy = firebaseData.accuracy || unit.accuracy;
         unit.batteryLevel = firebaseData.batteryLevel || unit.batteryLevel;
-        unit.waypointsCount = firebaseData.waypointsCount || unit.waypointsCount;
+        unit.fuelLevel = this.computeFuelLevel(100, unit.distance, unit.status);
+        unit.lastLat = firebaseData.lat;
+        unit.lastLng = firebaseData.lng;
+        unit.isOnline = true;
+        unit.lastFuelUpdate = now;
 
-        this.refreshUnitMarker(unit, oldLat, oldLng);
-        this.refreshAccuracyCircle(unit);
+        this.addHistoryPoint(unit);
     }
 
-    createUnitMarker(unit) {
-        if (this.currentMapType === 'google' && this.googleMap) {
-            this.createGoogleUnitMarker(unit);
-        } else if (this.leafletMap) {
-            this.createLeafletUnitMarker(unit);
-        }
-    }
-
-    createGoogleUnitMarker(unit) {
-        const marker = new google.maps.Marker({
-            position: { lat: unit.latitude, lng: unit.longitude },
-            map: this.googleMap,
-            title: `${unit.name} - ${unit.driver}`,
-            icon: this.getGoogleMarkerIcon(unit),
-            animation: unit.status === 'moving' ? google.maps.Animation.BOUNCE : null
-        });
-
-        marker.addListener('click', () => {
-            this.infoWindow.setContent(this.createInfoWindowContent(unit));
-            this.infoWindow.open(this.googleMap, marker);
-        });
-
-        this.markers.set(unit.name, marker);
-    }
-
-    createLeafletUnitMarker(unit) {
-        const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
-        const config = this.gpsAccuracyLevels[accuracyLevel];
-        
-        const markerIcon = L.divIcon({
-            className: `custom-marker accuracy-${accuracyLevel.toLowerCase()}`,
-            html: `
-                <div class="marker-container accuracy-${accuracyLevel.toLowerCase()}">
-                    <div class="marker-icon" title="${unit.name} - ${unit.driver} - Akurasi: ±${unit.accuracy.toFixed(1)}m">
-                        🚛
-                    </div>
-                    <div class="accuracy-indicator" style="border-color: ${config.color}"></div>
-                    <div class="unit-name">${unit.name}</div>
-                </div>
-            `,
-            iconSize: [36, 36],
-            iconAnchor: [18, 36]
-        });
-
-        const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
-            .bindPopup(this.createLeafletPopup(unit))
-            .addTo(this.leafletMap);
-        
-        this.markers.set(unit.name, marker);
-    }
-
-    getGoogleMarkerIcon(unit) {
-        const baseUrl = 'https://maps.google.com/mapfiles/ms/icons/';
-        const color = unit.status === 'moving' ? 'blue' : unit.status === 'active' ? 'green' : 'red';
-        return {
-            url: `${baseUrl}${color}-dot.png`,
-            scaledSize: new google.maps.Size(32, 32)
-        };
-    }
-
-    createInfoWindowContent(unit) {
-        const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
-        
-        return `
-            <div class="unit-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">🚛 ${unit.name}</h6>
-                    <small class="text-muted">${unit.afdeling}</small>
-                </div>
-                <div class="popup-content">
-                    <div class="info-item">
-                        <span class="info-label">Driver:</span>
-                        <span class="info-value">${unit.driver}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-secondary'}">
-                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Kecepatan:</span>
-                        <span class="info-value">${unit.speed.toFixed(1)} km/h</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Akurasi GPS:</span>
-                        <span class="info-value">${accuracyBadge}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Jarak Tempuh:</span>
-                        <span class="info-value">${unit.distance.toFixed(2)} km</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Bahan Bakar:</span>
-                        <span class="info-value">${unit.fuelLevel.toFixed(1)}%</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Waypoints:</span>
-                        <span class="info-value">${unit.waypointsCount || 0}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Update:</span>
-                        <span class="info-value">${unit.lastUpdate}</span>
-                    </div>
-                </div>
-                ${unit.accuracy > 30 ? `
-                <div class="accuracy-warning mt-2 p-2 bg-warning text-dark rounded">
-                    <small>⚠️ Akurasi GPS rendah (±${unit.accuracy.toFixed(1)}m). Posisi mungkin tidak tepat.</small>
-                </div>
-                ` : ''}
-                <div class="popup-actions mt-2">
-                    <button class="btn btn-sm btn-primary w-100" onclick="window.comprehensiveMonitor.startChat('${unit.name}')">
-                        💬 Chat dengan ${unit.driver}
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    createLeafletPopup(unit) {
-        const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
-        
-        return `
-            <div class="unit-popup">
-                <div class="popup-header">
-                    <h6 class="mb-0">🚛 ${unit.name}</h6>
-                    <small class="text-muted">${unit.afdeling}</small>
-                </div>
-                <div class="popup-content">
-                    <div class="info-item">
-                        <span class="info-label">Driver:</span>
-                        <span class="info-value">${unit.driver}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-secondary'}">
-                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Kecepatan:</span>
-                        <span class="info-value">${unit.speed.toFixed(1)} km/h</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Akurasi GPS:</span>
-                        <span class="info-value">${accuracyBadge}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Jarak Tempuh:</span>
-                        <span class="info-value">${unit.distance.toFixed(2)} km</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Bahan Bakar:</span>
-                        <span class="info-value">${unit.fuelLevel.toFixed(1)}%</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Waypoints:</span>
-                        <span class="info-value">${unit.waypointsCount || 0}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Update:</span>
-                        <span class="info-value">${unit.lastUpdate}</span>
-                    </div>
-                </div>
-                ${unit.accuracy > 30 ? `
-                <div class="accuracy-warning mt-2 p-2 bg-warning text-dark rounded">
-                    <small>⚠️ Akurasi GPS rendah (±${unit.accuracy.toFixed(1)}m). Posisi mungkin tidak tepat.</small>
-                </div>
-                ` : ''}
-                <div class="popup-actions mt-2">
-                    <button class="btn btn-sm btn-primary w-100" onclick="window.comprehensiveMonitor.startChat('${unit.name}')">
-                        💬 Chat dengan ${unit.driver}
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    refreshUnitMarker(unit, oldLat, oldLng) {
-        const marker = this.markers.get(unit.name);
-        if (!marker) return;
-
-        if (this.currentMapType === 'google' && this.googleMap) {
-            const newPosition = { lat: unit.latitude, lng: unit.longitude };
-            marker.setPosition(newPosition);
-            marker.setIcon(this.getGoogleMarkerIcon(unit));
-            marker.setAnimation(unit.status === 'moving' ? google.maps.Animation.BOUNCE : null);
-            
-            if (this.infoWindow.getAnchor() === marker) {
-                this.infoWindow.setContent(this.createInfoWindowContent(unit));
-            }
-        } else if (this.leafletMap) {
-            marker.setLatLng([unit.latitude, unit.longitude]);
-            marker.setPopupContent(this.createLeafletPopup(unit));
-            
-            const accuracyLevel = this.getAccuracyLevel(unit.accuracy);
-            const config = this.gpsAccuracyLevels[accuracyLevel];
-            
-            const markerIcon = L.divIcon({
-                className: `custom-marker accuracy-${accuracyLevel.toLowerCase()}`,
-                html: `
-                    <div class="marker-container accuracy-${accuracyLevel.toLowerCase()}">
-                        <div class="marker-icon" title="${unit.name} - ${unit.driver} - Akurasi: ±${unit.accuracy.toFixed(1)}m">
-                            🚛
-                        </div>
-                        <div class="accuracy-indicator" style="border-color: ${config.color}"></div>
-                        <div class="unit-name">${unit.name}</div>
-                    </div>
-                `,
-                iconSize: [36, 36],
-                iconAnchor: [18, 36]
-            });
-            marker.setIcon(markerIcon);
-        }
-    }
-
-    createAccuracyCircle(unit) {
-        if (!unit.accuracy || unit.accuracy <= 0) return;
-
-        if (this.currentMapType === 'google' && this.googleMap) {
-            const level = this.getAccuracyLevel(unit.accuracy);
-            const config = this.gpsAccuracyLevels[level];
-            
-            const circle = new google.maps.Circle({
-                strokeColor: config.color,
-                strokeOpacity: 0.8,
-                strokeWeight: 2,
-                fillColor: config.color,
-                fillOpacity: 0.1,
-                map: this.googleMap,
-                center: { lat: unit.latitude, lng: unit.longitude },
-                radius: unit.accuracy
-            });
-            
-            this.accuracyCircles.set(unit.name, circle);
-        } else if (this.leafletMap) {
-            const level = this.getAccuracyLevel(unit.accuracy);
-            const config = this.gpsAccuracyLevels[level];
-            
-            const circle = L.circle([unit.latitude, unit.longitude], {
-                radius: unit.accuracy,
-                color: config.color,
-                fillColor: config.color,
-                fillOpacity: 0.1,
-                weight: 2,
-                opacity: 0.7
-            }).addTo(this.leafletMap);
-            
-            this.accuracyCircles.set(unit.name, circle);
-        }
-    }
-
-    refreshAccuracyCircle(unit) {
-        const circle = this.accuracyCircles.get(unit.name);
-        if (circle) {
-            if (this.currentMapType === 'google' && this.googleMap) {
-                circle.setCenter({ lat: unit.latitude, lng: unit.longitude });
-                circle.setRadius(unit.accuracy);
-                
-                const level = this.getAccuracyLevel(unit.accuracy);
-                const config = this.gpsAccuracyLevels[level];
-                
-                circle.setOptions({
-                    strokeColor: config.color,
-                    fillColor: config.color
-                });
-            } else if (this.leafletMap) {
-                circle.setLatLng([unit.latitude, unit.longitude]);
-                circle.setRadius(unit.accuracy);
-                
-                const level = this.getAccuracyLevel(unit.accuracy);
-                const config = this.gpsAccuracyLevels[level];
-                
-                circle.setStyle({
-                    color: config.color,
-                    fillColor: config.color
-                });
-            }
-        } else {
-            this.createAccuracyCircle(unit);
-        }
-    }
-
-    // GPS Accuracy Methods
-    getAccuracyLevel(accuracy) {
-        if (accuracy <= this.gpsAccuracyLevels.EXCELLENT.max) return 'EXCELLENT';
-        if (accuracy <= this.gpsAccuracyLevels.GOOD.max) return 'GOOD';
-        if (accuracy <= this.gpsAccuracyLevels.FAIR.max) return 'FAIR';
-        if (accuracy <= this.gpsAccuracyLevels.POOR.max) return 'POOR';
-        return 'VERY_POOR';
-    }
-
-    createAccuracyBadge(accuracy) {
-        const level = this.getAccuracyLevel(accuracy);
-        const config = this.gpsAccuracyLevels[level];
-        
-        return `<span class="badge accuracy-badge" style="background-color: ${config.color}; color: white;" 
-                title="Akurasi ${config.label} (±${accuracy.toFixed(1)}m)">
-                ${config.icon} ${accuracy.toFixed(1)}m
-                </span>`;
-    }
-
-    updateWaypointDisplay(unitName, waypointData) {
-        if (!this.showWaypoints || !waypointData.waypoints) return;
-        
-        this.clearUnitWaypoints(unitName);
-        
-        const waypoints = waypointData.waypoints;
-        const path = [];
-        
-        waypoints.forEach((waypoint, index) => {
-            const position = { lat: waypoint.lat, lng: waypoint.lng };
-            path.push(position);
-            
-            if (index % 10 === 0) {
-                if (this.currentMapType === 'google' && this.googleMap) {
-                    const marker = new google.maps.Marker({
-                        position: position,
-                        map: this.googleMap,
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            scale: 3,
-                            fillColor: '#ff6b6b',
-                            fillOpacity: 0.7,
-                            strokeColor: '#ffffff',
-                            strokeWeight: 1
-                        },
-                        title: `Waypoint ${index + 1}`
-                    });
-                    
-                    if (!this.waypointMarkers.has(unitName)) {
-                        this.waypointMarkers.set(unitName, []);
-                    }
-                    this.waypointMarkers.get(unitName).push(marker);
-                } else if (this.leafletMap) {
-                    const marker = L.circleMarker([waypoint.lat, waypoint.lng], {
-                        radius: 4,
-                        fillColor: '#ff6b6b',
-                        fillOpacity: 0.7,
-                        color: '#ffffff',
-                        weight: 1
-                    }).addTo(this.leafletMap);
-                    
-                    if (!this.waypointMarkers.has(unitName)) {
-                        this.waypointMarkers.set(unitName, []);
-                    }
-                    this.waypointMarkers.get(unitName).push(marker);
-                }
-            }
-        });
-        
-        if (path.length > 1) {
-            if (this.currentMapType === 'google' && this.googleMap) {
-                const polyline = new google.maps.Polyline({
-                    path: path,
-                    geodesic: true,
-                    strokeColor: '#007bff',
-                    strokeOpacity: 0.7,
-                    strokeWeight: 3
-                });
-                
-                polyline.setMap(this.googleMap);
-                this.routePolylines.set(unitName, polyline);
-            } else if (this.leafletMap) {
-                const polyline = L.polyline(path.map(p => [p.lat, p.lng]), {
-                    color: '#007bff',
-                    weight: 3,
-                    opacity: 0.7
-                }).addTo(this.leafletMap);
-                
-                this.routePolylines.set(unitName, polyline);
-            }
-        }
-        
-        this.updateWaypointStats();
-    }
-
-    clearUnitWaypoints(unitName) {
-        if (this.waypointMarkers.has(unitName)) {
-            this.waypointMarkers.get(unitName).forEach(marker => {
-                if (this.currentMapType === 'google') {
-                    marker.setMap(null);
-                } else {
-                    marker.remove();
-                }
-            });
-            this.waypointMarkers.delete(unitName);
-        }
-        
-        if (this.routePolylines.has(unitName)) {
-            const polyline = this.routePolylines.get(unitName);
-            if (this.currentMapType === 'google') {
-                polyline.setMap(null);
-            } else {
-                polyline.remove();
-            }
-            this.routePolylines.delete(unitName);
-        }
-    }
-
-    updateWaypointStats() {
-        let totalWaypoints = 0;
-        this.units.forEach(unit => {
-            totalWaypoints += unit.waypointsCount || 0;
-        });
-        
-        this.updateElement('totalWaypoints', totalWaypoints.toLocaleString());
-        this.updateElement('dataPeriod', '17');
-        this.updateElement('storageUsed', (totalWaypoints * 0.1).toFixed(1));
-    }
-
-    updateDisplay() {
-        this.updateStatistics();
-        this.renderUnitList();
-        this.updateEnhancedLogs();
-    }
-
+    // ===== STATISTICS METHODS =====
     updateStatistics() {
-        const activeUnits = Array.from(this.units.values()).filter(unit => unit.isOnline).length;
-        const totalUnits = this.units.size;
-        
+        let activeUnits = 0;
         let totalDistance = 0;
         let totalSpeed = 0;
         let totalFuel = 0;
-        
+        let unitCount = 0;
+
         this.units.forEach(unit => {
             if (unit.isOnline) {
+                unitCount++;
+                if (unit.status === 'active' || unit.status === 'moving') {
+                    activeUnits++;
+                }
                 totalDistance += unit.distance || 0;
                 totalSpeed += unit.speed || 0;
-                totalFuel += (100 - (unit.fuelLevel || 100)) || 0;
+                totalFuel += unit.fuelUsed || 0;
             }
         });
-        
-        const avgSpeed = totalUnits > 0 ? totalSpeed / totalUnits : 0;
 
-        this.updateElement('activeUnits', `${activeUnits}/${totalUnits}`);
-        this.updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
-        this.updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
-        this.updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
+        const avgSpeed = unitCount > 0 ? totalSpeed / unitCount : 0;
+
+        this.activeUnits = activeUnits;
+        this.totalDistance = totalDistance;
+        this.avgSpeed = avgSpeed;
+        this.totalFuelConsumption = totalFuel;
+
+        const updateElement = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+
+        updateElement('activeUnits', `${activeUnits}/${this.units.size}`);
+        updateElement('totalDistance', `${totalDistance.toFixed(1)} km`);
+        updateElement('avgSpeed', `${avgSpeed.toFixed(1)} km/h`);
+        updateElement('totalFuel', `${totalFuel.toFixed(1)} L`);
         
-        this.updateElement('activeUnitsDetail', `${totalUnits} units terdeteksi`);
-        this.updateElement('dataCount', totalUnits.toString());
+        const activeDetail = document.getElementById('activeUnitsDetail');
+        if (activeDetail) {
+            activeDetail.textContent = `${unitCount} units terdeteksi`;
+        }
+
+        const distanceDetail = document.getElementById('distanceDetail');
+        if (distanceDetail) {
+            distanceDetail.textContent = `${this.units.size} units`;
+        }
+
+        const dataCount = document.getElementById('dataCount');
+        if (dataCount) {
+            dataCount.textContent = this.unitHistory.size;
+        }
+    }
+
+    // ===== MAP METHODS =====
+    setupMap() {
+        try {
+            this.map = L.map('map').setView(this.config.center, this.config.zoom);
+
+            const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                attribution: '© Google Satellite',
+                maxZoom: 22,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            });
+
+            googleSatellite.addTo(this.map);
+
+            L.control.scale({ imperial: false }).addTo(this.map);
+            L.control.zoom({ position: 'topright' }).addTo(this.map);
+
+            this.addLocationMarkers();
+
+        } catch (error) {
+            console.error('Map setup failed:', error);
+            throw new Error('Gagal menyiapkan peta');
+        }
+    }
+
+    addLocationMarkers() {
+        try {
+            this.importantMarkers.forEach(marker => {
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+            });
+            this.importantMarkers = [];
+
+            const pksIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon pks" title="PKS SAGM">🏭</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const pksMarker = L.marker([this.importantLocations.PKS_SAGM.lat, this.importantLocations.PKS_SAGM.lng], { icon: pksIcon })
+                .bindPopup(this.createLocationInfo('PKS SAGM', 'pks'))
+                .addTo(this.map);
+
+            const officeIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon office" title="Kantor Kebun">🏢</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const officeMarker = L.marker([this.importantLocations.KANTOR_KEBUN.lat, this.importantLocations.KANTOR_KEBUN.lng], { icon: officeIcon })
+                .bindPopup(this.createLocationInfo('Kantor Kebun PT SAGM', 'office'))
+                .addTo(this.map);
+
+            this.importantMarkers.push(pksMarker, officeMarker);
+            console.log('✅ Location markers added');
+
+        } catch (error) {
+            console.error('Failed to add location markers:', error);
+        }
+    }
+
+    createLocationInfo(name, type) {
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">${type === 'pks' ? '🏭' : '🏢'} ${name}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Tipe:</span>
+                        <span class="info-value">${type === 'pks' ? 'Pabrik Kelapa Sawit' : 'Kantor Operasional'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value">Operasional</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Lokasi:</span>
+                        <span class="info-value">Kebun Tempuling</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // ===== ROUTE HISTORY METHODS =====
+    initializeUnitHistory(unit) {
+        if (!this.unitHistory.has(unit.name)) {
+            this.unitHistory.set(unit.name, []);
+        }
+        this.addHistoryPoint(unit);
+    }
+
+    addHistoryPoint(unit) {
+        if (!this.unitHistory.has(unit.name)) {
+            this.unitHistory.set(unit.name, []);
+        }
+
+        const history = this.unitHistory.get(unit.name);
+        const timestamp = new Date().toISOString();
+
+        const point = {
+            timestamp: timestamp,
+            latitude: unit.latitude,
+            longitude: unit.longitude,
+            speed: unit.speed,
+            distance: unit.distance,
+            status: unit.status,
+            fuelLevel: unit.fuelLevel
+        };
+
+        history.push(point);
+
+        if (history.length > this.maxRoutePoints) {
+            this.unitHistory.set(unit.name, history.slice(-this.maxRoutePoints));
+        }
+
+        this.updateUnitRoute(unit);
+    }
+
+    updateUnitRoute(unit) {
+        const history = this.unitHistory.get(unit.name);
+        if (!history || history.length < 1) return;
+
+        const routePoints = history.map(point => [
+            point.latitude, point.longitude
+        ]);
+
+        const routeColor = this.getRouteColor(unit.name);
+
+        if (this.unitPolylines.has(unit.name)) {
+            try {
+                this.unitPolylines.get(unit.name).setLatLngs(routePoints);
+            } catch (error) {
+                this.map.removeLayer(this.unitPolylines.get(unit.name));
+                this.unitPolylines.delete(unit.name);
+                this.createRoutePolyline(unit, routePoints, routeColor);
+            }
+        } else {
+            this.createRoutePolyline(unit, routePoints, routeColor);
+        }
+    }
+
+    createRoutePolyline(unit, routePoints, routeColor) {
+        try {
+            const style = this.getRouteStyle(unit.status, routeColor);
+            this.unitPolylines.set(unit.name, L.polyline(routePoints, style));
+            
+            if (this.showRoutes) {
+                this.unitPolylines.get(unit.name).addTo(this.map);
+            }
+
+        } catch (error) {
+            this.logData(`Failed to create route for ${unit.name}`, 'error', {
+                unit: unit.name,
+                error: error.message
+            });
+        }
+    }
+
+    getRouteStyle(status, color) {
+        const baseStyle = {
+            color: color,
+            weight: 5,
+            opacity: 0.8,
+            lineCap: 'round',
+            lineJoin: 'round',
+            className: 'route-line smooth-route',
+            smoothFactor: 1.0
+        };
+
+        switch(status) {
+            case 'moving':
+                return { ...baseStyle, opacity: 0.9, weight: 6, dashArray: null };
+            case 'active':
+                return { ...baseStyle, opacity: 0.7, weight: 5, dashArray: '8, 12' };
+            case 'inactive':
+                return { ...baseStyle, opacity: 0.4, weight: 4, dashArray: '4, 8' };
+            default:
+                return baseStyle;
+        }
+    }
+
+    getRouteColor(unitName) {
+        if (!this.routeColors.has(unitName)) {
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2',
+                '#F9E79F', '#ABEBC6', '#E8DAEF', '#FAD7A0', '#AED6F1',
+                '#A3E4D7', '#F5B7B1', '#D2B4DE', '#FDEBD0', '#A9DFBF'
+            ];
+            this.routeColors.set(unitName, colors[this.routeColors.size % colors.length]);
+        }
+        return this.routeColors.get(unitName);
+    }
+
+    // ===== DISPLAY METHODS =====
+    scheduleRender() {
+        const now = Date.now();
+        if (now - this.lastRenderTime < this.renderThrottleMs) {
+            return;
+        }
+        
+        this.lastRenderTime = now;
+        this.refreshDisplay();
+    }
+
+    refreshDisplay() {
+        this.cleanupOrphanedMarkers();
+        this.updateStatistics();
+        this.renderUnitList();
+        this.updateMapMarkers();
     }
 
     renderUnitList() {
-        const unitList = this.uiElements.unitList;
+        const unitList = document.getElementById('unitList');
         if (!unitList) return;
-        
+
         if (this.units.size === 0) {
             unitList.innerHTML = `
                 <div class="text-center text-muted py-4">
                     <div class="mb-2">📭</div>
                     <small>Tidak ada unit aktif</small>
                     <br>
-                    <small class="text-muted">Menunggu koneksi dari driver mobile...</small>
-                    <br>
-                    <small class="text-muted">Pastikan driver sudah login di aplikasi mobile</small>
+                    <small class="text-muted">Menunggu koneksi dari driver...</small>
                 </div>
             `;
             return;
         }
-        
-        unitList.innerHTML = '';
-        
-        const sortedUnits = Array.from(this.units.values()).sort((a, b) => {
-            if (a.isOnline !== b.isOnline) return b.isOnline - a.isOnline;
-            if (a.status !== b.status) {
-                const statusOrder = { 'moving': 3, 'active': 2, 'inactive': 1 };
-                return (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
-            }
-            return a.name.localeCompare(b.name);
-        });
 
-        sortedUnits.forEach(unit => {
-            const accuracyBadge = this.createAccuracyBadge(unit.accuracy);
-            const statusBadge = this.getStatusBadge(unit.status);
-            
+        unitList.innerHTML = '';
+        this.units.forEach(unit => {
             const unitElement = document.createElement('div');
-            unitElement.className = `unit-item ${unit.status} ${unit.isOnline ? 'online' : 'offline'}`;
+            unitElement.className = `unit-item ${unit.status}`;
             unitElement.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="mb-1">
-                            ${unit.name} 
-                            ${unit.isOnline ? '🟢' : '🔴'}
-                            ${unit.status === 'moving' ? '🚗' : ''}
-                        </h6>
-                        <small class="text-muted">${unit.afdeling} - ${unit.driver}</small>
+                        <h6 class="mb-1">${unit.name} ${unit.isOnline ? '🟢' : '🔴'}</h6>
+                        <small class="text-muted">${unit.afdeling} - ${unit.driver || 'No Driver'}</small>
                     </div>
-                    ${statusBadge}
+                    <span class="badge ${unit.status === 'active' ? 'bg-success' : unit.status === 'moving' ? 'bg-warning' : 'bg-danger'}">
+                        ${unit.status === 'active' ? 'Aktif' : unit.status === 'moving' ? 'Berjalan' : 'Non-Aktif'}
+                    </span>
                 </div>
                 <div class="mt-2">
-                    <small class="text-muted d-block">
-                        📍 Lokasi: ${unit.latitude.toFixed(6)}, ${unit.longitude.toFixed(6)}
+                    <small class="text-muted">
+                        Kecepatan: ${unit.speed} km/h<br>
+                        Jarak: ${unit.distance.toFixed(2)} km<br>
+                        Bahan Bakar: ${unit.fuelLevel}%<br>
+                        Update: ${unit.lastUpdate}
                     </small>
-                    <small class="text-muted d-block">
-                        🚀 Kecepatan: <strong>${unit.speed.toFixed(1)} km/h</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        🎯 Akurasi: ${accuracyBadge}
-                    </small>
-                    <small class="text-muted d-block">
-                        📏 Jarak: <strong>${unit.distance.toFixed(2)} km</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        ⛽ Bahan Bakar: <strong>${unit.fuelLevel.toFixed(1)}%</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        🎯 Waypoints: <strong>${unit.waypointsCount || 0}</strong>
-                    </small>
-                    <small class="text-muted d-block">
-                        ⏰ Update: <strong>${unit.lastUpdate}</strong>
-                    </small>
-                    ${unit.batteryLevel ? `
-                    <small class="text-muted d-block">
-                        🔋 Baterai: <strong>${unit.batteryLevel}%</strong>
-                    </small>
-                    ` : ''}
-                </div>
-                ${unit.accuracy > 30 ? `
-                <div class="alert alert-warning py-1 mt-2">
-                    <small>⚠️ Akurasi GPS rendah (±${unit.accuracy.toFixed(1)}m)</small>
-                </div>
-                ` : ''}
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary w-100" onclick="window.comprehensiveMonitor.startChat('${unit.name}')">
-                        💬 Chat dengan ${unit.driver}
-                    </button>
                 </div>
             `;
             unitList.appendChild(unitElement);
         });
     }
 
-    getStatusBadge(status) {
-        const badges = {
-            'moving': '<span class="badge bg-warning">Berjalan</span>',
-            'active': '<span class="badge bg-success">Aktif</span>',
-            'inactive': '<span class="badge bg-secondary">Non-Aktif</span>'
-        };
-        return badges[status] || '<span class="badge bg-dark">Unknown</span>';
-    }
-
-    // Enhanced Chat System
-    setupEnhancedChatSystem() {
-        console.log('💬 Setting up enhanced chat system for monitor...');
-        
-        this.units.forEach((unit, unitName) => {
-            this.setupUnitChatSystem(unitName);
-        });
-        
-        this.setupChatUIHandlers();
-    }
-
-    setupUnitChatSystem(unitName) {
-        if (this.chatRefs.has(unitName)) return;
-        
-        const chatRef = database.ref('/chat/' + unitName);
-        const typingRef = database.ref('/typing/' + unitName);
-        
-        chatRef.on('child_added', (snapshot) => {
-            const message = snapshot.val();
-            if (message && message.id !== this.getLastMessageId(unitName)) {
-                this.handleNewChatMessage(unitName, message);
+    updateMapMarkers() {
+        this.markers.forEach((marker, unitName) => {
+            if (!this.units.has(unitName)) {
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
+                }
+                this.markers.delete(unitName);
             }
         });
-        
-        typingRef.on('value', (snapshot) => {
-            const typingData = snapshot.val();
-            this.handleTypingIndicator(unitName, typingData);
+
+        this.units.forEach((unit, unitName) => {
+            if (!this.markers.has(unitName)) {
+                this.createUnitMarker(unit);
+            } else {
+                this.refreshUnitMarker(unit);
+            }
         });
-        
-        this.chatRefs.set(unitName, chatRef);
-        this.typingRefs.set(unitName, typingRef);
-        this.chatMessages.set(unitName, []);
-        this.unreadCounts.set(unitName, 0);
-        
-        this.updateChatUnitSelect();
     }
 
-    handleNewChatMessage(unitName, message) {
-        if (!message || message.type === 'monitor') return;
+    createUnitMarker(unit) {
+        const markerIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                     title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([unit.latitude, unit.longitude], { icon: markerIcon })
+            .bindPopup(this.createUnitPopup(unit))
+            .addTo(this.map);
         
-        const messages = this.chatMessages.get(unitName) || [];
-        
-        const messageExists = messages.some(msg => msg.id === message.id);
-        if (messageExists) return;
-        
-        messages.push(message);
-        this.chatMessages.set(unitName, messages);
-        
-        if (this.selectedChatUnit !== unitName) {
-            const unreadCount = this.unreadCounts.get(unitName) || 0;
-            this.unreadCounts.set(unitName, unreadCount + 1);
-        }
-        
-        this.updateChatUI();
-        
-        if (this.selectedChatUnit !== unitName) {
-            this.showChatNotification(unitName, message);
-        }
-        
-        this.playNotificationSound();
+        this.markers.set(unit.name, marker);
     }
 
-    async sendMonitorMessage() {
-        if (!this.selectedChatUnit) return;
+    refreshUnitMarker(unit) {
+        const marker = this.markers.get(unit.name);
+        if (marker) {
+            marker.setLatLng([unit.latitude, unit.longitude]);
+            marker.setPopupContent(this.createUnitPopup(unit));
+            
+            const markerIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-icon ${unit.status} ${unit.isOnline ? '' : 'offline'}" 
+                         title="${unit.name} ${unit.isOnline ? '' : '(OFFLINE)'}">🚛</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+            marker.setIcon(markerIcon);
+        }
+    }
+
+    createUnitPopup(unit) {
+        const routePoints = this.unitHistory.get(unit.name)?.length || 0;
+        const routeInfo = routePoints > 0 ? `
+            <div class="info-item">
+                <span class="info-label">Points Rute:</span>
+                <span class="info-value">${routePoints}</span>
+            </div>
+        ` : '<div class="info-item"><span class="info-value text-muted">Belum ada data rute</span></div>';
+
+        const onlineStatus = unit.isOnline ? 
+            '<span class="badge bg-success">ONLINE</span>' : 
+            '<span class="badge bg-danger">OFFLINE</span>';
+
+        return `
+            <div class="unit-popup">
+                <div class="popup-header">
+                    <h6 class="mb-0">🚛 ${unit.name} ${onlineStatus}</h6>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Driver:</span>
+                        <span class="info-value">${unit.driver || 'Tidak diketahui'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Afdeling:</span>
+                        <span class="info-value">${unit.afdeling}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value ${unit.status === 'moving' ? 'text-warning' : unit.status === 'active' ? 'text-success' : 'text-danger'}">
+                            ${unit.status === 'moving' ? 'Dalam Perjalanan' : unit.status === 'active' ? 'Aktif' : 'Non-Aktif'}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Kecepatan:</span>
+                        <span class="info-value">${unit.speed.toFixed(1)} km/h</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Jarak Tempuh:</span>
+                        <span class="info-value">${unit.distance.toFixed(2)} km</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Bahan Bakar:</span>
+                        <span class="info-value">${unit.fuelLevel.toFixed(1)}%</span>
+                    </div>
+                    ${routeInfo}
+                </div>
+            </div>
+        `;
+    }
+
+    // ===== DATA LOGGER METHODS =====
+    setupDataLogger() {
+        this.loadLogs();
+        this.renderLogger();
+        this.startAutoExport();
         
-        const input = document.getElementById('monitorChatInput');
-        const messageText = input.value.trim();
-        
-        if (!messageText) return;
-        
-        const chatRef = this.chatRefs.get(this.selectedChatUnit);
-        if (!chatRef) return;
-        
-        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        
-        const messageData = {
-            id: messageId,
-            text: messageText,
-            sender: 'Monitor',
-            unit: this.selectedChatUnit,
+        this.logData('Enhanced GPS Monitoring System with Smooth Animation Chat initialized', 'system', {
             timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            }),
-            type: 'monitor',
-            status: 'sent'
+            version: '4.0'
+        });
+    }
+
+    logData(message, level = 'info', metadata = {}) {
+        const logEntry = {
+            id: 'LOG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            dateDisplay: new Date().toLocaleDateString('id-ID'),
+            level: level,
+            message: message,
+            metadata: metadata
         };
+
+        this.dataLogger.logs.unshift(logEntry);
+
+        if (this.dataLogger.logs.length > this.dataLogger.maxLogs) {
+            this.dataLogger.logs = this.dataLogger.logs.slice(0, this.dataLogger.maxLogs);
+        }
+
+        this.saveLogs();
+        this.renderLogger();
         
+        console.log(`[${level.toUpperCase()}] ${message}`, metadata);
+    }
+
+    loadLogs() {
         try {
-            await chatRef.push(messageData);
-            
-            const messages = this.chatMessages.get(this.selectedChatUnit) || [];
-            messages.push(messageData);
-            this.chatMessages.set(this.selectedChatUnit, messages);
-            
-            this.updateChatUI();
-            
-            input.value = '';
-            this.stopTyping(this.selectedChatUnit);
-            
-            this.addEnhancedLog(`💬 Pesan terkirim ke ${this.selectedChatUnit}: "${messageText}"`, 'info');
-            
+            const savedLogs = localStorage.getItem('sagm_data_logs');
+            if (savedLogs) {
+                this.dataLogger.logs = JSON.parse(savedLogs);
+            }
         } catch (error) {
-            console.error('Failed to send message:', error);
-            this.addEnhancedLog(`❌ Gagal mengirim pesan ke ${this.selectedChatUnit}`, 'error');
+            console.error('Failed to load logs:', error);
+            this.dataLogger.logs = [];
         }
     }
 
-    startTyping(unitName) {
-        const typingRef = this.typingRefs.get(unitName);
-        if (!typingRef || this.isTyping) return;
-        
-        typingRef.child('monitor').set({
-            isTyping: true,
-            name: 'Monitor',
-            timestamp: Date.now()
-        });
-        
-        this.isTyping = true;
+    saveLogs() {
+        try {
+            localStorage.setItem('sagm_data_logs', JSON.stringify(this.dataLogger.logs));
+        } catch (error) {
+            console.error('Failed to save logs:', error);
+        }
     }
 
-    stopTyping(unitName) {
-        const typingRef = this.typingRefs.get(unitName);
-        if (!typingRef || !this.isTyping) return;
-        
-        typingRef.child('monitor').set({
-            isTyping: false,
-            name: 'Monitor',
-            timestamp: Date.now()
-        });
-        
-        this.isTyping = false;
-    }
+    renderLogger() {
+        const container = document.getElementById('dataLoggerContainer');
+        if (!container) return;
 
-    handleTypingIndicator(unitName, typingData) {
-        if (!typingData) return;
-        
-        const driverTyping = typingData.driver;
-        const typingIndicator = document.getElementById('monitorTypingIndicator');
-        
-        if (typingIndicator && driverTyping && driverTyping.isTyping && this.selectedChatUnit === unitName) {
-            typingIndicator.style.display = 'block';
-            typingIndicator.innerHTML = `
-                <div class="typing-indicator">
-                    <span>${driverTyping.name} sedang mengetik</span>
-                    <div class="typing-dots">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
+        let html = `
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">📊 Data Logger System</h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.clearAllLogs()">
+                            🗑️ Clear
+                        </button>
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.exportLogData()">
+                            📥 Export
+                        </button>
                     </div>
                 </div>
-            `;
-        } else if (typingIndicator) {
-            typingIndicator.style.display = 'none';
-        }
-    }
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th width="120">Waktu</th>
+                                    <th width="80">Level</th>
+                                    <th>Pesan</th>
+                                    <th width="100">Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
 
-    setupChatUIHandlers() {
-        const chatInput = document.getElementById('monitorChatInput');
-        if (!chatInput) return;
-        
-        let typingTimer;
-        
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.sendMonitorMessage();
-            } else if (this.selectedChatUnit) {
-                this.startTyping(this.selectedChatUnit);
+        if (this.dataLogger.logs.length === 0) {
+            html += `
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">
+                        Tidak ada data log
+                    </td>
+                </tr>
+            `;
+        } else {
+            this.dataLogger.logs.forEach(log => {
+                const levelBadge = this.getLogLevelBadge(log.level);
+                const unitInfo = log.metadata.unit ? `<span class="badge bg-primary">${log.metadata.unit}</span>` : '';
                 
-                clearTimeout(typingTimer);
-                typingTimer = setTimeout(() => {
-                    this.stopTyping(this.selectedChatUnit);
-                }, 2000);
-            }
-        });
-        
-        chatInput.addEventListener('blur', () => {
-            if (this.selectedChatUnit) {
-                this.stopTyping(this.selectedChatUnit);
-            }
-        });
-    }
-
-    startChat(unitName) {
-        this.selectedChatUnit = unitName;
-        
-        this.unreadCounts.set(unitName, 0);
-        
-        const input = document.getElementById('monitorChatInput');
-        const sendBtn = document.getElementById('monitorSendBtn');
-        if (input && sendBtn) {
-            input.disabled = false;
-            sendBtn.disabled = false;
-            input.placeholder = `Ketik pesan untuk ${unitName}...`;
-        }
-        
-        const unitSelect = document.getElementById('monitorChatUnitSelect');
-        if (unitSelect) {
-            unitSelect.value = unitName;
-        }
-        
-        this.updateChatUI();
-        this.toggleMonitorChat(true);
-    }
-
-    updateChatUI() {
-        if (!this.selectedChatUnit) return;
-        
-        const messageList = document.getElementById('monitorChatMessages');
-        const unreadBadge = document.getElementById('monitorUnreadBadge');
-        
-        if (!messageList) return;
-        
-        let totalUnread = 0;
-        this.unreadCounts.forEach(count => totalUnread += count);
-        
-        if (unreadBadge) {
-            unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
-            unreadBadge.style.display = totalUnread > 0 ? 'inline' : 'none';
-        }
-        
-        const messages = this.chatMessages.get(this.selectedChatUnit) || [];
-        messageList.innerHTML = '';
-        
-        if (messages.length === 0) {
-            messageList.innerHTML = `
-                <div class="chat-placeholder text-center text-muted py-4">
-                    <small>Mulai percakapan dengan driver...</small>
-                </div>
-            `;
-            return;
-        }
-        
-        const groupedMessages = this.groupMessagesByDate(messages);
-        
-        Object.keys(groupedMessages).forEach(date => {
-            if (Object.keys(groupedMessages).length > 1) {
-                const dateElement = document.createElement('div');
-                dateElement.className = 'chat-date-separator';
-                dateElement.innerHTML = `<span>${date}</span>`;
-                messageList.appendChild(dateElement);
-            }
-            
-            groupedMessages[date].forEach(message => {
-                const messageElement = this.createChatMessageElement(message);
-                messageList.appendChild(messageElement);
+                html += `
+                    <tr class="log-entry log-${log.level}">
+                        <td><small>${log.timeDisplay}</small></td>
+                        <td>${levelBadge}</td>
+                        <td>
+                            <div class="log-message">${log.message}</div>
+                            ${log.metadata.details ? `<small class="text-muted">${log.metadata.details}</small>` : ''}
+                        </td>
+                        <td>${unitInfo}</td>
+                    </tr>
+                `;
             });
-        });
-        
-        const typingIndicator = document.createElement('div');
-        typingIndicator.id = 'monitorTypingIndicator';
-        typingIndicator.style.display = 'none';
-        messageList.appendChild(typingIndicator);
-        
-        setTimeout(() => {
-            messageList.scrollTop = messageList.scrollHeight;
-        }, 100);
-    }
+        }
 
-    createChatMessageElement(message) {
-        const messageElement = document.createElement('div');
-        const isSentMessage = message.sender === 'Monitor';
-        
-        messageElement.className = `chat-message ${isSentMessage ? 'message-sent' : 'message-received'}`;
-        
-        messageElement.innerHTML = `
-            <div class="message-content ${message.status === 'failed' ? 'message-failed' : ''}">
-                ${!isSentMessage ? 
-                    `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
-                <div class="message-text">${this.escapeHtml(message.text)}</div>
-                <div class="message-footer">
-                    <span class="message-time">${message.timeDisplay}</span>
-                    ${isSentMessage ? 
-                        `<span class="message-status">${message.status === 'failed' ? '❌' : '✓'}</span>` : ''}
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         `;
-        
-        return messageElement;
+
+        container.innerHTML = html;
     }
 
-    groupMessagesByDate(messages) {
-        const grouped = {};
+    getLogLevelBadge(level) {
+        const badges = {
+            'info': '<span class="badge bg-info">INFO</span>',
+            'success': '<span class="badge bg-success">SUCCESS</span>',
+            'warning': '<span class="badge bg-warning">WARNING</span>',
+            'error': '<span class="badge bg-danger">ERROR</span>',
+            'gps': '<span class="badge bg-primary">GPS</span>',
+            'system': '<span class="badge bg-secondary">SYSTEM</span>'
+        };
+        return badges[level] || '<span class="badge bg-dark">UNKNOWN</span>';
+    }
+
+    clearAllLogs() {
+        if (confirm('Yakin ingin menghapus semua logs?')) {
+            this.dataLogger.logs = [];
+            this.saveLogs();
+            this.renderLogger();
+            this.logData('All logs cleared', 'system');
+        }
+    }
+
+    exportLogData() {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalLogs: this.dataLogger.logs.length,
+            system: 'SAGM GPS Tracking System',
+            logs: this.dataLogger.logs
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `sagm-logs-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
         
-        messages.forEach(message => {
-            const messageDate = new Date(message.timestamp);
-            const dateKey = messageDate.toLocaleDateString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = [];
+        this.logData('Logs exported successfully', 'success', {
+            file: link.download,
+            totalLogs: this.dataLogger.logs.length
+        });
+    }
+
+    // ===== CLEANUP METHODS =====
+    gradualCleanupInactiveUnits(activeUnits) {
+        const now = Date.now();
+        const inactiveThreshold = 30000;
+        const removalThreshold = 60000;
+
+        this.units.forEach((unit, unitName) => {
+            if (!activeUnits.has(unitName)) {
+                const currentCount = this.inactiveUnitTracker.get(unitName) || 0;
+                this.inactiveUnitTracker.set(unitName, currentCount + 1);
+                
+                const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
+                
+                if (timeSinceLastUpdate > inactiveThreshold && unit.isOnline) {
+                    unit.isOnline = false;
+                    this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                        unit: unitName,
+                        lastUpdate: timeSinceLastUpdate
+                    });
+                }
+                
+                if (timeSinceLastUpdate > removalThreshold) {
+                    this.logData(`Removing inactive unit: ${unitName}`, 'info', {
+                        unit: unitName,
+                        inactiveTime: timeSinceLastUpdate
+                    });
+                    this.removeUnitCompletely(unitName);
+                }
+            } else {
+                this.inactiveUnitTracker.set(unitName, 0);
             }
-            
-            grouped[dateKey].push(message);
         });
-        
-        Object.keys(grouped).forEach(date => {
-            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        });
-        
-        return grouped;
     }
 
-    updateChatUnitSelect() {
-        const unitSelect = document.getElementById('monitorChatUnitSelect');
-        if (!unitSelect) return;
+    forceCleanupInactiveUnits() {
+        console.log('🧹 FORCE CLEANUP: Removing all inactive units');
         
-        unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
+        const now = Date.now();
+        const unitsToRemove = [];
         
         this.units.forEach((unit, unitName) => {
-            const option = document.createElement('option');
-            option.value = unitName;
-            option.textContent = `${unitName} - ${unit.driver}`;
-            unitSelect.appendChild(option);
-        });
-        
-        unitSelect.addEventListener('change', (e) => {
-            if (e.target.value) {
-                this.startChat(e.target.value);
+            const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
+            
+            if (timeSinceLastUpdate > 15000) {
+                unitsToRemove.push(unitName);
             }
         });
+
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Force removing: ${unitName}`, 'warning', {
+                unit: unitName,
+                inactiveTime: now - (this.lastDataTimestamps.get(unitName) || 0)
+            });
+            this.removeUnitCompletely(unitName);
+        });
+
+        this.scheduleRender();
     }
 
-    toggleMonitorChat(show) {
-        const chatWindow = document.getElementById('monitorChatWindow');
-        if (!chatWindow) return;
+    removeUnitCompletely(unitName) {
+        console.log(`🗑️ Removing unit completely: ${unitName}`);
         
-        if (show !== undefined) {
-            chatWindow.style.display = show ? 'flex' : 'none';
-        } else {
-            chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+        this.units.delete(unitName);
+        
+        const marker = this.markers.get(unitName);
+        if (marker && this.map) {
+            this.map.removeLayer(marker);
+            this.markers.delete(unitName);
         }
         
-        if (chatWindow.style.display === 'flex' && this.selectedChatUnit) {
-            const input = document.getElementById('monitorChatInput');
-            if (input) input.focus();
+        const polyline = this.unitPolylines.get(unitName);
+        if (polyline && this.map) {
+            this.map.removeLayer(polyline);
+            this.unitPolylines.delete(unitName);
         }
-    }
-
-    showChatNotification(unitName, message) {
-        const notification = document.createElement('div');
-        notification.className = 'alert alert-info chat-notification';
-        notification.innerHTML = `
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <strong>💬 Pesan Baru dari ${unitName}</strong>
-                    <div class="small mt-1">${this.escapeHtml(message.text)}</div>
-                </div>
-                <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
-            </div>
-        `;
         
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            min-width: 300px;
-            max-width: 400px;
-            animation: slideInRight 0.3s ease-out;
-        `;
+        this.driverOnlineStatus.delete(unitName);
+        this.lastDataTimestamps.delete(unitName);
+        this.unitSessions.delete(unitName);
+        this.inactiveUnitTracker.delete(unitName);
+        this.unitHistory.delete(unitName);
+        this.routeColors.delete(unitName);
         
-        document.body.appendChild(notification);
+        // Cleanup chat for this unit
+        this.cleanupUnitChatListener(unitName);
         
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 5000);
+        this.scheduleRender();
     }
 
-    playNotificationSound() {
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.2);
-        } catch (error) {
-            console.log('Notification sound not supported');
-        }
+    forceCleanupAllData() {
+        console.log('🧹 FORCE CLEANUP ALL: Removing ALL units and data');
+        
+        const unitsToRemove = Array.from(this.units.keys());
+        
+        unitsToRemove.forEach(unitName => {
+            this.logData(`Force removing ALL: ${unitName}`, 'warning');
+            this.removeUnitCompletely(unitName);
+        });
+
+        this.scheduleRender();
     }
 
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    getLastMessageId(unitName) {
-        const messages = this.chatMessages.get(unitName) || [];
-        return messages.length > 0 ? messages[messages.length - 1].id : null;
-    }
-
-    // Utility Methods
-    waitForElement(selector, timeout = 5000) {
-        return new Promise((resolve, reject) => {
-            const element = document.querySelector(selector);
-            if (element) {
-                resolve(element);
-                return;
-            }
-
-            const observer = new MutationObserver((mutations, obs) => {
-                const element = document.querySelector(selector);
-                if (element) {
-                    obs.disconnect();
-                    resolve(element);
+    cleanupOrphanedMarkers() {
+        this.markers.forEach((marker, unitName) => {
+            if (!this.units.has(unitName)) {
+                console.log(`🧹 Removing orphaned marker: ${unitName}`);
+                if (marker && this.map) {
+                    this.map.removeLayer(marker);
                 }
-            });
+                this.markers.delete(unitName);
+            }
+        });
+    }
 
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
+    cleanupFirebaseListeners() {
+        this.firebaseListeners.forEach((listener, key) => {
+            try {
+                if (key === 'connection') {
+                    database.ref('.info/connected').off('value', listener);
+                } else if (key === 'units') {
+                    database.ref('/units').off('value', listener);
+                } else if (key === 'removal') {
+                    database.ref('/units').off('child_removed', listener);
+                }
+            } catch (error) {
+                console.warn(`Error cleaning up listener ${key}:`, error);
+            }
+        });
+        this.firebaseListeners.clear();
+    }
 
-            setTimeout(() => {
-                observer.disconnect();
-                reject(new Error(`Element ${selector} not found within ${timeout}ms`));
-            }, timeout);
+    // ===== EVENT HANDLERS =====
+    setupEventHandlers() {
+        const searchInput = document.getElementById('searchUnit');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.applyFilters());
+        }
+
+        const filters = ['filterAfdeling', 'filterStatus', 'filterFuel'];
+        filters.forEach(filterId => {
+            const filter = document.getElementById(filterId);
+            if (filter) {
+                filter.addEventListener('change', () => this.applyFilters());
+            }
+        });
+
+        database.ref('.info/connected').on('value', (snapshot) => {
+            this.updateConnectionStatus(snapshot.val());
         });
     }
 
     updateConnectionStatus(connected) {
-        const statusElement = this.uiElements.firebaseStatus;
+        const statusElement = document.getElementById('firebaseStatus');
         if (statusElement) {
             if (connected) {
-                statusElement.innerHTML = '🟢 FIREBASE TERHUBUNG';
-                statusElement.className = 'text-success fw-bold';
+                statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
+                statusElement.className = 'text-success';
             } else {
-                statusElement.innerHTML = '🔴 FIREBASE TERPUTUS';
-                statusElement.className = 'text-danger fw-bold';
+                statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
+                statusElement.className = 'text-danger';
             }
         }
     }
 
-    updateElement(id, value) {
-        const element = this.uiElements[id] || document.getElementById(id);
-        if (element) {
-            element.textContent = value;
+    applyFilters() {
+        const searchTerm = document.getElementById('searchUnit')?.value.toLowerCase() || '';
+        const afdelingFilter = document.getElementById('filterAfdeling')?.value || '';
+        const statusFilter = document.getElementById('filterStatus')?.value || '';
+        const fuelFilter = document.getElementById('filterFuel')?.value || '';
+
+        console.log('Applying filters:', { searchTerm, afdelingFilter, statusFilter, fuelFilter });
+    }
+
+    // ===== UTILITY METHODS =====
+    computeFuelConsumption(distance, status) {
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelUsage(distance, status) {
+        if (!distance) return 0;
+        
+        let rate;
+        switch(status) {
+            case 'moving': rate = this.vehicleConfig.movingFuelConsumption; break;
+            case 'active': rate = this.vehicleConfig.baseFuelConsumption; break;
+            default: rate = this.vehicleConfig.baseFuelConsumption * 0.5;
+        }
+        return distance * rate;
+    }
+
+    computeFuelLevel(initialFuel, distance, status) {
+        if (!distance) return initialFuel;
+        
+        const fuelUsed = this.computeFuelUsage(distance, status);
+        const fuelRemaining = Math.max(0, initialFuel - fuelUsed);
+        const fuelPercentage = (fuelRemaining / this.vehicleConfig.fuelTankCapacity) * 100;
+        
+        return Math.max(5, Math.min(100, fuelPercentage));
+    }
+
+    computeDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // ===== PERIODIC TASKS =====
+    startPeriodicTasks() {
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals.clear();
+
+        const cleanupInterval = setInterval(() => {
+            this.forceCleanupInactiveUnits();
+            this.cleanupOrphanedMarkers();
+            this.lastCleanupTime = new Date();
+        }, 30000);
+        this.intervals.add(cleanupInterval);
+
+        const healthInterval = setInterval(() => {
+            this.logData('System health check', 'info', {
+                activeUnits: this.units.size,
+                markers: this.markers.size,
+                polylines: this.unitPolylines.size,
+                chatUnits: this.monitorChatRefs.size
+            });
+        }, 60000);
+        this.intervals.add(healthInterval);
+
+        const statusInterval = setInterval(() => {
+            const now = Date.now();
+            this.lastDataTimestamps.forEach((lastUpdate, unitName) => {
+                const timeDiff = now - lastUpdate;
+                if (timeDiff > 15000) {
+                    this.markUnitOffline(unitName);
+                }
+            });
+        }, 5000);
+        this.intervals.add(statusInterval);
+    }
+
+    markUnitOffline(unitName) {
+        const unit = this.units.get(unitName);
+        if (unit) {
+            this.logData(`Unit marked offline: ${unitName}`, 'warning', {
+                unit: unitName,
+                driver: unit.driver,
+                lastLocation: { lat: unit.latitude, lng: unit.longitude }
+            });
+            
+            this.removeUnitCompletely(unitName);
         }
     }
 
-    showLoading(show) {
-        const spinner = this.uiElements.loadingSpinner;
+    handleDataRemoval(unitName) {
+        this.logData(`Data removed for unit: ${unitName}`, 'info', {
+            unit: unitName,
+            action: 'logout'
+        });
+        
+        this.removeUnitCompletely(unitName);
+    }
+
+    markAllUnitsOffline() {
+        this.units.forEach(unit => {
+            unit.isOnline = false;
+        });
+        this.scheduleRender();
+    }
+
+    // ===== SYSTEM METHODS =====
+    refreshData() {
+        console.log('🔄 Manual refresh with cleanup');
+        this.logData('Manual refresh initiated', 'info');
+        this.forceCleanupInactiveUnits();
+        this.loadInitialData();
+    }
+
+    async loadInitialData() {
+        this.showLoadingIndicator(true);
+        
+        try {
+            const snapshot = await database.ref('/units').once('value');
+            const firebaseData = snapshot.val();
+            
+            this.clearAllData();
+            
+            if (firebaseData && Object.keys(firebaseData).length > 0) {
+                let loadedCount = 0;
+                
+                Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+                    if (this.validateUnitData(unitName, unitData)) {
+                        const unit = this.createNewUnit(unitName, unitData);
+                        if (unit) {
+                            this.units.set(unitName, unit);
+                            loadedCount++;
+                            
+                            // Setup chat for this unit
+                            if (!this.monitorChatRefs.has(unitName)) {
+                                this.setupUnitChatListener(unitName);
+                            }
+                        }
+                    }
+                });
+                
+                this.logData('Initial data loaded successfully', 'success', {
+                    units: loadedCount,
+                    total: Object.keys(firebaseData).length
+                });
+            } else {
+                this.logData('No initial data found', 'warning');
+            }
+            
+            this.scheduleRender();
+            
+        } catch (error) {
+            console.error('Failed to load initial data:', error);
+            this.logData('Failed to load initial data', 'error', { error: error.message });
+        } finally {
+            this.showLoadingIndicator(false);
+        }
+    }
+
+    clearAllData() {
+        console.log('🧹 Clearing ALL system data...');
+        
+        this.units.clear();
+        this.markers.clear();
+        this.unitPolylines.clear();
+        this.unitHistory.clear();
+        this.unitSessions.clear();
+        this.driverOnlineStatus.clear();
+        this.lastDataTimestamps.clear();
+        this.inactiveUnitTracker.clear();
+        this.routeColors.clear();
+        
+        // Cleanup all chat listeners
+        this.monitorChatRefs.forEach((ref, unitName) => {
+            ref.off();
+        });
+        this.monitorChatRefs.clear();
+        this.monitorChatMessages.clear();
+        this.monitorUnreadCounts.clear();
+        
+        this.importantMarkers = [];
+        this.dataLogger.logs = [];
+        
+        this.activeUnits = 0;
+        this.totalDistance = 0;
+        this.avgSpeed = 0;
+        this.totalFuelConsumption = 0;
+        
+        this.activeChatUnit = null;
+        this.isMonitorChatOpen = false;
+        
+        console.log('✅ All data cleared');
+    }
+
+    showLoadingIndicator(show) {
+        const spinner = document.getElementById('loadingSpinner');
         if (spinner) {
             spinner.style.display = show ? 'block' : 'none';
         }
     }
 
-    showNotification(message, type = 'info') {
-        console.log(`💬 ${type.toUpperCase()}: ${message}`);
+    displayError(message) {
+        this.logData(message, 'error');
         
         const notification = document.createElement('div');
-        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        notification.style.cssText = `
-            top: 20px; 
-            right: 20px; 
-            z-index: 9999; 
-            min-width: 300px;
-            max-width: 400px;
-        `;
+        notification.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
         notification.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -1729,473 +1973,175 @@ class ComprehensiveGPSMonitor {
         }, 5000);
     }
 
-    showMessage(message) {
-        this.showNotification(message, 'info');
-    }
-
-    showSuccess(message) {
-        this.showNotification(message, 'success');
-    }
-
-    showError(message) {
-        this.showNotification(message, 'danger');
-    }
-
-    // Search and Filter Methods
-    handleSearch(searchTerm) {
-        const unitItems = document.querySelectorAll('.unit-item');
-        const searchLower = searchTerm.toLowerCase();
+    testFirebaseConnection() {
+        console.log('🔍 Testing Firebase connection...');
         
-        unitItems.forEach(item => {
-            const text = item.textContent.toLowerCase();
-            item.style.display = text.includes(searchLower) ? 'block' : 'none';
-        });
-    }
-
-    applyFilters() {
-        const afdelingFilter = document.getElementById('filterAfdeling').value;
-        const statusFilter = document.getElementById('filterStatus').value;
-        const fuelFilter = document.getElementById('filterFuel').value;
-        
-        const unitItems = document.querySelectorAll('.unit-item');
-        
-        unitItems.forEach(item => {
-            let show = true;
-            
-            if (afdelingFilter && !item.textContent.includes(afdelingFilter)) {
-                show = false;
-            }
-            
-            if (statusFilter) {
-                const statusClass = statusFilter === 'active' ? 'online' : 
-                                 statusFilter === 'moving' ? 'moving' : 'offline';
-                if (!item.classList.contains(statusClass)) {
-                    show = false;
-                }
-            }
-            
-            if (fuelFilter && !item.textContent.includes(fuelFilter === 'high' ? '🟢' : 
-                                                       fuelFilter === 'medium' ? '🟡' : '🔴')) {
-                show = false;
-            }
-            
-            item.style.display = show ? 'block' : 'none';
-        });
-    }
-
-    // Enhanced Periodic Tasks
-    startPeriodicTasks() {
-        this.intervals.forEach(interval => clearInterval(interval));
-        this.intervals.clear();
-
-        // Cleanup setiap 5 menit
-        const cleanupInterval = setInterval(() => {
-            console.log('🕒 Running periodic cleanup...');
-            const stickyUnits = this.cleanupStickyData();
-            
-            if (stickyUnits.length > 0) {
-                this.showNotification(`Auto-cleanup: ${stickyUnits.length} sticky units removed`, 'warning');
-            }
-        }, 5 * 60 * 1000);
-        this.intervals.add(cleanupInterval);
-
-        // Health check setiap 2 menit
-        const healthInterval = setInterval(() => {
-            this.logData('System health check', 'info', {
-                activeUnits: this.units.size,
-                markers: this.markers.size,
-                stickyUnits: Array.from(this.units.values()).filter(unit => 
-                    !this.validateTimestamp(unit)
-                ).length
+        database.ref('.info/connected').once('value')
+            .then((snapshot) => {
+                const connected = snapshot.val();
+                console.log('📡 Firebase Connected:', connected);
+                alert(`Firebase Connection: ${connected ? 'CONNECTED ✅' : 'DISCONNECTED ❌'}`);
+            })
+            .catch((error) => {
+                console.error('❌ Firebase connection test failed:', error);
+                alert('Firebase Connection Test: FAILED ❌');
             });
-        }, 2 * 60 * 1000);
-        this.intervals.add(healthInterval);
-
-        // Map refresh setiap 1 menit
-        const mapRefreshInterval = setInterval(() => {
-            if (this.leafletMap) {
-                this.leafletMap.invalidateSize();
-            }
-        }, 60 * 1000);
-        this.intervals.add(mapRefreshInterval);
-
-        // Auto-refresh data setiap 30 detik
-        const dataRefreshInterval = setInterval(() => {
-            if (this.units.size > 0) {
-                this.updateDisplay();
-            }
-        }, 30000);
-        this.intervals.add(dataRefreshInterval);
-
-        console.log('✅ Enhanced periodic tasks started');
     }
 
-    cleanupStickyData() {
-        console.log('🧹 Cleaning up sticky data...');
-        
-        const now = Date.now();
-        const STALE_THRESHOLD = 30 * 60 * 1000;
-        const stickyUnits = [];
-        
-        this.units.forEach((unit, unitName) => {
-            if (!this.validateTimestamp(unit)) {
-                console.log(`❌ Invalid timestamp for ${unitName}, marking for cleanup`);
-                stickyUnits.push(unitName);
-                return;
-            }
-            
-            if (unit.lastUpdate) {
-                const lastUpdateTime = new Date(unit.lastUpdate).getTime();
-                if (isNaN(lastUpdateTime)) {
-                    console.log(`❌ Invalid lastUpdate format for ${unitName}`);
-                    stickyUnits.push(unitName);
-                    return;
-                }
-                
-                const timeDiff = now - lastUpdateTime;
-                if (timeDiff > STALE_THRESHOLD) {
-                    console.log(`🕒 Sticky data detected: ${unitName} (${Math.round(timeDiff/60000)} minutes old)`);
-                    stickyUnits.push(unitName);
-                }
-            }
-        });
-        
-        if (stickyUnits.length > 0) {
-            console.log(`🧹 Removing ${stickyUnits.length} sticky units:`, stickyUnits);
-            
-            stickyUnits.forEach(unitName => {
-                this.removeUnitCompletely(unitName);
-            });
-            
-            this.logData(`Cleanup: ${stickyUnits.length} sticky units removed`, 'warning', {
-                stickyUnits: stickyUnits,
-                totalBefore: this.units.size + stickyUnits.length,
-                totalAfter: this.units.size
-            });
-            
-            return stickyUnits;
-        }
-        
-        console.log('✅ No sticky data found');
-        return [];
-    }
-
-    removeUnitCompletely(unitName) {
-        this.removeUnit(unitName);
-    }
-
-    cleanupInactiveUnits(activeUnits) {
-        const unitsToRemove = [];
-        
-        this.units.forEach((unit, unitName) => {
-            if (!activeUnits.has(unitName)) {
-                unitsToRemove.push(unitName);
-            }
-        });
-        
-        unitsToRemove.forEach(unitName => {
-            this.removeUnit(unitName);
-        });
-    }
-
-    removeUnit(unitName) {
-        console.log(`🗑️ Removing unit: ${unitName}`);
-        
-        // Remove marker
-        const marker = this.markers.get(unitName);
-        if (marker) {
-            if (this.currentMapType === 'google') {
-                marker.setMap(null);
-            } else {
-                marker.remove();
-            }
-            this.markers.delete(unitName);
-        }
-        
-        // Remove accuracy circle
-        const accuracyCircle = this.accuracyCircles.get(unitName);
-        if (accuracyCircle) {
-            if (this.currentMapType === 'google') {
-                accuracyCircle.setMap(null);
-            } else {
-                accuracyCircle.remove();
-            }
-            this.accuracyCircles.delete(unitName);
-        }
-        
-        // Remove waypoints
-        this.clearUnitWaypoints(unitName);
-        
-        // Remove from units map
-        this.units.delete(unitName);
-        
-        // Cleanup chat system
-        const chatRef = this.chatRefs.get(unitName);
-        if (chatRef) {
-            chatRef.off();
-            this.chatRefs.delete(unitName);
-        }
-        
-        const typingRef = this.typingRefs.get(unitName);
-        if (typingRef) {
-            typingRef.off();
-            this.typingRefs.delete(unitName);
-        }
-        
-        this.chatMessages.delete(unitName);
-        this.unreadCounts.delete(unitName);
-    }
-
-    clearAllUnits() {
-        this.units.forEach((unit, unitName) => {
-            this.removeUnit(unitName);
-        });
-        
-        this.units.clear();
-        this.updateDisplay();
-    }
-
-    refreshAllMarkers() {
-        this.units.forEach(unit => {
-            this.createUnitMarker(unit);
-            this.createAccuracyCircle(unit);
-        });
-    }
-
-    // Enhanced Logs
-    updateEnhancedLogs() {
-        const logContainer = this.uiElements.enhancedDataLogs;
-        if (!logContainer) return;
-        
-        const activeUnits = Array.from(this.units.values()).filter(unit => unit.isOnline).length;
-        const totalWaypoints = Array.from(this.units.values()).reduce((sum, unit) => sum + (unit.waypointsCount || 0), 0);
-        
-        const logs = [
-            `🕒 ${new Date().toLocaleTimeString('id-ID')}`,
-            `🚛 ${activeUnits} units aktif`,
-            `🎯 ${totalWaypoints} waypoints terdeteksi`,
-            `📡 ${this.isConnected ? 'TERHUBUNG' : 'TERPUTUS'} ke Firebase`,
-            `🗺️ ${this.currentMapType === 'google' ? 'Google Maps' : 'Leaflet'} aktif`
-        ];
-        
-        logContainer.innerHTML = logs.map(log => `
-            <div class="alert alert-info py-1 mb-1">
-                <small>${log}</small>
+    showDebugPanel() {
+        const debugHtml = `
+            <div class="debug-panel card position-fixed" style="bottom: 10px; right: 10px; width: 400px; z-index: 9999;">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <span>🐛 Debug Panel</span>
+                    <button class="btn btn-sm btn-outline-light" onclick="this.closest('.debug-panel').remove()">×</button>
+                </div>
+                <div class="card-body p-2">
+                    <div class="mb-2">
+                        <strong>Firebase Status:</strong> 
+                        <span id="debugFirebaseStatus">Checking...</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Units Loaded:</strong> 
+                        <span id="debugUnitsCount">${this.units.size}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Chat Units:</strong> 
+                        <span id="debugChatUnits">${this.monitorChatRefs.size}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Last Update:</strong> 
+                        <span id="debugLastUpdate">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <button class="btn btn-sm btn-warning w-100" onclick="window.gpsSystem.testFirebaseConnection()">
+                        Test Connection
+                    </button>
+                    <button class="btn btn-sm btn-danger w-100 mt-1" onclick="forceCleanup()">
+                        🧹 Force Cleanup
+                    </button>
+                </div>
             </div>
-        `).join('');
-    }
-
-    addEnhancedLog(message, type = 'info') {
-        const logContainer = this.uiElements.enhancedDataLogs;
-        if (!logContainer) return;
-        
-        const alertClass = {
-            'info': 'alert-info',
-            'success': 'alert-success', 
-            'error': 'alert-danger',
-            'warning': 'alert-warning'
-        }[type] || 'alert-info';
-        
-        const logEntry = document.createElement('div');
-        logEntry.className = `alert ${alertClass} py-1 mb-1`;
-        logEntry.innerHTML = `
-            <small>${new Date().toLocaleTimeString('id-ID')}: ${message}</small>
         `;
         
-        logContainer.insertBefore(logEntry, logContainer.firstChild);
+        document.body.insertAdjacentHTML('beforeend', debugHtml);
         
-        if (logContainer.children.length > 10) {
-            logContainer.removeChild(logContainer.lastChild);
-        }
+        setInterval(() => {
+            const statusElement = document.getElementById('debugFirebaseStatus');
+            const unitsElement = document.getElementById('debugUnitsCount');
+            const chatUnitsElement = document.getElementById('debugChatUnits');
+            const updateElement = document.getElementById('debugLastUpdate');
+            
+            if (statusElement) {
+                database.ref('.info/connected').once('value').then((snapshot) => {
+                    statusElement.textContent = snapshot.val() ? '🟢 CONNECTED' : '🔴 DISCONNECTED';
+                    statusElement.className = snapshot.val() ? 'text-success' : 'text-danger';
+                });
+            }
+            
+            if (unitsElement) {
+                unitsElement.textContent = this.units.size;
+            }
+            
+            if (chatUnitsElement) {
+                chatUnitsElement.textContent = this.monitorChatRefs.size;
+            }
+            
+            if (updateElement) {
+                updateElement.textContent = new Date().toLocaleTimeString();
+            }
+        }, 2000);
     }
 
-    logData(message, type, data) {
-        console.log(`📝 ${type.toUpperCase()}: ${message}`, data || '');
-    }
-
-    // Public Methods
-    refreshData() {
-        console.log('🔄 Manual refresh requested');
-        this.showLoading(true);
-        this.cleanupFirebaseListeners();
-        this.setupFirebaseListeners();
-        setTimeout(() => this.showLoading(false), 2000);
-    }
-
-    forceCleanup() {
-        if (confirm('Yakin ingin membersihkan semua data?')) {
-            this.cleanup();
-            this.showSuccess('Semua data berhasil dibersihkan');
-        }
-    }
-
-    exportData() {
+    downloadRouteData() {
         const exportData = {
-            exportedAt: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
             totalUnits: this.units.size,
-            activeUnits: Array.from(this.units.values()).filter(unit => unit.isOnline).length,
-            units: Array.from(this.units.values()).map(unit => ({
-                name: unit.name,
-                driver: unit.driver,
-                afdeling: unit.afdeling,
-                status: unit.status,
-                distance: unit.distance,
-                speed: unit.speed,
-                fuelLevel: unit.fuelLevel,
-                lastUpdate: unit.lastUpdate,
-                waypointsCount: unit.waypointsCount,
-                accuracy: unit.accuracy,
-                batteryLevel: unit.batteryLevel
-            }))
+            routes: {}
         };
+
+        this.units.forEach((unit, unitName) => {
+            exportData.routes[unitName] = {
+                driver: unit.driver,
+                totalDistance: unit.distance,
+                routePoints: this.unitHistory.get(unitName)?.length || 0,
+                history: this.unitHistory.get(unitName) || []
+            };
+        });
 
         const dataStr = JSON.stringify(exportData, null, 2);
         const dataBlob = new Blob([dataStr], {type: 'application/json'});
         const url = URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `gps-comprehensive-export-${new Date().toISOString().split('T')[0]}.json`;
+        link.download = `routes-data-${new Date().toISOString().split('T')[0]}.json`;
         link.click();
         
-        this.addEnhancedLog('📊 Data comprehensive berhasil di-export', 'success');
+        this.logData('Route data exported', 'success');
     }
 
-    toggleWaypoints() {
-        this.showWaypoints = !this.showWaypoints;
-        
-        this.waypointMarkers.forEach((markers, unitName) => {
-            markers.forEach(marker => {
-                if (this.currentMapType === 'google') {
-                    marker.setMap(this.showWaypoints ? this.googleMap : null);
-                } else {
-                    this.showWaypoints ? this.leafletMap.addLayer(marker) : this.leafletMap.removeLayer(marker);
-                }
-            });
-        });
-        
-        this.routePolylines.forEach((polyline, unitName) => {
-            if (this.currentMapType === 'google') {
-                polyline.setMap(this.showWaypoints ? this.googleMap : null);
-            } else {
-                this.showWaypoints ? this.leafletMap.addLayer(polyline) : this.leafletMap.removeLayer(polyline);
-            }
-        });
-        
-        this.addEnhancedLog(`Waypoints ${this.showWaypoints ? 'ditampilkan' : 'disembunyikan'}`, 'info');
-    }
-
-    exportWaypointData() {
-        const waypointData = {
-            exportedAt: new Date().toISOString(),
-            units: Array.from(this.units.values()).map(unit => ({
-                name: unit.name,
-                driver: unit.driver,
-                waypointsCount: unit.waypointsCount,
-                distance: unit.distance,
-                lastUpdate: unit.lastUpdate
-            }))
-        };
-
-        const dataStr = JSON.stringify(waypointData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `waypoints-export-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.addEnhancedLog('🎯 Waypoint data berhasil di-export', 'success');
-    }
-
-    clearWaypointData() {
-        if (confirm('Yakin ingin menghapus semua waypoint data?')) {
-            this.waypointMarkers.forEach((markers, unitName) => {
-                markers.forEach(marker => {
-                    if (this.currentMapType === 'google') {
-                        marker.setMap(null);
-                    } else {
-                        marker.remove();
-                    }
-                });
-            });
-            this.waypointMarkers.clear();
-            
-            this.routePolylines.forEach((polyline, unitName) => {
-                if (this.currentMapType === 'google') {
-                    polyline.setMap(null);
-                } else {
-                    polyline.remove();
-                }
-            });
-            this.routePolylines.clear();
-            
-            this.addEnhancedLog('Waypoint data berhasil dihapus', 'success');
-        }
-    }
-
-    // Cleanup Methods
-    cleanupFirebaseListeners() {
-        if (this.firebaseListener) {
-            database.ref('/units').off('value', this.firebaseListener);
-            this.firebaseListener = null;
-        }
-        
-        if (this.waypointsListener) {
-            database.ref('/waypoints').off('value', this.waypointsListener);
-            this.waypointsListener = null;
-        }
-        
-        if (this.connectionRef) {
-            this.connectionRef.off();
-            this.connectionRef = null;
-        }
-        
-        this.chatRefs.forEach((chatRef, unitName) => {
-            chatRef.off();
-        });
-        this.chatRefs.clear();
-        
-        this.typingRefs.forEach((typingRef, unitName) => {
-            typingRef.off();
-        });
-        this.typingRefs.clear();
-    }
-
+    // ===== ENHANCED CLEANUP WITH CHAT SUPPORT =====
     cleanup() {
-        console.log('🧹 Comprehensive cleanup...');
+        console.log('🧹 Comprehensive system cleanup with chat support...');
         
+        // Cleanup chat event listeners
+        this.cleanupChatEventListeners();
+        
+        // Cleanup Firebase listeners
+        this.cleanupFirebaseListeners();
+        
+        // Cleanup intervals
         this.intervals.forEach(interval => clearInterval(interval));
         this.intervals.clear();
         
-        this.cleanupFirebaseListeners();
-        
-        this.clearAllUnits();
-        
-        if (this.leafletMap) {
-            this.leafletMap.remove();
-            this.leafletMap = null;
+        // Cleanup debounce
+        if (this.updateDebounce) {
+            clearTimeout(this.updateDebounce);
         }
         
-        console.log('✅ Comprehensive cleanup completed');
+        // Cleanup all chat Firebase listeners
+        this.monitorChatRefs.forEach(ref => ref.off());
+        this.monitorChatRefs.clear();
+        
+        database.ref('/chat').off('child_added');
+        database.ref('/chat').off('child_removed');
+        
+        // Clear all data
+        this.clearAllData();
+        
+        // Cleanup map
+        if (this.map) {
+            this.map.remove();
+            this.map = null;
+        }
+        
+        // Cleanup data logger
+        if (this.dataLogger.exportInterval) {
+            clearInterval(this.dataLogger.exportInterval);
+        }
+        
+        console.log('✅ System cleanup with chat support completed');
     }
 }
 
-// ===== GLOBAL FUNCTIONS =====
+// Initialize the system
+let gpsSystem;
+
+// Global functions
 function refreshData() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.refreshData();
+    if (window.gpsSystem) {
+        window.gpsSystem.refreshData();
     }
 }
 
 function forceCleanup() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.forceCleanup();
+    if (window.gpsSystem) {
+        window.gpsSystem.forceCleanupAllData();
+        alert('Force cleanup executed! All sticky data removed.');
     }
 }
 
 function exportData() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.exportData();
+    if (window.gpsSystem) {
+        window.gpsSystem.downloadRouteData();
     }
 }
 
@@ -2206,143 +2152,49 @@ function toggleSidebar() {
     }
 }
 
+// ✅ ENHANCED CHAT GLOBAL FUNCTIONS
 function toggleMonitorChat() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.toggleMonitorChat();
+    if (window.gpsSystem) {
+        window.gpsSystem.toggleMonitorChat();
     }
 }
 
 function handleMonitorChatInput(event) {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.handleMonitorChatInput(event);
+    if (window.gpsSystem) {
+        window.gpsSystem.handleMonitorChatInput(event);
     }
 }
 
 function sendMonitorMessage() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.sendMonitorMessage();
+    if (window.gpsSystem) {
+        window.gpsSystem.sendMonitorMessage();
     }
 }
 
 function selectChatUnit(unitName) {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.selectChatUnit(unitName);
+    if (window.gpsSystem) {
+        window.gpsSystem.selectChatUnit(unitName);
     }
 }
 
-function toggleWaypoints() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.toggleWaypoints();
-    }
-}
-
-function exportWaypointData() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.exportWaypointData();
-    }
-}
-
-function clearWaypointData() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.clearWaypointData();
-    }
-}
-
-function cleanupStickyData() {
-    if (window.comprehensiveMonitor) {
-        const stickyUnits = window.comprehensiveMonitor.cleanupStickyData();
-        
-        if (stickyUnits.length > 0) {
-            alert(`🧹 Cleanup Berhasil!\n${stickyUnits.length} unit lengket dihapus:\n${stickyUnits.join(', ')}`);
-        } else {
-            alert('✅ Tidak ada data lengket ditemukan');
-        }
-    }
-}
-
-function cleanupSpecificUnitPrompt() {
-    const unitName = prompt('Masukkan nama unit yang akan dibersihkan (contoh: DT-06):');
-    
-    if (unitName && window.comprehensiveMonitor) {
-        const success = window.comprehensiveMonitor.cleanupSpecificUnit(unitName);
-        
-        if (success) {
-            alert(`✅ Unit ${unitName} berhasil dibersihkan`);
-        } else {
-            alert(`❌ Unit ${unitName} tidak ditemukan`);
-        }
-    }
-}
-
-function forceCleanupAllData() {
-    if (confirm('⚠️ HAPUS SEMUA DATA?\n\nIni akan menghapus SEMUA unit dari peta dan memory.\nLanjutkan?')) {
-        if (window.comprehensiveMonitor) {
-            window.comprehensiveMonitor.forceCleanupAllData();
-            alert('✅ Semua data berhasil dibersihkan');
-        }
-    }
-}
-
-function debugMap() {
-    console.log('🔍 Debugging Maps...');
-    console.log('Current map type:', window.comprehensiveMonitor?.currentMapType);
-    console.log('Google Maps:', typeof google);
-    console.log('Leaflet Map:', window.comprehensiveMonitor?.leafletMap);
-    
-    if (window.comprehensiveMonitor?.leafletMap) {
-        window.comprehensiveMonitor.leafletMap.invalidateSize(true);
-        console.log('✅ Leaflet map refreshed');
-    }
-}
-
-// Initialize System
+// Event listener dengan enhanced cleanup
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 DOM loaded - initializing Comprehensive GPS Monitoring System');
-    
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.cleanup();
+    if (window.gpsSystem) {
+        window.gpsSystem.cleanup();
     }
     
-    window.comprehensiveMonitor = new ComprehensiveGPSMonitor();
-    
-    // Set global functions
-    window.refreshData = refreshData;
-    window.forceCleanup = forceCleanup;
-    window.exportData = exportData;
-    window.toggleSidebar = toggleSidebar;
-    window.toggleMonitorChat = toggleMonitorChat;
-    window.handleMonitorChatInput = handleMonitorChatInput;
-    window.sendMonitorMessage = sendMonitorMessage;
-    window.selectChatUnit = selectChatUnit;
-    window.toggleWaypoints = toggleWaypoints;
-    window.exportWaypointData = exportWaypointData;
-    window.clearWaypointData = clearWaypointData;
-    window.cleanupStickyData = cleanupStickyData;
-    window.cleanupSpecificUnitPrompt = cleanupSpecificUnitPrompt;
-    window.forceCleanupAllData = forceCleanupAllData;
-    window.debugMap = debugMap;
+    gpsSystem = new OptimizedSAGMGpsTracking();
+    window.gpsSystem = gpsSystem;
 });
 
+// Cleanup on page unload
 window.addEventListener('beforeunload', function() {
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.cleanup();
+    if (window.gpsSystem) {
+        window.gpsSystem.cleanup();
     }
 });
 
-window.addEventListener('error', function(event) {
-    console.error('🚨 Global error caught:', event.error);
-    if (window.comprehensiveMonitor) {
-        window.comprehensiveMonitor.showError('System error occurred: ' + event.error.message);
-    }
-});
-
-// Auto cleanup setelah page load
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        if (window.comprehensiveMonitor && confirm('Jalankan auto-cleanup data lengket?')) {
-            window.comprehensiveMonitor.cleanupStickyData();
-        }
-    }, 10000);
-});
-
-console.log('🎯 Comprehensive GPS Monitoring System script loaded successfully');
+// Prevent multiple instances
+if (window.gpsSystem) {
+    window.gpsSystem.cleanup();
+}
