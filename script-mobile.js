@@ -470,41 +470,47 @@ class EnhancedDTGPSLogger {
         this.generateSimulatedWaypoint();
     }
 
-    // ✅ PERBAIKAN UTAMA: Real GPS System dengan tolerance accuracy
-    startRealGPSTracking() {
-        if (!navigator.geolocation) {
-            this.addLog('❌ GPS tidak didukung di browser ini', 'error');
-            this.switchToSimulatedMode();
-            return;
-        }
-
-        this.gpsMode = 'real';
-        this.updateGPSModeIndicator();
-        
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-        };
-
-        this.watchId = navigator.geolocation.watchPosition(
-            (position) => this.handleRealPositionUpdate(position),
-            (error) => this.handleGPSError(error),
-            options
-        );
-
-        this.isTracking = true;
-        this.addLog('📍 Real GPS tracking activated', 'success');
+   // ✅ CARI METHOD INI dan GANTI dengan kode baru:
+startRealGPSTracking() {
+    if (!navigator.geolocation) {
+        this.addLog('❌ GPS tidak didukung di browser ini', 'error');
+        this.switchToSimulatedMode();
+        return;
     }
 
-    stopRealGPSTracking() {
-        if (this.watchId) {
-            navigator.geolocation.clearWatch(this.watchId);
-            this.watchId = null;
-        }
-        this.isTracking = false;
+    // ✅ PERBAIKAN: Force high accuracy dengan timeout lebih ketat
+    const options = {
+        enableHighAccuracy: true,    // ✅ PASTIKAN high accuracy
+        timeout: 10000,              // ✅ Timeout 10 detik
+        maximumAge: 0                // ✅ Jangan gunakan cache
+    };
+
+    // ✅ PERBAIKAN: Clear previous watch terlebih dahulu
+    if (this.watchId) {
+        navigator.geolocation.clearWatch(this.watchId);
+        this.watchId = null;
     }
 
+    this.watchId = navigator.geolocation.watchPosition(
+        (position) => {
+            const accuracy = position.coords.accuracy;
+            
+            // ✅ VALIDASI: Tolak data dengan akurasi terlalu rendah
+            if (accuracy > 100) {
+                console.warn(`❌ Akurasi GPS terlalu rendah: ${accuracy}m - data ditolak`);
+                this.addLog(`❌ Akurasi GPS ${accuracy}m terlalu rendah - coba outdoor`, 'warning');
+                return; // ❌ TOLAK DATA
+            }
+            
+            this.handleRealPositionUpdate(position);
+        },
+        (error) => this.handleGPSError(error),
+        options
+    );
+
+    this.isTracking = true;
+    this.addLog('📍 Real GPS tracking dengan high accuracy', 'success');
+}
     // ✅ PERBAIKAN KRITIS: Handle real position dengan menerima accuracy rendah
     handleRealPositionUpdate(position) {
         const accuracy = position.coords.accuracy;
@@ -568,24 +574,42 @@ class EnhancedDTGPSLogger {
     }
 
     // ✅ PERBAIKAN: Enhanced GPS Error Handling dengan auto-fallback
-    handleGPSError(error) {
-        this.gpsErrorCount++;
-        
-        let message = 'GPS Error: ';
-        switch(error.code) {
-            case error.PERMISSION_DENIED:
-                message += 'Izin GPS ditolak';
-                break;
-            case error.POSITION_UNAVAILABLE:
-                message += 'Posisi tidak tersedia';
-                break;
-            case error.TIMEOUT:
-                message += 'Timeout';
-                break;
-            default:
-                message += 'Error tidak diketahui';
-                break;
-        }
+   // ✅ CARI METHOD INI dan GANTI dengan kode baru:
+handleGPSError(error) {
+    this.gpsErrorCount++;
+    
+    let message = 'GPS Error: ';
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            message += 'Izin GPS ditolak - ';
+            message += '📱 BUKA SETTINGS → SITE SETTINGS → LOCATION → ALLOW';
+            // ✅ AUTO-SWITCH IMMEDIATE
+            this.addLog('🔄 Auto-switch ke Simulated GPS karena izin ditolak', 'warning');
+            this.switchToSimulatedMode();
+            return;
+            
+        case error.POSITION_UNAVAILABLE:
+            message += 'Posisi tidak tersedia - pastikan GPS device aktif';
+            break;
+            
+        case error.TIMEOUT:
+            message += 'Timeout - coba area dengan sinyal better';
+            break;
+            
+        default:
+            message += 'Error tidak diketahui';
+            break;
+    }
+    
+    // Auto-switch setelah 2 error (bukan 3)
+    if (this.gpsErrorCount >= 2 && this.gpsMode === 'real') {
+        this.addLog(`🔄 Auto-switch ke Simulated GPS setelah ${this.gpsErrorCount} error`, 'warning');
+        this.switchToSimulatedMode();
+        return;
+    }
+    
+    this.addLog(message, 'error');
+}
         
         // ✅ AUTO-SWITCH ke simulated setelah beberapa error berturut-turut
         if (this.gpsErrorCount >= this.maxGpsErrors && this.gpsMode === 'real') {
@@ -710,7 +734,54 @@ class EnhancedDTGPSLogger {
             this.updateChatUI();
         }
     }
+// ✅ TAMBAHKAN METHOD BARU INI di dalam class EnhancedDTGPSLogger:
 
+// ✅ METHOD BARU: Cek status GPS device
+async checkGPSCapabilities() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+            resolve({ supported: false, message: 'GPS tidak didukung' });
+            return;
+        }
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        };
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const accuracy = position.coords.accuracy;
+                resolve({
+                    supported: true,
+                    accuracy: accuracy,
+                    highAccuracy: accuracy < 50,
+                    message: `GPS aktif - Akurasi: ${accuracy}m`
+                });
+            },
+            (error) => {
+                resolve({
+                    supported: true,
+                    accuracy: null,
+                    highAccuracy: false,
+                    message: `GPS error: ${this.getGPSErrorMessage(error)}`
+                });
+            },
+            options
+        );
+    });
+}
+
+// ✅ METHOD BARU: Get GPS error message yang user-friendly
+getGPSErrorMessage(error) {
+    switch(error.code) {
+        case error.PERMISSION_DENIED: return 'IZIN DITOLAK - klik 🔒 di address bar';
+        case error.POSITION_UNAVAILABLE: return 'GPS DEVICE MATI - hidupkan GPS';
+        case error.TIMEOUT: return 'TIMEOUT - coba area terbuka';
+        default: return 'Unknown error';
+    }
+}
     sendChatMessage() {
         const input = document.getElementById('chatInput');
         if (input && input.value.trim()) {
@@ -921,24 +992,45 @@ class EnhancedDTGPSLogger {
         return 'SESS_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-    showDriverApp() {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('driverApp').style.display = 'block';
-        
-        document.getElementById('vehicleName').textContent = this.driverData.unit;
-        document.getElementById('driverDisplayName').textContent = this.driverData.name;
-        
-        this.sessionStartTime = new Date();
-        this.lastUpdateTime = new Date();
-        this.updateSessionDuration();
-        
-        // ✅ UPDATE WAYPOINT DISPLAY
-        this.updateWaypointDisplay();
-        
-        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
-        this.setupChatSystem();
-        
-        this.updateGPSModeIndicator();
+   // ✅ CARI METHOD INI dan GANTI dengan kode baru:
+async showDriverApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('driverApp').style.display = 'block';
+    
+    document.getElementById('vehicleName').textContent = this.driverData.unit;
+    document.getElementById('driverDisplayName').textContent = this.driverData.name;
+    
+    this.sessionStartTime = new Date();
+    this.lastUpdateTime = new Date();
+    this.updateSessionDuration();
+    
+    // ✅ UPDATE WAYPOINT DISPLAY
+    this.updateWaypointDisplay();
+    
+    // ✅ SETUP CHAT SYSTEM SETELAH LOGIN
+    this.setupChatSystem();
+    
+    this.updateGPSModeIndicator();
+    
+    // ✅ PERBAIKAN: Cek GPS capabilities dulu
+    const gpsCheck = await this.checkGPSCapabilities();
+    this.addLog(`📡 Status GPS: ${gpsCheck.message}`, 
+                gpsCheck.highAccuracy ? 'success' : 'warning');
+
+    // Delay startup GPS
+    setTimeout(() => {
+        if (this.gpsMode === 'simulated') {
+            this.startSimulatedGPS();
+        } else {
+            if (gpsCheck.supported && !gpsCheck.highAccuracy) {
+                this.addLog('⚠️ GPS device terdeteksi tapi akurasi rendah', 'warning');
+            }
+            this.startRealGPSTracking();
+        }
+    }, 1000);
+    
+    this.addLog(`✅ Login berhasil - ${this.driverData.name} (${this.driverData.unit}) - Mode: ${this.gpsMode.toUpperCase()}`, 'success');
+}
         
         // ✅ PERBAIKAN: Delay startup GPS untuk hindari conflict
         setTimeout(() => {
@@ -1771,3 +1863,4 @@ document.addEventListener('visibilitychange', function() {
         }
     }
 });
+
