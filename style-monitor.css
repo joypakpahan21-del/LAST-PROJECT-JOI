@@ -984,3 +984,109 @@ body {
         weight: 4px; /* Thinner on mobile */
     }
 }
+/* Tambahkan di bagian akhir file CSS */
+
+/* ✅ ENHANCED HISTORICAL ROUTE VISUALIZATION */
+.historical-route-line {
+    stroke-dasharray: 10, 10;
+    animation: historicalFlow 60s linear infinite;
+    opacity: 0.7;
+}
+
+.historical-route-line.valid {
+    opacity: 0.8;
+}
+
+.historical-route-line.invalid {
+    opacity: 0.3;
+}
+
+@keyframes historicalFlow {
+    0% {
+        stroke-dashoffset: 100;
+    }
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+/* Waypoint validation indicator */
+.waypoint-validation {
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 5px;
+}
+
+.waypoint-valid {
+    background-color: #28a745;
+    color: white;
+}
+
+.waypoint-invalid {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Enhanced historical popup */
+.historical-route-popup {
+    min-width: 280px;
+    max-width: 350px;
+    font-family: 'Times New Roman', Times, serif;
+}
+
+.historical-route-popup .popup-header {
+    background: linear-gradient(135deg, #6c757d, #495057);
+    color: white;
+    padding: 12px;
+    margin: -12px -12px 12px -12px;
+    border-radius: 6px 6px 0 0;
+}
+
+.historical-route-popup .popup-header h6 {
+    margin: 0;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.historical-route-popup .info-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.historical-route-popup .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.historical-route-popup .info-label {
+    font-weight: 500;
+    color: #495057;
+    font-size: 0.85rem;
+}
+
+.historical-route-popup .info-value {
+    font-weight: 600;
+    color: #212529;
+    font-size: 0.85rem;
+}
+
+/* Data quality indicators */
+.data-quality-good {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.data-quality-warning {
+    color: #ffc107;
+    font-weight: bold;
+}
+
+.data-quality-poor {
+    color: #dc3545;
+    font-weight: bold;
+}
+
