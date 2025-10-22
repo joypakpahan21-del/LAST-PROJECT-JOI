@@ -498,14 +498,14 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION
+// ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION - FIXED
 class CircularBuffer {
     constructor(capacity) {
-        this.capacity = capacity; // 61,200
+        this.capacity = capacity;
         this.buffer = new Array(capacity);
         this.head = 0;
         this.tail = 0;
-        this.count = 0;
+        this._count = 0; // Gunakan _count sebagai property internal
         this.isFull = false;
     }
 
@@ -516,15 +516,15 @@ class CircularBuffer {
         if (this.isFull) {
             this.head = (this.head + 1) % this.capacity;
         } else {
-            this.count++;
-            if (this.count === this.capacity) {
+            this._count++;
+            if (this._count === this.capacity) {
                 this.isFull = true;
             }
         }
     }
 
     getAll() {
-        if (this.count === 0) return [];
+        if (this._count === 0) return [];
         
         const result = [];
         if (this.isFull) {
@@ -533,7 +533,7 @@ class CircularBuffer {
                 result.push(this.buffer[index]);
             }
         } else {
-            for (let i = 0; i < this.count; i++) {
+            for (let i = 0; i < this._count; i++) {
                 result.push(this.buffer[i]);
             }
         }
@@ -547,13 +547,14 @@ class CircularBuffer {
     clear() {
         this.head = 0;
         this.tail = 0;
-        this.count = 0;
+        this._count = 0;
         this.isFull = false;
         this.buffer = new Array(this.capacity);
     }
 
+    // ✅ FIX: Getter untuk count
     get count() {
-        return this.isFull ? this.capacity : this.tail;
+        return this.isFull ? this.capacity : this._count;
     }
 }
 
