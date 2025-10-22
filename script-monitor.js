@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ==== FIX: DEFINE BASE CLASS FIRST ====
+// ==== MAIN GPS TRACKING SYSTEM ====
 class OptimizedSAGMGpsTracking {
     constructor() {
         console.log('🚀 Initializing Enhanced GPS Tracking System with Smooth Animation Chat...');
@@ -73,7 +73,7 @@ class OptimizedSAGMGpsTracking {
         this.routeControls = null;
         this.maxRoutePoints = 200;
         
-        // Data Logger System
+        // Data Logger System - FIXED
         this.dataLogger = {
             logs: [],
             maxLogs: 1000,
@@ -84,9 +84,7 @@ class OptimizedSAGMGpsTracking {
                 ERROR: 'error',
                 GPS: 'gps',
                 SYSTEM: 'system'
-            },
-            autoExport: false,
-            exportInterval: null
+            }
         };
         
         // Vehicle configuration
@@ -164,7 +162,7 @@ class OptimizedSAGMGpsTracking {
                 
                 if (connected) {
                     this.logData('Firebase connected', 'success');
-                    setTimeout(() => this.forceCleanupInactiveUnits(), 2000);
+                    setTimeout(() => this.loadInitialData(), 1000);
                 } else {
                     this.logData('Firebase disconnected', 'warning');
                     this.markAllUnitsOffline();
@@ -180,7 +178,6 @@ class OptimizedSAGMGpsTracking {
                             this.debouncedProcessRealTimeData(data);
                         } else {
                             console.log('⚠️ No data received from Firebase');
-                            this.forceCleanupInactiveUnits();
                         }
                     } catch (processError) {
                         console.error('❌ Error processing data:', processError);
@@ -229,7 +226,6 @@ class OptimizedSAGMGpsTracking {
     processRealTimeData(firebaseData) {
         if (!firebaseData) {
             this.logData('No real-time data from Firebase', 'warning');
-            this.forceCleanupInactiveUnits();
             return;
         }
 
@@ -267,7 +263,6 @@ class OptimizedSAGMGpsTracking {
                         lastActivity: currentTime
                     });
                     
-                    // Setup chat for new unit
                     if (!this.monitorChatRefs.has(unitName)) {
                         this.setupUnitChatListener(unitName);
                     }
@@ -280,11 +275,176 @@ class OptimizedSAGMGpsTracking {
         this.scheduleRender();
     }
 
-    // ✅ ENHANCED CHAT SYSTEM METHODS WITH SMOOTH ANIMATION
+    // ===== DATA LOGGER METHODS =====
+    setupDataLogger() {
+        this.loadLogs();
+        this.renderLogger();
+        
+        this.logData('Enhanced GPS Monitoring System with Smooth Animation Chat initialized', 'system', {
+            timestamp: new Date().toISOString(),
+            version: '4.0'
+        });
+    }
+
+    logData(message, level = 'info', metadata = {}) {
+        const logEntry = {
+            id: 'LOG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            dateDisplay: new Date().toLocaleDateString('id-ID'),
+            level: level,
+            message: message,
+            metadata: metadata
+        };
+
+        this.dataLogger.logs.unshift(logEntry);
+
+        if (this.dataLogger.logs.length > this.dataLogger.maxLogs) {
+            this.dataLogger.logs = this.dataLogger.logs.slice(0, this.dataLogger.maxLogs);
+        }
+
+        this.saveLogs();
+        this.renderLogger();
+        
+        console.log(`[${level.toUpperCase()}] ${message}`, metadata);
+    }
+
+    loadLogs() {
+        try {
+            const savedLogs = localStorage.getItem('sagm_data_logs');
+            if (savedLogs) {
+                this.dataLogger.logs = JSON.parse(savedLogs);
+            }
+        } catch (error) {
+            console.error('Failed to load logs:', error);
+            this.dataLogger.logs = [];
+        }
+    }
+
+    saveLogs() {
+        try {
+            localStorage.setItem('sagm_data_logs', JSON.stringify(this.dataLogger.logs));
+        } catch (error) {
+            console.error('Failed to save logs:', error);
+        }
+    }
+
+    renderLogger() {
+        const container = document.getElementById('dataLoggerContainer');
+        if (!container) return;
+
+        let html = `
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">📊 Data Logger System</h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.clearAllLogs()">
+                            🗑️ Clear
+                        </button>
+                        <button class="btn btn-outline-light" onclick="window.gpsSystem.exportLogData()">
+                            📥 Export
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th width="120">Waktu</th>
+                                    <th width="80">Level</th>
+                                    <th>Pesan</th>
+                                    <th width="100">Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        if (this.dataLogger.logs.length === 0) {
+            html += `
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">
+                        Tidak ada data log
+                    </td>
+                </tr>
+            `;
+        } else {
+            this.dataLogger.logs.forEach(log => {
+                const levelBadge = this.getLogLevelBadge(log.level);
+                const unitInfo = log.metadata.unit ? `<span class="badge bg-primary">${log.metadata.unit}</span>` : '';
+                
+                html += `
+                    <tr class="log-entry log-${log.level}">
+                        <td><small>${log.timeDisplay}</small></td>
+                        <td>${levelBadge}</td>
+                        <td>
+                            <div class="log-message">${log.message}</div>
+                            ${log.metadata.details ? `<small class="text-muted">${log.metadata.details}</small>` : ''}
+                        </td>
+                        <td>${unitInfo}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    getLogLevelBadge(level) {
+        const badges = {
+            'info': '<span class="badge bg-info">INFO</span>',
+            'success': '<span class="badge bg-success">SUCCESS</span>',
+            'warning': '<span class="badge bg-warning">WARNING</span>',
+            'error': '<span class="badge bg-danger">ERROR</span>',
+            'gps': '<span class="badge bg-primary">GPS</span>',
+            'system': '<span class="badge bg-secondary">SYSTEM</span>'
+        };
+        return badges[level] || '<span class="badge bg-dark">UNKNOWN</span>';
+    }
+
+    clearAllLogs() {
+        if (confirm('Yakin ingin menghapus semua logs?')) {
+            this.dataLogger.logs = [];
+            this.saveLogs();
+            this.renderLogger();
+            this.logData('All logs cleared', 'system');
+        }
+    }
+
+    exportLogData() {
+        const exportData = {
+            exportedAt: new Date().toISOString(),
+            totalLogs: this.dataLogger.logs.length,
+            system: 'SAGM GPS Tracking System',
+            logs: this.dataLogger.logs
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `sagm-logs-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        this.logData('Logs exported successfully', 'success', {
+            file: link.download,
+            totalLogs: this.dataLogger.logs.length
+        });
+    }
+
+    // ===== CHAT SYSTEM METHODS =====
     setupMonitorChatSystem() {
         console.log('💬 Initializing enhanced monitor chat system with smooth animation...');
         
-        // Listen for new chat units
         database.ref('/chat').on('child_added', (snapshot) => {
             const unitName = snapshot.key;
             console.log(`💬 New chat unit detected: ${unitName}`);
@@ -296,7 +456,6 @@ class OptimizedSAGMGpsTracking {
             this.cleanupUnitChatListener(unitName);
         });
 
-        // Listen for all units to populate chat list
         database.ref('/units').on('value', (snapshot) => {
             const unitsData = snapshot.val();
             if (unitsData) {
@@ -315,7 +474,6 @@ class OptimizedSAGMGpsTracking {
         this.logData('Sistem chat monitor dengan animasi smooth diaktifkan', 'system');
     }
 
-    // ✅ IMPROVED UNIT CHAT LISTENER
     setupUnitChatListener(unitName) {
         if (this.monitorChatRefs.has(unitName)) return;
         
@@ -326,16 +484,13 @@ class OptimizedSAGMGpsTracking {
         this.monitorChatMessages.set(unitName, []);
         this.monitorUnreadCounts.set(unitName, 0);
         
-        // Clear previous listeners
         chatRef.off();
         
-        // Listen for new messages
         chatRef.on('child_added', (snapshot) => {
             const message = snapshot.val();
             this.handleMonitorChatMessage(unitName, message);
         });
         
-        // Listen for typing indicators
         const typingRef = database.ref('/typing/' + unitName);
         typingRef.on('value', (snapshot) => {
             const typingData = snapshot.val();
@@ -346,7 +501,6 @@ class OptimizedSAGMGpsTracking {
         console.log(`💬 Now actively listening to chat for unit: ${unitName}`);
     }
 
-    // ✅ IMPROVED MESSAGE HANDLING
     handleMonitorChatMessage(unitName, message) {
         if (!message || message.type === 'monitor') return;
         
@@ -356,7 +510,6 @@ class OptimizedSAGMGpsTracking {
         
         const messages = this.monitorChatMessages.get(unitName);
         
-        // Prevent duplicates
         const messageExists = messages.some(msg => 
             msg.id === message.id || 
             (msg.timestamp === message.timestamp && msg.sender === message.sender)
@@ -366,7 +519,6 @@ class OptimizedSAGMGpsTracking {
         
         messages.push(message);
         
-        // Update unread count if not viewing this chat
         if (this.activeChatUnit !== unitName) {
             const currentCount = this.monitorUnreadCounts.get(unitName) || 0;
             this.monitorUnreadCounts.set(unitName, currentCount + 1);
@@ -375,7 +527,6 @@ class OptimizedSAGMGpsTracking {
         this.updateMonitorChatUI();
         this.updateMonitorChatUnitSelect();
         
-        // Show notification if not viewing this chat
         if (this.activeChatUnit !== unitName) {
             this.showMonitorChatNotification(unitName, message);
         }
@@ -383,7 +534,6 @@ class OptimizedSAGMGpsTracking {
         console.log(`💬 New message from ${unitName}:`, message);
     }
 
-    // ✅ ENHANCED TOGGLE CHAT METHOD WITH SMOOTH ANIMATION
     toggleMonitorChat() {
         this.isMonitorChatOpen = !this.isMonitorChatOpen;
         const chatWindow = document.getElementById('monitorChatWindow');
@@ -391,20 +541,13 @@ class OptimizedSAGMGpsTracking {
         
         if (chatWindow) {
             if (this.isMonitorChatOpen) {
-                // ✅ BUKA CHAT WINDOW DENGAN ANIMASI SMOOTH
                 chatWindow.style.display = 'flex';
-                
-                // Trigger reflow untuk memastikan animasi berjalan
                 void chatWindow.offsetWidth;
-                
-                // Apply animation
                 chatWindow.style.animation = 'slideInUp 0.3s ease-out forwards';
                 
-                // Update UI components
                 this.updateMonitorChatUnitSelect();
                 this.updateMonitorChatUI();
                 
-                // Auto-focus dengan delay untuk smooth experience
                 if (this.activeChatUnit) {
                     setTimeout(() => {
                         const chatInput = document.getElementById('monitorChatInput');
@@ -415,7 +558,6 @@ class OptimizedSAGMGpsTracking {
                     }, 350);
                 }
                 
-                // Update toggle button state
                 if (chatToggle) {
                     chatToggle.innerHTML = '💬 Tutup Chat <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
                     chatToggle.classList.add('btn-secondary');
@@ -423,24 +565,18 @@ class OptimizedSAGMGpsTracking {
                 }
                 
             } else {
-                // ✅ TUTUP CHAT WINDOW DENGAN ANIMASI SMOOTH
                 chatWindow.style.animation = 'slideOutDown 0.25s ease-in forwards';
-                
-                // Stop typing indicator immediately
                 this.stopMonitorTyping();
                 
-                // Update toggle button state
                 if (chatToggle) {
                     chatToggle.innerHTML = '💬 Chat dengan Driver <span id="monitorUnreadBadge" class="badge bg-danger" style="display: none;"></span>';
                     chatToggle.classList.add('btn-primary');
                     chatToggle.classList.remove('btn-secondary');
                 }
                 
-                // Hide after animation completes
                 setTimeout(() => {
                     if (!this.isMonitorChatOpen) {
                         chatWindow.style.display = 'none';
-                        // Reset animation for next open
                         chatWindow.style.animation = '';
                     }
                 }, 250);
@@ -448,13 +584,11 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ ENHANCED CHAT WINDOW BEHAVIOR WITH PROPER CLEANUP
     setupChatWindowBehavior() {
         const chatWindow = document.getElementById('monitorChatWindow');
         const chatToggle = document.getElementById('monitorChatToggle');
         
         if (chatWindow && chatToggle) {
-            // Store reference to bound functions for cleanup
             this.chatWindowClickHandler = (e) => e.stopPropagation();
             this.documentClickHandler = (e) => {
                 if (this.isMonitorChatOpen && 
@@ -469,14 +603,12 @@ class OptimizedSAGMGpsTracking {
                 }
             };
             
-            // Add event listeners
             chatWindow.addEventListener('click', this.chatWindowClickHandler);
             document.addEventListener('click', this.documentClickHandler);
             document.addEventListener('keydown', this.escapeKeyHandler);
         }
     }
 
-    // ✅ CLEANUP CHAT EVENT LISTENERS
     cleanupChatEventListeners() {
         const chatWindow = document.getElementById('monitorChatWindow');
         
@@ -493,7 +625,6 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ IMPROVED SEND MESSAGE METHOD
     async sendMonitorMessage() {
         const messageInput = document.getElementById('monitorChatInput');
         const messageText = messageInput?.value.trim();
@@ -522,7 +653,6 @@ class OptimizedSAGMGpsTracking {
             const chatRef = this.monitorChatRefs.get(this.activeChatUnit);
             await chatRef.push(messageData);
             
-            // Add to local messages for instant feedback
             if (!this.monitorChatMessages.has(this.activeChatUnit)) {
                 this.monitorChatMessages.set(this.activeChatUnit, []);
             }
@@ -531,10 +661,7 @@ class OptimizedSAGMGpsTracking {
             this.updateMonitorChatUI();
             this.logData(`💬 Pesan ke ${this.activeChatUnit}: "${messageText}"`, 'info');
             
-            // Clear input
             if (messageInput) messageInput.value = '';
-            
-            // Stop typing indicator
             this.stopMonitorTyping();
             
         } catch (error) {
@@ -543,7 +670,6 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ TYPING INDICATOR METHODS FOR MONITOR
     startMonitorTyping() {
         if (!this.activeChatUnit) return;
         
@@ -593,7 +719,6 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ IMPROVED CHAT UI FOR MONITOR
     updateMonitorChatUI() {
         const messageList = document.getElementById('monitorChatMessages');
         const unreadBadge = document.getElementById('monitorUnreadBadge');
@@ -603,11 +728,9 @@ class OptimizedSAGMGpsTracking {
         
         if (!messageList) return;
         
-        // Calculate total unread count
         let totalUnread = 0;
         this.monitorUnreadCounts.forEach(count => totalUnread += count);
         
-        // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = totalUnread > 0 ? totalUnread : '';
             unreadBadge.style.display = totalUnread > 0 ? 'inline' : 'none';
@@ -615,12 +738,10 @@ class OptimizedSAGMGpsTracking {
         
         const hasActiveUnit = !!this.activeChatUnit;
         
-        // Update input and button states
         if (chatInput) chatInput.disabled = !hasActiveUnit;
         if (sendBtn) sendBtn.disabled = !hasActiveUnit;
         if (unitSelect) unitSelect.value = this.activeChatUnit || '';
         
-        // Update placeholder based on active unit
         if (messageList && !hasActiveUnit) {
             messageList.innerHTML = `
                 <div class="chat-placeholder text-center text-muted py-4">
@@ -630,7 +751,6 @@ class OptimizedSAGMGpsTracking {
             return;
         }
         
-        // Render messages for active unit
         const activeMessages = this.monitorChatMessages.get(this.activeChatUnit) || [];
         
         if (activeMessages.length === 0) {
@@ -644,11 +764,9 @@ class OptimizedSAGMGpsTracking {
         
         messageList.innerHTML = '';
         
-        // Group messages by date
         const groupedMessages = this.groupMonitorMessagesByDate(activeMessages);
         
         Object.keys(groupedMessages).forEach(date => {
-            // Add date separator
             if (Object.keys(groupedMessages).length > 1) {
                 const dateElement = document.createElement('div');
                 dateElement.className = 'chat-date-separator';
@@ -656,20 +774,17 @@ class OptimizedSAGMGpsTracking {
                 messageList.appendChild(dateElement);
             }
             
-            // Add messages for this date
             groupedMessages[date].forEach(message => {
                 const messageElement = this.createMonitorMessageElement(message);
                 messageList.appendChild(messageElement);
             });
         });
         
-        // Add typing indicator
         const typingIndicator = document.createElement('div');
         typingIndicator.id = 'monitorTypingIndicator';
         typingIndicator.style.display = 'none';
         messageList.appendChild(typingIndicator);
         
-        // Auto scroll to bottom with smooth behavior
         setTimeout(() => {
             messageList.scrollTo({
                 top: messageList.scrollHeight,
@@ -678,7 +793,6 @@ class OptimizedSAGMGpsTracking {
         }, 100);
     }
 
-    // ✅ GROUP MESSAGES FOR MONITOR
     groupMonitorMessagesByDate(messages) {
         const grouped = {};
         
@@ -698,7 +812,6 @@ class OptimizedSAGMGpsTracking {
             grouped[dateKey].push(message);
         });
         
-        // Sort messages within each date
         Object.keys(grouped).forEach(date => {
             grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         });
@@ -706,7 +819,6 @@ class OptimizedSAGMGpsTracking {
         return grouped;
     }
 
-    // ✅ CREATE MESSAGE ELEMENT FOR MONITOR
     createMonitorMessageElement(message) {
         const messageElement = document.createElement('div');
         const isMonitorMessage = message.type === 'monitor';
@@ -729,14 +841,12 @@ class OptimizedSAGMGpsTracking {
         return messageElement;
     }
 
-    // ✅ IMPROVED CHAT EVENT HANDLERS
     setupChatEventHandlers() {
         const chatInput = document.getElementById('monitorChatInput');
         const unitSelect = document.getElementById('monitorChatUnitSelect');
         
         let typingTimer;
         
-        // Chat input handlers
         if (chatInput) {
             chatInput.addEventListener('input', () => {
                 if (!this.activeChatUnit) return;
@@ -761,7 +871,6 @@ class OptimizedSAGMGpsTracking {
             });
         }
         
-        // Unit select handler
         if (unitSelect) {
             unitSelect.addEventListener('change', (e) => {
                 this.selectChatUnit(e.target.value);
@@ -769,16 +878,12 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ IMPROVED UNIT SELECTION
     selectChatUnit(unitName) {
         if (unitName === this.activeChatUnit) return;
         
-        // Stop typing for previous unit
         this.stopMonitorTyping();
-        
         this.activeChatUnit = unitName;
         
-        // Clear unread count for selected unit
         if (unitName && this.monitorUnreadCounts.has(unitName)) {
             this.monitorUnreadCounts.set(unitName, 0);
         }
@@ -786,7 +891,6 @@ class OptimizedSAGMGpsTracking {
         this.updateMonitorChatUI();
         this.updateMonitorChatUnitSelect();
         
-        // Focus on input dengan smooth transition
         const chatInput = document.getElementById('monitorChatInput');
         if (chatInput) {
             setTimeout(() => {
@@ -799,7 +903,6 @@ class OptimizedSAGMGpsTracking {
         this.logData(`Memulai chat dengan unit ${unitName}`, 'info');
     }
 
-    // ✅ IMPROVED UNIT SELECT UPDATE
     updateMonitorChatUnitSelect() {
         const unitSelect = document.getElementById('monitorChatUnitSelect');
         if (!unitSelect) return;
@@ -808,7 +911,6 @@ class OptimizedSAGMGpsTracking {
         
         unitSelect.innerHTML = '<option value="">Pilih Unit...</option>';
         
-        // Add all units that have chat capability
         const allUnits = new Set([
             ...this.monitorChatRefs.keys(),
             ...Array.from(this.units.keys())
@@ -823,7 +925,6 @@ class OptimizedSAGMGpsTracking {
             unitSelect.appendChild(option);
         });
         
-        // Restore selection if still valid
         if (currentValue && allUnits.has(currentValue)) {
             unitSelect.value = currentValue;
         } else if (this.activeChatUnit && allUnits.has(this.activeChatUnit)) {
@@ -831,14 +932,12 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ HANDLE CHAT INPUT
     handleMonitorChatInput(event) {
         if (event.key === 'Enter') {
             this.sendMonitorMessage();
         }
     }
 
-    // ✅ SHOW CHAT NOTIFICATION
     showMonitorChatNotification(unitName, message) {
         const notification = document.createElement('div');
         notification.className = 'chat-notification alert alert-warning';
@@ -871,7 +970,6 @@ class OptimizedSAGMGpsTracking {
         }, 5000);
     }
 
-    // ✅ CLEANUP UNIT CHAT LISTENER
     cleanupUnitChatListener(unitName) {
         if (this.monitorChatRefs.has(unitName)) {
             const chatRef = this.monitorChatRefs.get(unitName);
@@ -892,14 +990,13 @@ class OptimizedSAGMGpsTracking {
         }
     }
 
-    // ✅ ESCAPE HTML FOR SECURITY
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    // ===== EXISTING GPS TRACKING METHODS =====
+    // ===== UNIT DATA METHODS =====
     validateUnitData(unitName, unitData) {
         if (!unitData) return false;
         if (unitData.lat === undefined || unitData.lng === undefined) return false;
@@ -911,7 +1008,6 @@ class OptimizedSAGMGpsTracking {
 
     correctUnitData(unitName, unitData) {
         console.log(`🛠️ Correcting invalid data for ${unitName}`);
-        // Implementation for data correction
     }
 
     createNewUnit(unitName, firebaseData) {
@@ -1410,178 +1506,11 @@ class OptimizedSAGMGpsTracking {
         `;
     }
 
-    // ===== DATA LOGGER METHODS =====
-    setupDataLogger() {
-        this.loadLogs();
-        this.renderLogger();
-        this.startAutoExport();
-        
-        this.logData('Enhanced GPS Monitoring System with Smooth Animation Chat initialized', 'system', {
-            timestamp: new Date().toISOString(),
-            version: '4.0'
-        });
-    }
-
-    logData(message, level = 'info', metadata = {}) {
-        const logEntry = {
-            id: 'LOG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            dateDisplay: new Date().toLocaleDateString('id-ID'),
-            level: level,
-            message: message,
-            metadata: metadata
-        };
-
-        this.dataLogger.logs.unshift(logEntry);
-
-        if (this.dataLogger.logs.length > this.dataLogger.maxLogs) {
-            this.dataLogger.logs = this.dataLogger.logs.slice(0, this.dataLogger.maxLogs);
-        }
-
-        this.saveLogs();
-        this.renderLogger();
-        
-        console.log(`[${level.toUpperCase()}] ${message}`, metadata);
-    }
-
-    loadLogs() {
-        try {
-            const savedLogs = localStorage.getItem('sagm_data_logs');
-            if (savedLogs) {
-                this.dataLogger.logs = JSON.parse(savedLogs);
-            }
-        } catch (error) {
-            console.error('Failed to load logs:', error);
-            this.dataLogger.logs = [];
-        }
-    }
-
-    saveLogs() {
-        try {
-            localStorage.setItem('sagm_data_logs', JSON.stringify(this.dataLogger.logs));
-        } catch (error) {
-            console.error('Failed to save logs:', error);
-        }
-    }
-
-    renderLogger() {
-        const container = document.getElementById('dataLoggerContainer');
-        if (!container) return;
-
-        let html = `
-            <div class="card">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">📊 Data Logger System</h6>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-light" onclick="window.gpsSystem.clearAllLogs()">
-                            🗑️ Clear
-                        </button>
-                        <button class="btn btn-outline-light" onclick="window.gpsSystem.exportLogData()">
-                            📥 Export
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                        <table class="table table-sm table-striped mb-0">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th width="120">Waktu</th>
-                                    <th width="80">Level</th>
-                                    <th>Pesan</th>
-                                    <th width="100">Unit</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-        `;
-
-        if (this.dataLogger.logs.length === 0) {
-            html += `
-                <tr>
-                    <td colspan="4" class="text-center text-muted py-3">
-                        Tidak ada data log
-                    </td>
-                </tr>
-            `;
-        } else {
-            this.dataLogger.logs.forEach(log => {
-                const levelBadge = this.getLogLevelBadge(log.level);
-                const unitInfo = log.metadata.unit ? `<span class="badge bg-primary">${log.metadata.unit}</span>` : '';
-                
-                html += `
-                    <tr class="log-entry log-${log.level}">
-                        <td><small>${log.timeDisplay}</small></td>
-                        <td>${levelBadge}</td>
-                        <td>
-                            <div class="log-message">${log.message}</div>
-                            ${log.metadata.details ? `<small class="text-muted">${log.metadata.details}</small>` : ''}
-                        </td>
-                        <td>${unitInfo}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        html += `
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.innerHTML = html;
-    }
-
-    getLogLevelBadge(level) {
-        const badges = {
-            'info': '<span class="badge bg-info">INFO</span>',
-            'success': '<span class="badge bg-success">SUCCESS</span>',
-            'warning': '<span class="badge bg-warning">WARNING</span>',
-            'error': '<span class="badge bg-danger">ERROR</span>',
-            'gps': '<span class="badge bg-primary">GPS</span>',
-            'system': '<span class="badge bg-secondary">SYSTEM</span>'
-        };
-        return badges[level] || '<span class="badge bg-dark">UNKNOWN</span>';
-    }
-
-    clearAllLogs() {
-        if (confirm('Yakin ingin menghapus semua logs?')) {
-            this.dataLogger.logs = [];
-            this.saveLogs();
-            this.renderLogger();
-            this.logData('All logs cleared', 'system');
-        }
-    }
-
-    exportLogData() {
-        const exportData = {
-            exportedAt: new Date().toISOString(),
-            totalLogs: this.dataLogger.logs.length,
-            system: 'SAGM GPS Tracking System',
-            logs: this.dataLogger.logs
-        };
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `sagm-logs-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.logData('Logs exported successfully', 'success', {
-            file: link.download,
-            totalLogs: this.dataLogger.logs.length
-        });
-    }
-
     // ===== CLEANUP METHODS =====
     gradualCleanupInactiveUnits(activeUnits) {
         const now = Date.now();
-        const inactiveThreshold = 30000;
-        const removalThreshold = 60000;
+        const inactiveThreshold = 60000;
+        const removalThreshold = 120000;
 
         this.units.forEach((unit, unitName) => {
             if (!activeUnits.has(unitName)) {
@@ -1612,15 +1541,16 @@ class OptimizedSAGMGpsTracking {
     }
 
     forceCleanupInactiveUnits() {
-        console.log('🧹 FORCE CLEANUP: Removing all inactive units');
+        console.log('🧹 FORCE CLEANUP: Removing truly inactive units');
         
         const now = Date.now();
+        const removalThreshold = 120000;
         const unitsToRemove = [];
         
         this.units.forEach((unit, unitName) => {
             const timeSinceLastUpdate = now - (this.lastDataTimestamps.get(unitName) || 0);
             
-            if (timeSinceLastUpdate > 15000) {
+            if (timeSinceLastUpdate > removalThreshold) {
                 unitsToRemove.push(unitName);
             }
         });
@@ -1632,6 +1562,10 @@ class OptimizedSAGMGpsTracking {
             });
             this.removeUnitCompletely(unitName);
         });
+
+        if (unitsToRemove.length > 0) {
+            console.log(`🧹 Removed ${unitsToRemove.length} inactive units`);
+        }
 
         this.scheduleRender();
     }
@@ -1660,7 +1594,6 @@ class OptimizedSAGMGpsTracking {
         this.unitHistory.delete(unitName);
         this.routeColors.delete(unitName);
         
-        // Cleanup chat for this unit
         this.cleanupUnitChatListener(unitName);
         
         this.scheduleRender();
@@ -1733,10 +1666,10 @@ class OptimizedSAGMGpsTracking {
         if (statusElement) {
             if (connected) {
                 statusElement.innerHTML = '🟢 TERHUBUNG KE FIREBASE';
-                statusElement.className = 'text-success';
+                statusElement.className = 'connection-status connection-online';
             } else {
                 statusElement.innerHTML = '🔴 FIREBASE OFFLINE';
-                statusElement.className = 'text-danger';
+                statusElement.className = 'connection-status connection-offline';
             }
         }
     }
@@ -1804,7 +1737,7 @@ class OptimizedSAGMGpsTracking {
             this.forceCleanupInactiveUnits();
             this.cleanupOrphanedMarkers();
             this.lastCleanupTime = new Date();
-        }, 30000);
+        }, 60000);
         this.intervals.add(cleanupInterval);
 
         const healthInterval = setInterval(() => {
@@ -1814,18 +1747,18 @@ class OptimizedSAGMGpsTracking {
                 polylines: this.unitPolylines.size,
                 chatUnits: this.monitorChatRefs.size
             });
-        }, 60000);
+        }, 120000);
         this.intervals.add(healthInterval);
 
         const statusInterval = setInterval(() => {
             const now = Date.now();
             this.lastDataTimestamps.forEach((lastUpdate, unitName) => {
                 const timeDiff = now - lastUpdate;
-                if (timeDiff > 15000) {
+                if (timeDiff > 90000) {
                     this.markUnitOffline(unitName);
                 }
             });
-        }, 5000);
+        }, 30000);
         this.intervals.add(statusInterval);
     }
 
@@ -1860,9 +1793,8 @@ class OptimizedSAGMGpsTracking {
 
     // ===== SYSTEM METHODS =====
     refreshData() {
-        console.log('🔄 Manual refresh with cleanup');
+        console.log('🔄 Manual refresh initiated');
         this.logData('Manual refresh initiated', 'info');
-        this.forceCleanupInactiveUnits();
         this.loadInitialData();
     }
 
@@ -1885,7 +1817,6 @@ class OptimizedSAGMGpsTracking {
                             this.units.set(unitName, unit);
                             loadedCount++;
                             
-                            // Setup chat for this unit
                             if (!this.monitorChatRefs.has(unitName)) {
                                 this.setupUnitChatListener(unitName);
                             }
@@ -1924,7 +1855,6 @@ class OptimizedSAGMGpsTracking {
         this.inactiveUnitTracker.clear();
         this.routeColors.clear();
         
-        // Cleanup all chat listeners
         this.monitorChatRefs.forEach((ref, unitName) => {
             ref.off();
         });
@@ -1980,11 +1910,9 @@ class OptimizedSAGMGpsTracking {
             .then((snapshot) => {
                 const connected = snapshot.val();
                 console.log('📡 Firebase Connected:', connected);
-                alert(`Firebase Connection: ${connected ? 'CONNECTED ✅' : 'DISCONNECTED ❌'}`);
             })
             .catch((error) => {
                 console.error('❌ Firebase connection test failed:', error);
-                alert('Firebase Connection Test: FAILED ❌');
             });
     }
 
@@ -2082,40 +2010,27 @@ class OptimizedSAGMGpsTracking {
     cleanup() {
         console.log('🧹 Comprehensive system cleanup with chat support...');
         
-        // Cleanup chat event listeners
         this.cleanupChatEventListeners();
-        
-        // Cleanup Firebase listeners
         this.cleanupFirebaseListeners();
         
-        // Cleanup intervals
         this.intervals.forEach(interval => clearInterval(interval));
         this.intervals.clear();
         
-        // Cleanup debounce
         if (this.updateDebounce) {
             clearTimeout(this.updateDebounce);
         }
         
-        // Cleanup all chat Firebase listeners
         this.monitorChatRefs.forEach(ref => ref.off());
         this.monitorChatRefs.clear();
         
         database.ref('/chat').off('child_added');
         database.ref('/chat').off('child_removed');
         
-        // Clear all data
         this.clearAllData();
         
-        // Cleanup map
         if (this.map) {
             this.map.remove();
             this.map = null;
-        }
-        
-        // Cleanup data logger
-        if (this.dataLogger.exportInterval) {
-            clearInterval(this.dataLogger.exportInterval);
         }
         
         console.log('✅ System cleanup with chat support completed');
@@ -2128,9 +2043,9 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
         super();
         
         // Enhanced Waypoint Properties
-        this.unitWaypoints = new Map();        // unitId -> waypoints[]
-        this.historicalPolylines = new Map();  // unitId -> polyline  
-        this.waypointListeners = new Map();    // unitId -> firebase listeners
+        this.unitWaypoints = new Map();
+        this.historicalPolylines = new Map();  
+        this.waypointListeners = new Map();
         
         this.waypointConfig = {
             maxPointsPerPolyline: 61200,
@@ -2151,7 +2066,10 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
             const snapshot = await waypointsRef.once('value');
             const batchesData = snapshot.val();
             
-            if (!batchesData) return;
+            if (!batchesData) {
+                console.log(`📍 No historical waypoints found for: ${unitName}`);
+                return;
+            }
             
             const allWaypoints = [];
             Object.values(batchesData).forEach(batch => {
@@ -2159,6 +2077,11 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
                     allWaypoints.push(...batch.waypoints);
                 }
             });
+            
+            if (allWaypoints.length === 0) {
+                console.log(`📍 No waypoints data in batches for: ${unitName}`);
+                return;
+            }
             
             allWaypoints.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             this.unitWaypoints.set(unitName, allWaypoints);
@@ -2173,7 +2096,10 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
 
     // ✅ CREATE HISTORICAL POLYLINE
     createHistoricalPolyline(unitName, waypoints) {
-        if (waypoints.length < 2) return;
+        if (waypoints.length < 2) {
+            console.log(`📍 Not enough waypoints for polyline (${waypoints.length}) for ${unitName}`);
+            return;
+        }
         
         const routePoints = waypoints.map(wp => [wp.lat, wp.lng]);
         const routeColor = this.getHistoricalRouteColor(unitName);
@@ -2195,6 +2121,8 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
             
             historicalPolyline.bindPopup(this.createHistoricalRoutePopup(unitName, waypoints));
             this.historicalPolylines.set(unitName, historicalPolyline);
+            
+            console.log(`📍 Created historical polyline for ${unitName} with ${waypoints.length} points`);
             
         } catch (error) {
             console.error(`📍 Failed to create polyline for ${unitName}:`, error);
@@ -2248,7 +2176,7 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
 
     // ✅ CALCULATE DISTANCE BETWEEN TWO POINTS
     calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371; // Earth's radius in kilometers
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLng = (lng2 - lng1) * Math.PI / 180;
         const a = 
@@ -2262,7 +2190,7 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
     // ✅ HISTORICAL ROUTE COLOR
     getHistoricalRouteColor(unitName) {
         const baseColor = this.getRouteColor(unitName);
-        return this.lightenColor(baseColor, 20); // Make historical routes lighter
+        return this.lightenColor(baseColor, 20);
     }
 
     lightenColor(color, percent) {
@@ -2282,7 +2210,7 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
     // ✅ SETUP WAYPOINT BATCH LISTENER
     setupWaypointBatchListener(unitName) {
         if (this.waypointListeners.has(unitName)) {
-            return; // Listener already exists
+            return;
         }
         
         const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
@@ -2303,10 +2231,8 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
         const existingWaypoints = this.unitWaypoints.get(unitName) || [];
         const updatedWaypoints = [...existingWaypoints, ...newWaypoints];
         
-        // Sort by timestamp
         updatedWaypoints.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
-        // Limit to max points
         if (updatedWaypoints.length > this.waypointConfig.maxPointsPerPolyline) {
             updatedWaypoints.splice(0, updatedWaypoints.length - this.waypointConfig.maxPointsPerPolyline);
         }
@@ -2324,7 +2250,6 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
         if (this.historicalPolylines.has(unitName)) {
             try {
                 this.historicalPolylines.get(unitName).setLatLngs(routePoints);
-                // Update popup with new data
                 this.historicalPolylines.get(unitName).bindPopup(
                     this.createHistoricalRoutePopup(unitName, waypoints)
                 );
@@ -2339,43 +2264,43 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
         }
     }
 
-    // ===== INTEGRATION POINTS - MODIFIED EXISTING METHODS =====
-    
-    // ✅ OVERRIDE UNIT CREATION - Add waypoint loading
+    // ===== INTEGRATION POINTS =====
     createNewUnit(unitName, unitData) {
         const unit = super.createNewUnit(unitName, unitData);
         if (unit) {
-            // Load historical waypoints untuk unit ini
-            this.loadUnitHistoricalWaypoints(unitName);
-            // Setup real-time waypoint listener
+            setTimeout(() => {
+                this.loadUnitHistoricalWaypoints(unitName);
+            }, 1000);
             this.setupWaypointBatchListener(unitName);
         }
         return unit;
     }
     
-    // ✅ OVERRIDE UNIT REMOVAL - Cleanup waypoint data
     removeUnitCompletely(unitName) {
-        // Cleanup waypoint data
         this.unitWaypoints.delete(unitName);
         
-        // Cleanup historical polyline
         if (this.historicalPolylines.has(unitName)) {
-            this.map.removeLayer(this.historicalPolylines.get(unitName));
+            try {
+                this.map.removeLayer(this.historicalPolylines.get(unitName));
+            } catch (error) {
+                console.warn(`Error removing historical polyline for ${unitName}:`, error);
+            }
             this.historicalPolylines.delete(unitName);
         }
         
-        // Cleanup waypoint listener
         if (this.waypointListeners.has(unitName)) {
-            const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
-            waypointsRef.off('child_added', this.waypointListeners.get(unitName));
+            try {
+                const waypointsRef = database.ref(`/waypoints/${unitName}/batches`);
+                waypointsRef.off('child_added', this.waypointListeners.get(unitName));
+            } catch (error) {
+                console.warn(`Error cleaning up waypoint listener for ${unitName}:`, error);
+            }
             this.waypointListeners.delete(unitName);
         }
         
-        // Call parent cleanup
         super.removeUnitCompletely(unitName);
     }
     
-    // ✅ OVERRIDE POPUP CREATION - Add waypoint info
     createUnitPopup(unit) {
         const basePopup = super.createUnitPopup(unit);
         const waypoints = this.unitWaypoints.get(unit.name) || [];
@@ -2413,7 +2338,6 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
         };
 
         if (unitName) {
-            // Export single unit
             const waypoints = this.unitWaypoints.get(unitName) || [];
             exportData.waypoints[unitName] = {
                 unit: unitName,
@@ -2422,13 +2346,12 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
                 waypoints: waypoints
             };
         } else {
-            // Export all units
             this.unitWaypoints.forEach((waypoints, unitName) => {
                 exportData.waypoints[unitName] = {
                     unit: unitName,
                     totalWaypoints: waypoints.length,
                     routeDistance: this.calculateRouteDistance(waypoints),
-                    waypoints: waypoints.slice(-1000) // Last 1000 points for performance
+                    waypoints: waypoints.slice(-1000)
                 };
             });
         }
@@ -2478,7 +2401,7 @@ class EnhancedSAGMGpsTracking extends OptimizedSAGMGpsTracking {
             }
             
             this.logData(`Historical data cleared for ${unitName}`, 'info');
-            this.updateMapMarkers(); // Refresh markers to update popups
+            this.updateMapMarkers();
         }
     }
 }
@@ -2557,25 +2480,42 @@ function clearHistoricalData(unitName) {
     }
 }
 
-// Event listener dengan enhanced cleanup
+// Event listener
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DOM Content Loaded - Starting GPS System Initialization');
+    
     if (window.gpsSystem) {
+        console.log('🧹 Cleaning up existing GPS System instance');
         window.gpsSystem.cleanup();
     }
     
-    // Gunakan EnhancedSAGMGpsTracking sebagai sistem utama
-    gpsSystem = new EnhancedSAGMGpsTracking();
-    window.gpsSystem = gpsSystem;
+    try {
+        gpsSystem = new EnhancedSAGMGpsTracking();
+        window.gpsSystem = gpsSystem;
+        console.log('✅ Enhanced GPS System initialized successfully');
+    } catch (error) {
+        console.error('❌ Failed to initialize GPS System:', error);
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            <strong>System Error:</strong> Gagal memulai sistem GPS. Silakan refresh halaman.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(notification);
+    }
 });
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
     if (window.gpsSystem) {
+        console.log('🧹 Cleaning up GPS System before page unload');
         window.gpsSystem.cleanup();
     }
 });
 
 // Prevent multiple instances
 if (window.gpsSystem) {
+    console.log('🧹 Cleaning up duplicate GPS System instance');
     window.gpsSystem.cleanup();
 }
