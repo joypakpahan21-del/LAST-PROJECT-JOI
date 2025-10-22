@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-class EnhancedGPSLogger {
+class DTGPSLogger {
     constructor() {
         this.driverData = null;
         this.watchId = null;
@@ -35,30 +35,16 @@ class EnhancedGPSLogger {
         
         // Complete history tracking
         this.offlineHistory = [];
-        this.maxOfflinePoints = 2000;
+        this.maxOfflinePoints = 1000;
         this.isCollectingOfflineData = false;
         this.completeHistory = this.loadCompleteHistory();
         
-        // Enhanced waypoint management
-        this.waypoints = [];
-        this.maxWaypoints = 3600 * 17; // 3600 seconds × 17 hours
-        this.waypointInterval = null;
-        this.lastWaypointTime = null;
-        
-        // ✅ ENHANCED CHAT SYSTEM PROPERTIES - WHATSAPP STYLE
+        // ✅ CHAT SYSTEM PROPERTIES - SESUAI DENGAN HTML BARU
         this.chatRef = null;
-        this.typingRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
         this.isChatOpen = false;
         this.chatInitialized = false;
-        this.lastMessageId = null;
-        this.isTyping = false;
-        this.typingTimeout = null;
-        this.chatInputHandler = null;
-        
-        // Enhanced data logger
-        this.dataLogger = new EnhancedDataLogger();
         
         this.offlineQueue = new OfflineQueueManager();
         
@@ -71,9 +57,6 @@ class EnhancedGPSLogger {
         this.checkNetworkStatus();
         setInterval(() => this.updateTime(), 1000);
         setInterval(() => this.checkNetworkStatus(), 5000);
-        
-        // Load existing waypoints
-        this.loadWaypoints();
     }
 
     setupEventListeners() {
@@ -83,7 +66,7 @@ class EnhancedGPSLogger {
         });
     }
 
-    async handleLogin() {
+    handleLogin() {
         const driverName = document.getElementById('driverName').value;
         const unitNumber = document.getElementById('unitNumber').value;
 
@@ -92,13 +75,12 @@ class EnhancedGPSLogger {
                 name: driverName,
                 unit: unitNumber,
                 year: this.getVehicleYear(unitNumber),
-                sessionId: this.generateSessionId(),
-                loginTime: new Date().toISOString()
+                sessionId: this.generateSessionId()
             };
 
             this.firebaseRef = database.ref('/units/' + unitNumber);
             
-            // Enhanced data format
+            // ✅ ENHANCED: Clean data format sebelum kirim ke Firebase
             const cleanData = {
                 driver: driverName,
                 unit: unitNumber,
@@ -111,25 +93,18 @@ class EnhancedGPSLogger {
                 distance: 0,
                 fuel: 100,
                 accuracy: 0,
-                timestamp: new Date().toISOString(),
-                isOnline: true,
-                loginTime: this.driverData.loginTime
+                timestamp: new Date().toISOString()
             };
 
-            try {
-                await this.firebaseRef.set(cleanData);
-                this.showDriverApp();
-                this.startGPSTracking();
-                this.startDataTransmission();
-                this.startWaypointCollection();
-                
-                setTimeout(() => {
-                    this.startJourney();
-                }, 3000);
-            } catch (error) {
-                console.error('Login failed:', error);
-                alert('Gagal login. Periksa koneksi internet.');
-            }
+            this.firebaseRef.set(cleanData);
+
+            this.showDriverApp();
+            this.startGPSTracking();
+            this.startDataTransmission();
+            
+            setTimeout(() => {
+                this.startJourney();
+            }, 3000);
         } else {
             alert('Harap isi semua field!');
         }
@@ -162,286 +137,69 @@ class EnhancedGPSLogger {
         
         this.sessionStartTime = new Date();
         this.lastUpdateTime = new Date();
-        this.lastWaypointTime = new Date();
         this.updateSessionDuration();
         
-        // ✅ SETUP ENHANCED CHAT SYSTEM
+        // ✅ SETUP CHAT SYSTEM SETELAH LOGIN - SESUAI DENGAN HTML BARU
         this.setupChatSystem();
-        this.dataLogger.startLogging();
-        
-        this.addLog('Sistem enhanced GPS logger diaktifkan', 'success');
     }
 
-    // Enhanced Waypoint Management
-    startWaypointCollection() {
-        this.waypointInterval = setInterval(() => {
-            if (this.lastPosition && this.journeyStatus === 'started') {
-                this.collectWaypoint();
-            }
-        }, 1000); // Collect every second
-    }
-
-    collectWaypoint() {
-        const now = new Date();
-        const waypoint = {
-            lat: this.lastPosition.lat,
-            lng: this.lastPosition.lng,
-            speed: this.lastPosition.speed,
-            accuracy: this.lastPosition.accuracy,
-            bearing: this.lastPosition.bearing,
-            timestamp: now.toISOString(),
-            sessionId: this.driverData.sessionId,
-            unit: this.driverData.unit,
-            driver: this.driverData.name,
-            distance: this.totalDistance
-        };
-
-        this.waypoints.push(waypoint);
-        
-        // Maintain size limit
-        if (this.waypoints.length > this.maxWaypoints) {
-            this.waypoints.shift(); // Remove oldest waypoint
-        }
-
-        this.lastWaypointTime = now;
-        this.saveWaypoints();
-        
-        // Log waypoint collection periodically
-        if (this.waypoints.length % 60 === 0) { // Every minute
-            this.addLog(`📍 Waypoint collected: ${this.waypoints.length} points`, 'info');
-        }
-    }
-
-    saveWaypoints() {
-        try {
-            const waypointData = {
-                waypoints: this.waypoints,
-                metadata: {
-                    totalPoints: this.waypoints.length,
-                    lastUpdate: new Date().toISOString(),
-                    sessionId: this.driverData.sessionId,
-                    maxWaypoints: this.maxWaypoints
-                }
-            };
-            localStorage.setItem('gps_waypoints_' + this.driverData.unit, JSON.stringify(waypointData));
-        } catch (error) {
-            console.error('Error saving waypoints:', error);
-        }
-    }
-
-    loadWaypoints() {
-        try {
-            const saved = localStorage.getItem('gps_waypoints_' + (this.driverData?.unit || 'default'));
-            if (saved) {
-                const data = JSON.parse(saved);
-                this.waypoints = data.waypoints || [];
-                console.log(`📂 Loaded ${this.waypoints.length} waypoints`);
-            }
-        } catch (error) {
-            console.error('Error loading waypoints:', error);
-            this.waypoints = [];
-        }
-    }
-
-    exportWaypointData() {
-        if (this.waypoints.length === 0) {
-            alert('Tidak ada waypoint data untuk diexport');
-            return;
-        }
-
-        const exportData = {
-            exportedAt: new Date().toISOString(),
-            sessionId: this.driverData.sessionId,
-            unit: this.driverData.unit,
-            driver: this.driverData.name,
-            totalWaypoints: this.waypoints.length,
-            totalDistance: this.totalDistance,
-            waypoints: this.waypoints
-        };
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `waypoints-${this.driverData.unit}-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        this.addLog(`📤 Waypoint data exported: ${this.waypoints.length} points`, 'success');
-    }
-
-    // ✅ ENHANCED CHAT SYSTEM - WHATSAPP STYLE
+    // ✅ CHAT METHOD: Setup chat system - SESUAI DENGAN HTML BARU
     setupChatSystem() {
         if (!this.driverData) return;
         
-        console.log('💬 Setting up enhanced WhatsApp-style chat system for unit:', this.driverData.unit);
-        
         this.chatRef = database.ref('/chat/' + this.driverData.unit);
-        this.typingRef = database.ref('/typing/' + this.driverData.unit);
         
-        // Clear previous listeners
-        this.chatRef.off();
-        this.typingRef.off();
-        
-        // Listen for new messages
+        // Listen untuk pesan baru
         this.chatRef.on('child_added', (snapshot) => {
             const message = snapshot.val();
-            if (message && message.id !== this.lastMessageId) {
-                this.handleNewMessage(message);
-            }
-        });
-        
-        // Listen for typing indicators
-        this.typingRef.on('value', (snapshot) => {
-            const typingData = snapshot.val();
-            this.handleTypingIndicator(typingData);
+            this.handleNewMessage(message);
         });
         
         this.chatInitialized = true;
-        this.setupChatInputHandlers();
-        console.log('💬 Enhanced WhatsApp-style chat system activated');
-        this.addLog('Sistem chat WhatsApp-style enhanced aktif', 'success');
+        console.log('💬 Chat system activated for unit:', this.driverData.unit);
+        this.addLog('Sistem chat aktif - bisa komunikasi dengan monitor', 'success');
     }
 
-    // ✅ HANDLE NEW MESSAGE
+    // ✅ CHAT METHOD: Handle pesan baru
     handleNewMessage(message) {
-        if (!message || message.sender === this.driverData.name || message.type === 'driver') return;
-        
-        // Prevent duplicates
-        const messageExists = this.chatMessages.some(msg => 
-            msg.id === message.id || 
-            (msg.timestamp === message.timestamp && msg.sender === message.sender)
-        );
-        
-        if (messageExists) return;
+        if (!message || message.sender === this.driverData.name) return;
         
         this.chatMessages.push(message);
-        
-        // Update unread count if chat is closed
-        if (!this.isChatOpen) {
-            this.unreadCount++;
-        }
+        this.unreadCount++;
         
         this.updateChatUI();
         
-        // Show notification if chat is closed
         if (!this.isChatOpen) {
             this.showChatNotification(message);
         }
         
-        // Play notification sound
-        this.playNotificationSound();
-        
-        // Log chat activity
-        this.dataLogger.logChatActivity('message_received', {
-            from: message.sender,
-            message: message.text,
-            timestamp: message.timestamp
-        });
-        
-        console.log('💬 New message received:', message);
+        console.log('💬 New message:', message);
     }
 
-    // ✅ SEND MESSAGE
+    // ✅ CHAT METHOD: Kirim pesan
     async sendMessage(messageText) {
         if (!messageText.trim() || !this.chatRef || !this.driverData) return;
         
-        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        
         const messageData = {
-            id: messageId,
             text: messageText.trim(),
             sender: this.driverData.name,
             unit: this.driverData.unit,
             timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            }),
-            type: 'driver',
-            status: 'sent'
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            type: 'driver'
         };
         
         try {
             await this.chatRef.push(messageData);
-            this.lastMessageId = messageId;
-            
-            // Add to local messages for instant feedback
-            this.chatMessages.push(messageData);
-            this.updateChatUI();
-            
             this.addLog(`💬 Pesan terkirim: "${messageText}"`, 'info');
-            
-            // Log chat activity
-            this.dataLogger.logChatActivity('message_sent', {
-                to: 'monitor',
-                message: messageText,
-                timestamp: messageData.timestamp
-            });
-            
-            // Clear typing indicator
-            this.stopTyping();
             
         } catch (error) {
             console.error('Failed to send message:', error);
             this.addLog('❌ Gagal mengirim pesan', 'error');
-            
-            // Mark message as failed
-            messageData.status = 'failed';
-            this.chatMessages.push(messageData);
-            this.updateChatUI();
         }
     }
 
-    // ✅ TYPING INDICATOR METHODS
-    startTyping() {
-        if (!this.driverData || this.isTyping) return;
-        
-        this.typingRef.child('driver').set({
-            isTyping: true,
-            name: this.driverData.name,
-            timestamp: Date.now()
-        });
-        
-        this.isTyping = true;
-    }
-
-    stopTyping() {
-        if (!this.driverData || !this.isTyping) return;
-        
-        this.typingRef.child('driver').set({
-            isTyping: false,
-            name: this.driverData.name,
-            timestamp: Date.now()
-        });
-        
-        this.isTyping = false;
-    }
-
-    handleTypingIndicator(typingData) {
-        if (!typingData) return;
-        
-        const monitorTyping = typingData.monitor;
-        const typingIndicator = document.getElementById('typingIndicator');
-        
-        if (typingIndicator && monitorTyping && monitorTyping.isTyping) {
-            typingIndicator.style.display = 'block';
-            typingIndicator.innerHTML = `
-                <div class="typing-indicator">
-                    <span>Monitor sedang mengetik</span>
-                    <div class="typing-dots">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                    </div>
-                </div>
-            `;
-        } else if (typingIndicator) {
-            typingIndicator.style.display = 'none';
-        }
-    }
-
-    // ✅ UPDATE CHAT UI - WHATSAPP STYLE
+    // ✅ CHAT METHOD: Update chat UI - SESUAI DENGAN HTML BARU
     updateChatUI() {
         const messageList = document.getElementById('chatMessages');
         const unreadBadge = document.getElementById('unreadBadge');
@@ -452,7 +210,7 @@ class EnhancedGPSLogger {
         // Update unread badge
         if (unreadBadge) {
             unreadBadge.textContent = this.unreadCount > 0 ? this.unreadCount : '';
-            unreadBadge.style.display = this.unreadCount > 0 ? 'inline' : 'none';
+            unreadBadge.style.display = this.unreadCount > 0 ? 'block' : 'none';
         }
         
         // Update chat toggle button
@@ -474,166 +232,68 @@ class EnhancedGPSLogger {
             return;
         }
         
-        // Group messages by date
-        const groupedMessages = this.groupMessagesByDate(this.chatMessages);
-        
-        Object.keys(groupedMessages).forEach(date => {
-            // Add date separator
-            if (Object.keys(groupedMessages).length > 1) {
-                const dateElement = document.createElement('div');
-                dateElement.className = 'chat-date-separator';
-                dateElement.innerHTML = `<span>${date}</span>`;
-                messageList.appendChild(dateElement);
-            }
+        this.chatMessages.forEach(message => {
+            const messageElement = document.createElement('div');
+            messageElement.className = `chat-message ${message.sender === this.driverData.name ? 'message-sent' : 'message-received'}`;
             
-            // Add messages for this date
-            groupedMessages[date].forEach(message => {
-                const messageElement = this.createMessageElement(message);
-                messageList.appendChild(messageElement);
-            });
-        });
-        
-        // Add typing indicator
-        const typingIndicator = document.createElement('div');
-        typingIndicator.id = 'typingIndicator';
-        typingIndicator.style.display = 'none';
-        messageList.appendChild(typingIndicator);
-        
-        // Auto scroll to bottom with smooth behavior
-        setTimeout(() => {
-            messageList.scrollTo({
-                top: messageList.scrollHeight,
-                behavior: 'smooth'
-            });
-        }, 100);
-    }
-
-    groupMessagesByDate(messages) {
-        const grouped = {};
-        
-        messages.forEach(message => {
-            const messageDate = new Date(message.timestamp);
-            const dateKey = messageDate.toLocaleDateString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = [];
-            }
-            
-            grouped[dateKey].push(message);
-        });
-        
-        // Sort messages within each date
-        Object.keys(grouped).forEach(date => {
-            grouped[date].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        });
-        
-        return grouped;
-    }
-
-    createMessageElement(message) {
-        const messageElement = document.createElement('div');
-        const isSentMessage = message.sender === this.driverData.name;
-        
-        messageElement.className = `chat-message ${isSentMessage ? 'message-sent' : 'message-received'}`;
-        
-        messageElement.innerHTML = `
-            <div class="message-content ${message.status === 'failed' ? 'message-failed' : ''}">
-                ${!isSentMessage ? 
-                    `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
-                <div class="message-text">${this.escapeHtml(message.text)}</div>
-                <div class="message-footer">
-                    <span class="message-time">${message.timeDisplay}</span>
-                    ${isSentMessage ? 
-                        `<span class="message-status">${message.status === 'failed' ? '❌' : '✓'}</span>` : ''}
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    ${message.sender !== this.driverData.name ? 
+                      `<div class="message-sender">${this.escapeHtml(message.sender)}</div>` : ''}
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-time">${message.timeDisplay}</div>
                 </div>
-            </div>
-        `;
+            `;
+            
+            messageList.appendChild(messageElement);
+        });
         
-        return messageElement;
+        // Auto scroll to bottom
+        messageList.scrollTop = messageList.scrollHeight;
     }
 
-    // ✅ CHAT INPUT HANDLERS
-    setupChatInputHandlers() {
-        const chatInput = document.getElementById('chatInput');
-        if (!chatInput) return;
-        
-        let typingTimer;
-        
-        // Store the handler for cleanup
-        this.chatInputHandler = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.sendMessage(chatInput.value);
-                chatInput.value = '';
-                this.stopTyping();
-            } else {
-                // Start typing indicator on input
-                this.startTyping();
-                
-                // Clear previous timer
-                clearTimeout(typingTimer);
-                
-                // Set timer to stop typing indicator after 2 seconds of inactivity
-                typingTimer = setTimeout(() => {
-                    this.stopTyping();
-                }, 2000);
-            }
-        };
-        
-        chatInput.addEventListener('keypress', this.chatInputHandler);
-        chatInput.addEventListener('blur', () => this.stopTyping());
-    }
-
-    // ✅ TOGGLE CHAT WINDOW
+    // ✅ CHAT METHOD: Toggle chat window - SESUAI DENGAN HTML BARU
     toggleChat() {
         this.isChatOpen = !this.isChatOpen;
         const chatWindow = document.getElementById('chatWindow');
-        const chatToggle = document.getElementById('chatToggle');
         
         if (chatWindow) {
+            chatWindow.style.display = this.isChatOpen ? 'block' : 'none';
+            
             if (this.isChatOpen) {
-                chatWindow.style.display = 'block';
                 this.unreadCount = 0;
                 this.updateChatUI();
-                
-                // Focus input field with smooth transition
+                // Focus input field
                 setTimeout(() => {
                     const chatInput = document.getElementById('chatInput');
                     if (chatInput) chatInput.focus();
-                }, 300);
-                
-                // Update toggle button
-                if (chatToggle) {
-                    chatToggle.innerHTML = '💬 Tutup Chat';
-                }
-            } else {
-                chatWindow.style.display = 'none';
-                this.stopTyping();
-                
-                // Update toggle button
-                if (chatToggle) {
-                    chatToggle.innerHTML = '💬 Chat';
-                }
+                }, 100);
             }
         }
     }
 
-    // ✅ NOTIFICATION SYSTEM
+    // ✅ CHAT METHOD: Handle chat input - SESUAI DENGAN HTML BARU
+    handleChatInput(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const input = document.getElementById('chatInput');
+            if (input && input.value.trim()) {
+                this.sendMessage(input.value);
+                input.value = '';
+            }
+        }
+    }
+
+    // ✅ CHAT METHOD: Show notification
     showChatNotification(message) {
-        if (!message || !message.sender) return;
-        
+        // Buat notification element
         const notification = document.createElement('div');
-        notification.className = 'alert alert-info chat-notification';
+        notification.className = 'chat-notification alert alert-info';
         notification.innerHTML = `
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <strong>💬 Pesan Baru dari ${this.escapeHtml(message.sender)}</strong>
-                    <div class="small mt-1">${this.escapeHtml(message.text)}</div>
+                    <strong>💬 Pesan Baru dari ${message.sender}</strong>
+                    <div class="small">${message.text}</div>
                 </div>
                 <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
             </div>
@@ -651,6 +311,7 @@ class EnhancedGPSLogger {
         
         document.body.appendChild(notification);
         
+        // Auto remove setelah 5 detik
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -658,36 +319,13 @@ class EnhancedGPSLogger {
         }, 5000);
     }
 
-    playNotificationSound() {
-        try {
-            // Create a simple notification sound using Web Audio API
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.2);
-        } catch (error) {
-            console.log('Notification sound not supported');
-        }
-    }
-
+    // ✅ CHAT METHOD: Escape HTML untuk keamanan
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    // GPS TRACKING METHODS
     startGPSTracking() {
         if (!navigator.geolocation) {
             this.addLog('GPS tidak didukung di browser ini', 'error');
@@ -709,7 +347,6 @@ class EnhancedGPSLogger {
         );
 
         this.addLog('GPS tracking aktif - real-time ke Firebase', 'success');
-        this.dataLogger.logSystemActivity('gps_tracking_started');
     }
 
     startDataTransmission() {
@@ -720,7 +357,7 @@ class EnhancedGPSLogger {
         }, 2000);
     }
 
-    // Save all points to localStorage with 2000 points capacity
+    // Simpan semua titik ke localStorage
     saveToCompleteHistory(positionData) {
         if (!this.driverData) return;
         
@@ -732,18 +369,25 @@ class EnhancedGPSLogger {
             saveTimestamp: new Date().toISOString()
         };
         
+        // Load existing history
         let history = this.loadCompleteHistory();
+        
+        // Add new point
         history.push(historyPoint);
         
-        // Maintain size limit - increased to 2000 points
+        // Maintain size limit
         if (history.length > this.maxOfflinePoints) {
             history = history.slice(-this.maxOfflinePoints);
         }
         
+        // Save back to storage
         localStorage.setItem('gps_complete_history', JSON.stringify(history));
         this.completeHistory = history;
+        
+        console.log(`💾 Saved to history: ${history.length} points`);
     }
 
+    // Load history dari localStorage
     loadCompleteHistory() {
         try {
             const saved = localStorage.getItem('gps_complete_history');
@@ -754,6 +398,7 @@ class EnhancedGPSLogger {
         }
     }
 
+    // Enhanced position update dengan perhitungan jarak yang akurat
     handlePositionUpdate(position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
@@ -762,13 +407,13 @@ class EnhancedGPSLogger {
         const bearing = position.coords.heading;
         const timestamp = new Date();
         
-        // Validate coordinates
+        // ✅ ENHANCED: Validate and clean GPS data
         if (!this.isValidCoordinate(lat, lng)) {
             console.warn('Invalid GPS coordinates received:', { lat, lng });
             return;
         }
 
-        // Save to complete history
+        // Simpan ke complete history (SELALU)
         this.saveToCompleteHistory({
             lat: lat,
             lng: lng,
@@ -786,10 +431,10 @@ class EnhancedGPSLogger {
         document.getElementById('gpsAccuracy').textContent = accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = bearing ? bearing.toFixed(0) + '°' : '-';
 
-        // Calculate distance
+        // Hitung jarak berdasarkan kecepatan dan waktu
         this.calculateDistanceWithSpeed(speed, timestamp);
 
-        // Save latest position
+        // Simpan data terbaru
         this.lastPosition = { 
             lat, 
             lng, 
@@ -802,22 +447,19 @@ class EnhancedGPSLogger {
 
         this.dataPoints++;
         document.getElementById('dataPoints').textContent = this.dataPoints;
-        this.updateAverageSpeed();
 
-        // Log GPS data
-        this.dataLogger.logGPSData({
-            lat, lng, speed, accuracy, bearing,
-            distance: this.totalDistance,
-            timestamp: timestamp.toISOString()
-        });
+        // Update average speed
+        this.updateAverageSpeed();
     }
 
+    // ✅ NEW: Validate GPS coordinates
     isValidCoordinate(lat, lng) {
         // Check for reasonable coordinates (Kebun Tempuling area)
         if (lat < -1 || lat > 1 || lng < 102.5 || lng > 103.5) {
             return false;
         }
         
+        // Check for NaN values
         if (isNaN(lat) || isNaN(lng)) {
             return false;
         }
@@ -825,17 +467,22 @@ class EnhancedGPSLogger {
         return true;
     }
 
+    // Enhanced distance calculation menggunakan rumus S = V × t
     calculateDistanceWithSpeed(currentSpeed, currentTime) {
         if (!this.lastUpdateTime) {
             this.lastUpdateTime = currentTime;
             return;
         }
 
+        // Hitung selisih waktu dalam jam
         const timeDiff = (currentTime - this.lastUpdateTime) / 1000 / 3600;
         
+        // Hanya hitung jika ada pergerakan (speed > 2 km/h untuk menghindari drift GPS)
         if (currentSpeed > 2 && this.journeyStatus === 'started') {
+            // Rumus: Jarak (km) = Kecepatan (km/jam) × Waktu (jam)
             const distanceIncrement = currentSpeed * timeDiff;
             
+            // Hanya tambahkan jika perhitungan valid
             if (distanceIncrement > 0 && distanceIncrement < 1) {
                 this.totalDistance += distanceIncrement;
                 document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
@@ -854,6 +501,19 @@ class EnhancedGPSLogger {
         this.currentSpeed = currentSpeed;
     }
 
+    // Alternatif: Perhitungan jarak menggunakan koordinat GPS
+    calculateDistanceWithCoordinates(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
     updateAverageSpeed() {
         if (this.dataPoints > 0 && this.sessionStartTime) {
             const duration = (new Date() - this.sessionStartTime) / 3600000;
@@ -866,6 +526,7 @@ class EnhancedGPSLogger {
         if (!this.firebaseRef || !this.lastPosition) return;
 
         try {
+            // ✅ ENHANCED: Clean and validate data before sending
             const gpsData = {
                 driver: this.driverData.name,
                 unit: this.driverData.unit,
@@ -881,10 +542,10 @@ class EnhancedGPSLogger {
                 batteryLevel: this.getBatteryLevel(),
                 sessionId: this.driverData.sessionId,
                 isOfflineData: false,
-                fuel: this.calculateFuelLevel(),
-                waypointsCount: this.waypoints.length
+                fuel: this.calculateFuelLevel()
             };
 
+            // Validate data before sending
             if (!this.isValidCoordinate(gpsData.lat, gpsData.lng)) {
                 console.warn('Invalid coordinates, skipping Firebase update');
                 return;
@@ -906,14 +567,21 @@ class EnhancedGPSLogger {
             
         } catch (error) {
             console.error('Error sending to Firebase:', error);
-            this.addLog(`❌ Gagal kirim data ke Firebase`, 'error');
+            
+            if (this.isOnline) {
+                this.offlineQueue.addToQueue(gpsData);
+                this.addLog(`❌ Gagal kirim, disimpan offline`, 'error');
+            } else {
+                this.addLog(`❌ Offline - data dalam antrian`, 'warning');
+            }
             this.updateConnectionStatus(false);
         }
     }
 
+    // ✅ NEW: Calculate fuel level based on distance
     calculateFuelLevel() {
         const baseFuel = 100;
-        const fuelConsumptionRate = 0.25;
+        const fuelConsumptionRate = 0.25; // liters per km
         const fuelUsed = this.totalDistance * fuelConsumptionRate;
         const remainingFuel = Math.max(0, baseFuel - fuelUsed);
         return Math.min(100, Math.max(0, Math.round(remainingFuel)));
@@ -931,11 +599,12 @@ class EnhancedGPSLogger {
             if (this.isOnline) {
                 this.addLog('📱 Koneksi pulih - sync semua data', 'success');
                 this.updateConnectionStatus(true);
+                
+                // Sync bertahap
                 this.offlineQueue.processQueue();
                 
                 setTimeout(() => {
                     this.syncCompleteHistory();
-                    this.syncWaypointsToFirebase();
                 }, 3000);
                 
             } else {
@@ -984,7 +653,6 @@ class EnhancedGPSLogger {
                 break;
         }
         this.addLog(message, 'error');
-        this.dataLogger.logSystemActivity('gps_error', { error: message });
     }
 
     addLog(message, type = 'info') {
@@ -1035,7 +703,6 @@ class EnhancedGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'ON TRIP';
         document.getElementById('vehicleStatus').className = 'bg-success text-white rounded px-2 py-1';
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
-        this.dataLogger.logSystemActivity('journey_started');
         
         this.sendToFirebase();
     }
@@ -1045,7 +712,6 @@ class EnhancedGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'PAUSED';
         document.getElementById('vehicleStatus').className = 'bg-warning text-dark rounded px-2 py-1';
         this.addLog('Perjalanan dijeda', 'warning');
-        this.dataLogger.logSystemActivity('journey_paused');
         
         this.sendToFirebase();
     }
@@ -1055,11 +721,9 @@ class EnhancedGPSLogger {
         document.getElementById('vehicleStatus').textContent = 'COMPLETED';
         document.getElementById('vehicleStatus').className = 'bg-info text-white rounded px-2 py-1';
         this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
-        this.dataLogger.logSystemActivity('journey_ended', { totalDistance: this.totalDistance });
         
         this.sendToFirebase();
         this.syncCompleteHistory();
-        this.syncWaypointsToFirebase();
     }
 
     stopTracking() {
@@ -1069,38 +733,21 @@ class EnhancedGPSLogger {
         if (this.sendInterval) {
             clearInterval(this.sendInterval);
         }
-        if (this.waypointInterval) {
-            clearInterval(this.waypointInterval);
-        }
         if (this.firebaseRef) {
             this.firebaseRef.remove();
         }
         
         this.isTracking = false;
-        this.dataLogger.stopLogging();
     }
 
     logout() {
-        // Cleanup chat listeners
+        // Cleanup chat listener
         if (this.chatRef) {
             this.chatRef.off();
         }
-        if (this.typingRef) {
-            this.typingRef.off();
-        }
-        if (this.chatInputHandler) {
-            const chatInput = document.getElementById('chatInput');
-            if (chatInput) {
-                chatInput.removeEventListener('keypress', this.chatInputHandler);
-            }
-        }
-        
-        // Stop typing indicator
-        this.stopTyping();
         
         this.stopTracking();
         this.syncCompleteHistory();
-        this.syncWaypointsToFirebase();
         
         const sessionSummary = {
             driver: this.driverData.name,
@@ -1108,19 +755,16 @@ class EnhancedGPSLogger {
             duration: document.getElementById('sessionDuration').textContent,
             totalDistance: this.totalDistance.toFixed(3),
             dataPoints: this.dataPoints,
-            waypoints: this.waypoints.length,
             avgSpeed: document.getElementById('avgSpeed').textContent,
             sessionId: this.driverData.sessionId
         };
         
         console.log('Session Summary:', sessionSummary);
-        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km, Waypoints: ${this.waypoints.length}`, 'info');
-        this.dataLogger.logSystemActivity('session_ended', sessionSummary);
+        this.addLog(`Session ended - Total: ${this.totalDistance.toFixed(3)} km`, 'info');
         
         this.driverData = null;
         this.firebaseRef = null;
         this.chatRef = null;
-        this.typingRef = null;
         this.chatMessages = [];
         this.unreadCount = 0;
         this.isChatOpen = false;
@@ -1130,15 +774,14 @@ class EnhancedGPSLogger {
         document.getElementById('driverApp').style.display = 'none';
         document.getElementById('loginForm').reset();
         
-        // Reset all data
+        // Reset semua data
         this.totalDistance = 0;
         this.dataPoints = 0;
-        this.waypoints = [];
         this.lastPosition = null;
         this.lastUpdateTime = null;
     }
 
-    // Sync all history to Firebase
+    // Sync semua history ke Firebase
     async syncCompleteHistory() {
         if (!this.isOnline || !this.firebaseRef || !this.driverData) {
             console.log('❌ Cannot sync history: offline or no driver data');
@@ -1156,8 +799,10 @@ class EnhancedGPSLogger {
         }
         
         try {
+            // Kirim ke Firebase under history node
             const historyRef = database.ref('/history/' + this.driverData.unit + '/' + this.driverData.sessionId);
             
+            // Push semua data sebagai object
             const historyObject = {};
             sessionHistory.forEach((point, index) => {
                 historyObject['point_' + index] = {
@@ -1182,131 +827,6 @@ class EnhancedGPSLogger {
             console.error('History sync failed:', error);
             this.addLog(`❌ Gagal sync history: ${error.message}`, 'error');
         }
-    }
-
-    // Sync waypoints to Firebase
-    async syncWaypointsToFirebase() {
-        if (!this.isOnline || !this.driverData || this.waypoints.length === 0) {
-            return;
-        }
-
-        try {
-            const waypointsRef = database.ref('/waypoints/' + this.driverData.unit + '/' + this.driverData.sessionId);
-            
-            const waypointData = {
-                waypoints: this.waypoints,
-                metadata: {
-                    totalPoints: this.waypoints.length,
-                    totalDistance: this.totalDistance,
-                    sessionId: this.driverData.sessionId,
-                    unit: this.driverData.unit,
-                    driver: this.driverData.name,
-                    syncTime: new Date().toISOString()
-                }
-            };
-            
-            await waypointsRef.set(waypointData);
-            this.addLog(`📡 Waypoints synced: ${this.waypoints.length} points`, 'success');
-            
-        } catch (error) {
-            console.error('Waypoint sync failed:', error);
-            this.addLog(`❌ Gagal sync waypoints: ${error.message}`, 'error');
-        }
-    }
-}
-
-// Enhanced Data Logger Class
-class EnhancedDataLogger {
-    constructor() {
-        this.logs = [];
-        this.maxLogs = 1000;
-        this.loggingInterval = null;
-    }
-
-    startLogging() {
-        this.loggingInterval = setInterval(() => {
-            this.cleanupOldLogs();
-        }, 60000); // Cleanup every minute
-    }
-
-    stopLogging() {
-        if (this.loggingInterval) {
-            clearInterval(this.loggingInterval);
-        }
-    }
-
-    logSystemActivity(type, data = {}) {
-        const logEntry = {
-            type: 'system',
-            activity: type,
-            timestamp: new Date().toISOString(),
-            data: data
-        };
-        
-        this.logs.push(logEntry);
-        this.saveLogs();
-    }
-
-    logGPSData(gpsData) {
-        const logEntry = {
-            type: 'gps',
-            timestamp: new Date().toISOString(),
-            data: gpsData
-        };
-        
-        this.logs.push(logEntry);
-        
-        // Save logs periodically to avoid performance issues
-        if (this.logs.length % 10 === 0) {
-            this.saveLogs();
-        }
-    }
-
-    logChatActivity(activity, data = {}) {
-        const logEntry = {
-            type: 'chat',
-            activity: activity,
-            timestamp: new Date().toISOString(),
-            data: data
-        };
-        
-        this.logs.push(logEntry);
-        this.saveLogs();
-    }
-
-    saveLogs() {
-        try {
-            // Maintain size limit
-            if (this.logs.length > this.maxLogs) {
-                this.logs = this.logs.slice(-this.maxLogs);
-            }
-            
-            localStorage.setItem('enhanced_data_logs', JSON.stringify(this.logs));
-        } catch (error) {
-            console.error('Error saving enhanced logs:', error);
-        }
-    }
-
-    cleanupOldLogs() {
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        this.logs = this.logs.filter(log => new Date(log.timestamp) > twentyFourHoursAgo);
-        this.saveLogs();
-    }
-
-    exportLogs() {
-        const exportData = {
-            exportedAt: new Date().toISOString(),
-            totalLogs: this.logs.length,
-            logs: this.logs
-        };
-
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `enhanced-logs-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
     }
 }
 
@@ -1399,17 +919,17 @@ class OfflineQueueManager {
         console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
         
         if (successItems.length > 0) {
-            window.enhancedLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
+            window.dtLogger?.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
         }
     }
 
     async sendQueuedData(queuedData) {
-        if (!window.enhancedLogger?.firebaseRef) {
+        if (!window.dtLogger?.firebaseRef) {
             throw new Error('No Firebase reference');
         }
 
         const { queueTimestamp, offlineId, ...cleanData } = queuedData;
-        await window.enhancedLogger.firebaseRef.set(cleanData);
+        await window.dtLogger.firebaseRef.set(cleanData);
     }
 
     startSyncMonitor() {
@@ -1430,45 +950,45 @@ class OfflineQueueManager {
     }
 }
 
-// ✅ GLOBAL FUNCTIONS UNTUK CHAT
+// ✅ GLOBAL FUNCTIONS UNTUK CHAT - SESUAI DENGAN HTML BARU
 function sendChatMessage() {
-    if (window.enhancedLogger) {
+    if (window.dtLogger) {
         const input = document.getElementById('chatInput');
         if (input && input.value.trim()) {
-            window.enhancedLogger.sendMessage(input.value);
+            window.dtLogger.sendMessage(input.value);
             input.value = '';
         }
     }
 }
 
 function toggleChat() {
-    if (window.enhancedLogger) {
-        window.enhancedLogger.toggleChat();
+    if (window.dtLogger) {
+        window.dtLogger.toggleChat();
     }
 }
 
 function handleChatInput(event) {
-    if (window.enhancedLogger) {
-        window.enhancedLogger.handleChatInput(event);
+    if (window.dtLogger) {
+        window.dtLogger.handleChatInput(event);
     }
 }
 
 // Global functions untuk button controls
 function startJourney() {
-    if (window.enhancedLogger) {
-        window.enhancedLogger.startJourney();
+    if (window.dtLogger) {
+        window.dtLogger.startJourney();
     }
 }
 
 function pauseJourney() {
-    if (window.enhancedLogger) {
-        window.enhancedLogger.pauseJourney();
+    if (window.dtLogger) {
+        window.dtLogger.pauseJourney();
     }
 }
 
 function endJourney() {
-    if (window.enhancedLogger) {
-        window.enhancedLogger.endJourney();
+    if (window.dtLogger) {
+        window.dtLogger.endJourney();
     }
 }
 
@@ -1482,43 +1002,31 @@ function reportIssue() {
     ];
     
     const issue = prompt('Lapor masalah:\n' + issues.join('\n'));
-    if (issue && window.enhancedLogger) {
-        window.enhancedLogger.addLog(`Laporan: ${issue}`, 'warning');
+    if (issue && window.dtLogger) {
+        window.dtLogger.addLog(`Laporan: ${issue}`, 'warning');
     }
 }
 
 function logout() {
-    if (window.enhancedLogger) {
+    if (window.dtLogger) {
         if (confirm('Yakin ingin logout?')) {
-            window.enhancedLogger.logout();
+            window.dtLogger.logout();
         }
-    }
-}
-
-function exportGPSData() {
-    if (window.enhancedLogger) {
-        window.enhancedLogger.exportWaypointData();
-    }
-}
-
-function exportSystemLogs() {
-    if (window.enhancedLogger && window.enhancedLogger.dataLogger) {
-        window.enhancedLogger.dataLogger.exportLogs();
     }
 }
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
-    window.enhancedLogger = new EnhancedGPSLogger();
+    window.dtLogger = new DTGPSLogger();
 });
 
 // Handle page visibility changes
 document.addEventListener('visibilitychange', function() {
-    if (window.enhancedLogger && window.enhancedLogger.driverData) {
+    if (window.dtLogger && window.dtLogger.driverData) {
         if (document.hidden) {
-            window.enhancedLogger.addLog('Aplikasi di background', 'warning');
+            window.dtLogger.addLog('Aplikasi di background', 'warning');
         } else {
-            window.enhancedLogger.addLog('Aplikasi aktif kembali', 'success');
+            window.dtLogger.addLog('Aplikasi aktif kembali', 'success');
         }
     }
 });
