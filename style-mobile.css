@@ -25,9 +25,9 @@ body {
 }
 
 .vehicle-info {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     color: white;
-    border-radius: 10px;
+    border-radius: 12px;
     margin: 10px;
 }
 
@@ -39,10 +39,11 @@ body {
 }
 
 .stats-card {
-    background: linear-gradient(135deg, #34495e, #2c3e50);
-    color: white;
+    background: white;
     border-radius: 10px;
     padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
     margin: 5px;
 }
 
@@ -69,310 +70,9 @@ body {
 .connecting { background: var(--warning); }
 
 .data-log {
-    max-height: 150px;
+    max-height: 200px;
     overflow-y: auto;
     font-size: 0.8rem;
-}
-
-.speed-gauge {
-    font-size: 2rem;
-    font-weight: bold;
-    color: var(--secondary);
-}
-
-.distance-counter {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: var(--success);
-}
-
-.control-btn {
-    border-radius: 10px;
-    padding: 12px;
-    font-weight: bold;
-    margin: 5px;
-}
-
-/* Mobile optimizations */
-@media (max-width: 768px) {
-    .stats-card {
-        padding: 10px;
-    }
-    
-    .speed-gauge {
-        font-size: 1.5rem;
-    }
-    
-    .distance-counter {
-        font-size: 1.2rem;
-    }
-    
-    .btn-logout {
-        bottom: 10px;
-        right: 10px;
-        padding: 10px 15px;
-        font-size: 0.9rem;
-    }
-}
-
-/* ✅ ENHANCED CHAT STYLES */
-.chat-toggle-btn {
-    bottom: 90px;
-    right: 20px;
-    z-index: 1000;
-    border-radius: 25px;
-    padding: 10px 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    font-weight: bold;
-}
-
-.chat-window {
-    display: none;
-    position: fixed;
-    bottom: 90px;
-    right: 20px;
-    width: 350px;
-    height: 450px;
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    z-index: 1001;
-    flex-direction: column;
-}
-
-.chat-header {
-    background: linear-gradient(135deg, #2c3e50, #3498db);
-    color: white;
-    padding: 15px;
-    border-radius: 15px 15px 0 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.chat-header h6 {
-    margin: 0;
-    font-weight: bold;
-}
-
-.chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 15px;
-    background: #f8f9fa;
-}
-
-.chat-message {
-    margin-bottom: 15px;
-    display: flex;
-    animation: messageSlideIn 0.3s ease-out;
-}
-
-.message-sent {
-    justify-content: flex-end;
-}
-
-.message-received {
-    justify-content: flex-start;
-}
-
-.message-content {
-    max-width: 80%;
-    padding: 10px 15px;
-    border-radius: 15px;
-    position: relative;
-}
-
-.message-sent .message-content {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    color: white;
-    border-bottom-right-radius: 5px;
-}
-
-.message-received .message-content {
-    background: white;
-    color: #333;
-    border: 1px solid #e0e0e0;
-    border-bottom-left-radius: 5px;
-}
-
-.message-failed {
-    opacity: 0.7;
-    border: 1px solid #dc3545 !important;
-}
-
-.message-text {
-    margin-bottom: 5px;
-    word-wrap: break-word;
-}
-
-.message-sender {
-    font-size: 0.7em;
-    font-weight: bold;
-    margin-bottom: 3px;
-    color: #2c3e50;
-}
-
-.message-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 4px;
-    font-size: 0.7rem;
-}
-
-.message-time {
-    opacity: 0.8;
-}
-
-.message-status {
-    margin-left: 5px;
-    opacity: 0.7;
-}
-
-.chat-input-container {
-    padding: 15px;
-    border-top: 1px solid #e0e0e0;
-    background: white;
-    border-radius: 0 0 15px 15px;
-}
-
-.chat-placeholder {
-    color: #6c757d;
-    font-style: italic;
-}
-
-.chat-notification {
-    animation: slideInRight 0.3s ease-out;
-}
-
-/* Date Separator */
-.chat-date-separator {
-    text-align: center;
-    margin: 15px 0;
-    position: relative;
-}
-
-.chat-date-separator span {
-    background: #f8f9fa;
-    padding: 5px 15px;
-    border-radius: 15px;
-    font-size: 0.75rem;
-    color: #6c757d;
-    border: 1px solid #e9ecef;
-}
-
-/* Typing Indicator */
-.typing-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 15px;
-    font-size: 0.8rem;
-    color: #6c757d;
-    font-style: italic;
-}
-
-.typing-dots {
-    display: flex;
-    gap: 3px;
-}
-
-.typing-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: #6c757d;
-    animation: typingAnimation 1.4s infinite ease-in-out;
-}
-
-.typing-dot:nth-child(1) { animation-delay: -0.32s; }
-.typing-dot:nth-child(2) { animation-delay: -0.16s; }
-
-/* Animations */
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes messageSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes typingAnimation {
-    0%, 80%, 100% { 
-        transform: scale(0);
-        opacity: 0.5;
-    }
-    40% { 
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-/* Mobile optimization untuk chat */
-@media (max-width: 768px) {
-    .chat-window {
-        width: 300px;
-        height: 400px;
-        right: 10px;
-        bottom: 80px;
-    }
-    
-    .chat-toggle-btn {
-        bottom: 80px;
-        right: 10px;
-        padding: 8px 16px;
-        font-size: 0.9rem;
-    }
-    
-    .message-content {
-        max-width: 85%;
-    }
-    
-    .chat-messages {
-        padding: 10px;
-    }
-}
-
-/* ✅ PERBAIKAN: Enhanced Waypoint Datalogger Styles */
-.waypoint-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-}
-
-.waypoint-stats {
-    font-size: 1.1rem;
-    font-weight: bold;
-}
-
-.waypoint-status {
-    font-size: 0.85rem;
-    opacity: 0.9;
-}
-
-.stats-card {
-    background: white;
-    border-radius: 10px;
-    padding: 15px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border: 1px solid #e9ecef;
 }
 
 .speed-gauge {
@@ -387,6 +87,32 @@ body {
     font-weight: bold;
     color: #0d6efd;
     line-height: 1;
+}
+
+.control-btn {
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: bold;
+    margin: 5px;
+}
+
+/* Enhanced Waypoint Datalogger Styles */
+.waypoint-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    margin: 10px;
+}
+
+.waypoint-stats {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.waypoint-status {
+    font-size: 0.85rem;
+    opacity: 0.9;
 }
 
 .connection-status {
@@ -532,6 +258,25 @@ body {
     color: #6c757d;
 }
 
+/* GPS Instructions */
+.gps-instructions {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.gps-status-indicator {
+    background: linear-gradient(135deg, #4ecdc4, #44a08d);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .chat-window {
@@ -551,6 +296,25 @@ body {
     .waypoint-stats {
         font-size: 1rem;
     }
+    
+    .stats-card {
+        padding: 10px;
+    }
+    
+    .speed-gauge {
+        font-size: 1.5rem;
+    }
+    
+    .distance-counter {
+        font-size: 1.2rem;
+    }
+    
+    .btn-logout {
+        bottom: 10px;
+        right: 10px;
+        padding: 10px 15px;
+        font-size: 0.9rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -566,12 +330,6 @@ body {
 }
 
 /* Additional Styles */
-.vehicle-info {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-    border-radius: 12px;
-}
-
 .control-btn {
     margin-bottom: 10px;
     padding: 12px;
@@ -583,19 +341,34 @@ body {
     overflow-y: auto;
 }
 
-.simulation-indicator {
-    background: linear-gradient(135deg, #ff6b6b, #ffa726);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    margin-left: 10px;
+/* Chat Notification */
+.chat-notification {
+    animation: slideInRight 0.3s ease-out;
 }
 
-.gps-mode-selector {
-    background: #f8f9fa;
-    border-radius: 10px;
-    padding: 10px;
-    margin: 10px 0;
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Message Animations */
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.chat-message {
+    animation: messageSlideIn 0.3s ease-out;
 }
