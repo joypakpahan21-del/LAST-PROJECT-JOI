@@ -235,6 +235,9 @@ class EnhancedStorageManager {
 // ✅ PERBAIKAN UTAMA: Enhanced Mobile GPS Logger dengan HAVERSINE FORMULA
 class EnhancedDTGPSLogger {
     constructor() {
+        // ✅ SOLUSI 1: FORCE GPS REAL MODE - UBAH DEFAULT KE REAL
+        this.gpsMode = 'real'; // ← UBAH DARI 'simulated' KE 'real'
+        
         // ✅ ENHANCED WAYPOINT CONFIG - 3600×17 = 61,200 waypoints
         this.waypointConfig = {
             collectionInterval: 1000, // 1 detik
@@ -284,12 +287,11 @@ class EnhancedDTGPSLogger {
         this.isChatOpen = false;
         this.chatInitialized = false;
         
-        // ✅ PERBAIKAN: GPS Mode Management dengan auto-fallback
-        this.gpsMode = 'simulated'; // Default ke simulated untuk hindari error awal
+        // ✅ PERBAIKAN: GPS Mode Management - default sudah 'real'
         this.simulatedInterval = null;
         this.simulationActive = false;
         this.gpsErrorCount = 0;
-        this.maxGpsErrors = 2; // Ubah dari 3 jadi 2
+        this.maxGpsErrors = 2;
         
         this.offlineQueue = new OfflineQueueManager();
         
@@ -361,7 +363,7 @@ class EnhancedDTGPSLogger {
         this.addLog(`🔄 Switched to ${this.gpsMode.toUpperCase()} GPS mode`, 'info');
     }
 
-    // ✅ PERBAIKAN: Auto-switch ke simulated mode ketika GPS error
+    // ✅ SOLUSI 2: DISABLE AUTO-SWITCH - COMMENT AUTO-SWITCH UNTUK TEST
     switchToSimulatedMode() {
         this.gpsMode = 'simulated';
         this.stopRealGPSTracking();
@@ -466,7 +468,7 @@ class EnhancedDTGPSLogger {
         this.generateSimulatedWaypoint();
     }
 
-    // ✅ SOLUSI 1: Force GPS High Accuracy
+    // ✅ SOLUSI 1: Force GPS High Accuracy - DENGAN DEFAULT REAL
     startRealGPSTracking() {
         if (!navigator.geolocation) {
             this.addLog('❌ GPS tidak didukung di browser ini', 'error');
@@ -489,13 +491,14 @@ class EnhancedDTGPSLogger {
 
         this.watchId = navigator.geolocation.watchPosition(
             (position) => {
+                // ✅ SOLUSI 3: TERIMA SEMUA ACCURACY - UBAH VALIDASI
                 const accuracy = position.coords.accuracy;
                 
-                // ✅ VALIDASI: Tolak data dengan akurasi terlalu rendah
-                if (accuracy > 100) {
-                    console.warn(`❌ Akurasi GPS terlalu rendah: ${accuracy}m - data ditolak`);
-                    this.addLog(`❌ Akurasi GPS ${accuracy}m terlalu rendah - coba outdoor`, 'warning');
-                    return; // ❌ TOLAK DATA
+                // ✅ PERBAIKAN: Terima data meski accuracy rendah untuk testing
+                if (accuracy > 1000) { // Ubah dari 100 ke 1000
+                    console.warn(`⚠️ Akurasi rendah: ${accuracy}m - tapi DITERIMA untuk testing`);
+                    this.addLog(`⚠️ Akurasi rendah (${accuracy}m) - testing mode`, 'warning');
+                    // TIDAK return, biarkan proses berlanjut
                 }
                 
                 this.handleRealPositionUpdate(position);
@@ -520,10 +523,11 @@ class EnhancedDTGPSLogger {
     handleRealPositionUpdate(position) {
         const accuracy = position.coords.accuracy;
         
-        // ✅ TERIMA DATA MESKI ACCURACY RENDAH TAPI BERI WARNING
-        if (accuracy > 100) {
-            console.warn(`⚠️ Akurasi GPS rendah: ${accuracy}m - data tetap diproses`);
-            this.addLog(`⚠️ Akurasi GPS rendah (${accuracy}m)`, 'warning');
+        // ✅ SOLUSI 3: TERIMA SEMUA ACCURACY - UBAH VALIDASI
+        if (accuracy > 1000) { // Ubah dari 100 ke 1000
+            console.warn(`⚠️ Akurasi GPS rendah: ${accuracy}m - tapi DITERIMA untuk testing`);
+            this.addLog(`⚠️ Akurasi GPS rendah (${accuracy}m) - data tetap diproses`, 'warning');
+            // TIDAK return, biarkan proses berlanjut
         }
 
         const currentPosition = {
@@ -561,7 +565,7 @@ class EnhancedDTGPSLogger {
         this.lastPosition = currentPosition;
     }
 
-    // ✅ SOLUSI 2: Enhanced GPS Error Handling
+    // ✅ SOLUSI 2: Enhanced GPS Error Handling - DISABLE AUTO-SWITCH
     handleGPSError(error) {
         this.gpsErrorCount++;
         
@@ -570,10 +574,9 @@ class EnhancedDTGPSLogger {
             case error.PERMISSION_DENIED:
                 message += 'Izin GPS ditolak - ';
                 message += '📱 BUKA SETTINGS → SITE SETTINGS → LOCATION → ALLOW';
-                // ✅ AUTO-SWITCH IMMEDIATE
-                this.addLog('🔄 Auto-switch ke Simulated GPS karena izin ditolak', 'warning');
-                this.switchToSimulatedMode();
-                return;
+                // ✅ SOLUSI 2: COMMENT AUTO-SWITCH UNTUK TEST
+                // this.switchToSimulatedMode();
+                break;
                 
             case error.POSITION_UNAVAILABLE:
                 message += 'Posisi tidak tersedia - pastikan GPS device aktif';
@@ -588,12 +591,13 @@ class EnhancedDTGPSLogger {
                 break;
         }
         
+        // ✅ SOLUSI 2: COMMENT AUTO-SWITCH UNTUK TEST
         // Auto-switch setelah 2 error (bukan 3)
-        if (this.gpsErrorCount >= 2 && this.gpsMode === 'real') {
-            this.addLog(`🔄 Auto-switch ke Simulated GPS setelah ${this.gpsErrorCount} error`, 'warning');
-            this.switchToSimulatedMode();
-            return;
-        }
+        // if (this.gpsErrorCount >= 2 && this.gpsMode === 'real') {
+        //     this.addLog(`🔄 Auto-switch ke Simulated GPS setelah ${this.gpsErrorCount} error`, 'warning');
+        //     this.switchToSimulatedMode();
+        //     return;
+        // }
         
         this.addLog(message, 'error');
     }
@@ -625,7 +629,7 @@ class EnhancedDTGPSLogger {
         }
 
         // ✅ FILTER BERDASARKAN AKURASI GPS
-        const maxAccuracy = 50; // Meter
+        const maxAccuracy = 1000; // Meter - DITINGKATKAN UNTUK TESTING
         if (currentPosition.accuracy > maxAccuracy) {
             console.warn(`🎯 Akurasi GPS ${currentPosition.accuracy}m terlalu rendah, skip perhitungan`);
             return 0;
@@ -1046,7 +1050,13 @@ class EnhancedDTGPSLogger {
                 sessionId: this.generateSessionId()
             };
 
-            this.gpsMode = this.getGPSMode();
+            // ✅ PASTIKAN DEFAULT REAL GPS TERPAKAI
+            const simulatedRadio = document.getElementById('simulatedGPS');
+            if (simulatedRadio && simulatedRadio.checked) {
+                this.gpsMode = 'simulated';
+            } else {
+                this.gpsMode = 'real'; // Default real GPS
+            }
 
             this.firebaseRef = database.ref('/units/' + unitNumber);
             
@@ -1099,7 +1109,7 @@ class EnhancedDTGPSLogger {
         return 'SESS_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-    // ✅ SOLUSI 4: Perbaiki showDriverApp dengan GPS Diagnostic
+    // ✅ PERBAIKAN: showDriverApp dengan GPS Diagnostic
     async showDriverApp() {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('driverApp').style.display = 'block';
