@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ✅ CIRCULAR BUFFER IMPLEMENTATION
+// ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION
 class CircularBuffer {
     constructor(capacity) {
         this.capacity = capacity;
@@ -262,8 +262,8 @@ class EnhancedStorageManager {
     }
 }
 
-// ✅ BACKGROUND TRACKING MANAGER
-class BackgroundTrackingManager {
+// ✅ ENHANCED BACKGROUND TRACKING MANAGER
+class EnhancedBackgroundTrackingManager {
     constructor(logger) {
         this.logger = logger;
         this.isActive = false;
@@ -272,13 +272,14 @@ class BackgroundTrackingManager {
         this.isInBackground = false;
         this.lastBackgroundPosition = null;
         this.backgroundUpdateCount = 0;
-        this.backgroundWaypoints = [];
+        this.consecutiveLowAccuracyCount = 0;
+        this.maxConsecutiveLowAccuracy = 3;
     }
 
     start() {
         if (this.isActive) return;
         
-        console.log('🔄 Starting background tracking service...');
+        console.log('🔄 Starting enhanced background tracking service...');
         this.isActive = true;
         
         this.setupVisibilityHandlers();
@@ -346,9 +347,61 @@ class BackgroundTrackingManager {
         this.lastBackgroundPosition = position;
         this.backgroundUpdateCount++;
         
+        // Enhanced accuracy validation for background
+        if (!this.isValidBackgroundPosition(position)) {
+            this.consecutiveLowAccuracyCount++;
+            
+            // If too many consecutive low accuracy positions, try to recover
+            if (this.consecutiveLowAccuracyCount >= this.maxConsecutiveLowAccuracy) {
+                console.log('🔄 Too many low accuracy positions, attempting recovery...');
+                this.restartBackgroundGPS();
+            }
+            return;
+        }
+        
+        // Reset counter on valid position
+        this.consecutiveLowAccuracyCount = 0;
+        
         if (!this.isInBackground || this.isSignificantMovement(position)) {
             this.processBackgroundPosition(position);
         }
+    }
+
+    // ✅ ENHANCED ACCURACY VALIDATION FOR BACKGROUND
+    isValidBackgroundPosition(position) {
+        const accuracy = position.coords.accuracy;
+        
+        // Strict accuracy requirements for background
+        if (accuracy > 100) { // Reduced from 200m to 100m
+            console.warn(`🎯 Background accuracy too low: ${accuracy}m`);
+            return false;
+        }
+        
+        if (!this.logger.isValidCoordinate(
+            position.coords.latitude, 
+            position.coords.longitude
+        )) {
+            console.warn('🎯 Invalid coordinates in background');
+            return false;
+        }
+        
+        return true;
+    }
+
+    restartBackgroundGPS() {
+        console.log('🔄 Restarting background GPS due to poor accuracy...');
+        
+        if (this.backgroundWatchId) {
+            navigator.geolocation.clearWatch(this.backgroundWatchId);
+            this.backgroundWatchId = null;
+        }
+        
+        this.consecutiveLowAccuracyCount = 0;
+        
+        // Restart after short delay
+        setTimeout(() => {
+            this.startBackgroundPositionWatch();
+        }, 2000);
     }
 
     isSignificantMovement(newPosition) {
@@ -381,8 +434,9 @@ class BackgroundTrackingManager {
 
         const accuracy = position.coords.accuracy;
         
-        // Lenient accuracy check for background
-        if (accuracy > 200) {
+        // Enhanced accuracy check for background
+        if (accuracy > 100) { // Reduced from 200m to 100m
+            console.log('🔄 Background position accuracy too low, skipping');
             return;
         }
 
@@ -515,12 +569,13 @@ class BackgroundTrackingManager {
         
         this.lastBackgroundPosition = null;
         this.backgroundUpdateCount = 0;
+        this.consecutiveLowAccuracyCount = 0;
         
         this.updateBackgroundIndicator(false);
     }
 }
 
-// ✅ OFFLINE QUEUE MANAGER
+// ✅ ENHANCED OFFLINE QUEUE MANAGER
 class OfflineQueueManager {
     constructor() {
         this.queue = [];
@@ -586,8 +641,8 @@ class OfflineQueueManager {
     }
 }
 
-// ✅ ENHANCED MOBILE GPS LOGGER WITH BACKGROUND SUPPORT
-class DTGPSLogger {
+// ✅ ENHANCED MOBILE GPS LOGGER WITH GPS RECOVERY SYSTEM
+class EnhancedDTGPSLogger {
     constructor() {
         this.waypointConfig = {
             collectionInterval: 1000,
@@ -616,10 +671,17 @@ class DTGPSLogger {
         this.currentSpeed = 0;
         this.speedHistory = [];
         
+        // ✅ GPS RECOVERY SYSTEM
+        this.gpsRecoveryAttempts = 0;
+        this.maxGpsRecoveryAttempts = 3;
+        this.consecutiveLowAccuracyCount = 0;
+        this.maxConsecutiveLowAccuracy = 5;
+        this.gpsAccuracyMonitorInterval = null;
+        
         this.completeHistory = this.loadCompleteHistory();
         
-        // ✅ BACKGROUND TRACKING SYSTEM
-        this.backgroundManager = new BackgroundTrackingManager(this);
+        // ✅ ENHANCED BACKGROUND TRACKING SYSTEM
+        this.backgroundManager = new EnhancedBackgroundTrackingManager(this);
         this.isInBackground = false;
         
         this.chatRef = null;
@@ -644,7 +706,113 @@ class DTGPSLogger {
         this.loadUnsyncedWaypoints();
         this.checkPersistedSession();
         
-        console.log('🚀 DT GPS Logger initialized - BACKGROUND TRACKING READY');
+        // ✅ START GPS ACCURACY MONITOR
+        this.startGPSAccuracyMonitor();
+        
+        console.log('🚀 Enhanced DT GPS Logger initialized - GPS RECOVERY SYSTEM ACTIVE');
+    }
+
+    // ✅ GPS ACCURACY MONITOR & RECOVERY SYSTEM
+    startGPSAccuracyMonitor() {
+        this.gpsAccuracyMonitorInterval = setInterval(() => {
+            this.monitorGPSAccuracy();
+        }, 30000); // Check every 30 seconds
+    }
+
+    monitorGPSAccuracy() {
+        if (!this.lastPosition || !this.isTracking) return;
+        
+        const accuracy = this.lastPosition.accuracy;
+        
+        // Track consecutive low accuracy readings
+        if (accuracy > 100) {
+            this.consecutiveLowAccuracyCount++;
+            console.warn(`📡 Low GPS accuracy detected: ${accuracy}m (${this.consecutiveLowAccuracyCount}/${this.maxConsecutiveLowAccuracy})`);
+            
+            // Show recovery status to user
+            this.showGPSRecoveryStatus();
+            
+            // Attempt recovery if too many consecutive low accuracy readings
+            if (this.consecutiveLowAccuracyCount >= this.maxConsecutiveLowAccuracy) {
+                this.attemptGPSRecovery();
+            }
+        } else {
+            // Reset counter on good accuracy
+            this.consecutiveLowAccuracyCount = 0;
+            this.hideGPSRecoveryStatus();
+        }
+        
+        // Update accuracy display
+        this.updateGPSAccuracyDisplay(accuracy);
+    }
+
+    showGPSRecoveryStatus() {
+        const recoveryElement = document.getElementById('gpsRecoveryStatus');
+        if (recoveryElement) {
+            recoveryElement.style.display = 'block';
+            recoveryElement.innerHTML = `
+                <strong>🔄 Meningkatkan Akurasi GPS...</strong><br>
+                <small>Akurasi saat ini: ${this.lastPosition.accuracy}m | 
+                Percobaan: ${this.consecutiveLowAccuracyCount}/${this.maxConsecutiveLowAccuracy}</small>
+            `;
+        }
+    }
+
+    hideGPSRecoveryStatus() {
+        const recoveryElement = document.getElementById('gpsRecoveryStatus');
+        if (recoveryElement) {
+            recoveryElement.style.display = 'none';
+        }
+    }
+
+    attemptGPSRecovery() {
+        if (this.gpsRecoveryAttempts >= this.maxGpsRecoveryAttempts) {
+            console.error('❌ Maximum GPS recovery attempts reached');
+            this.addLog('❌ GPS tidak dapat dipulihkan - restart aplikasi', 'error');
+            return;
+        }
+        
+        this.gpsRecoveryAttempts++;
+        console.log(`🔄 Attempting GPS recovery (${this.gpsRecoveryAttempts}/${this.maxGpsRecoveryAttempts})`);
+        
+        this.addLog(`🔄 Memulihkan GPS... (Percobaan ${this.gpsRecoveryAttempts})`, 'warning');
+        
+        // Restart GPS tracking
+        this.stopRealGPSTracking();
+        
+        // Clear recovery counter after delay
+        setTimeout(() => {
+            this.consecutiveLowAccuracyCount = 0;
+            this.startRealGPSTracking();
+        }, 3000);
+    }
+
+    updateGPSAccuracyDisplay(accuracy) {
+        const accuracyElement = document.getElementById('gpsAccuracyStatus');
+        if (!accuracyElement) return;
+        
+        let status = '';
+        let className = '';
+        
+        if (accuracy <= 10) {
+            status = 'Excellent';
+            className = 'gps-accuracy-excellent';
+        } else if (accuracy <= 25) {
+            status = 'Good';
+            className = 'gps-accuracy-good';
+        } else if (accuracy <= 50) {
+            status = 'Fair';
+            className = 'gps-accuracy-fair';
+        } else if (accuracy <= 100) {
+            status = 'Poor';
+            className = 'gps-accuracy-poor';
+        } else {
+            status = 'Bad';
+            className = 'gps-accuracy-bad';
+        }
+        
+        accuracyElement.textContent = `${accuracy}m (${status})`;
+        accuracyElement.className = `accuracy-indicator ${className}`;
     }
 
     // ✅ SESSION PERSISTENCE & RECOVERY
@@ -756,7 +924,7 @@ class DTGPSLogger {
         });
     }
 
-    // ✅ ENHANCED GPS ACCURACY HANDLING
+    // ✅ ENHANCED GPS ACCURACY HANDLING WITH STRICT VALIDATION
     startRealGPSTracking() {
         if (!navigator.geolocation) {
             this.addLog('❌ GPS tidak didukung di browser ini', 'error');
@@ -764,12 +932,40 @@ class DTGPSLogger {
             return;
         }
 
-        console.log('📍 Starting REAL GPS tracking...');
+        console.log('📍 Starting ENHANCED REAL GPS tracking...');
         
+        // First get high accuracy position for validation
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const accuracy = position.coords.accuracy;
+                
+                if (this.isValidGPSPosition(position)) {
+                    this.addLog(`✅ GPS Aktif - Akurasi: ${accuracy}m`, 'success');
+                    this.startContinuousGPSTracking();
+                } else {
+                    this.addLog(`❌ Akurasi GPS terlalu rendah: ${accuracy}m`, 'error');
+                    this.showGPSInstructions();
+                }
+            },
+            (error) => {
+                this.addLog('⚠️ GPS butuh izin - pastikan izin lokasi diaktifkan', 'warning');
+                this.handleGPSError(error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            }
+        );
+    }
+
+    // ✅ SEPARATE CONTINUOUS TRACKING
+    startContinuousGPSTracking() {
         const options = {
             enableHighAccuracy: true,
             timeout: 15000,
-            maximumAge: 0
+            maximumAge: 5000,
+            distanceFilter: 1
         };
 
         if (this.watchId) {
@@ -777,31 +973,54 @@ class DTGPSLogger {
         }
 
         this.watchId = navigator.geolocation.watchPosition(
-            (position) => this.handleRealPositionUpdate(position),
+            (position) => this.handleEnhancedPositionUpdate(position),
             (error) => this.handleGPSError(error),
             options
         );
 
         this.isTracking = true;
-        this.addLog('📍 GPS Real diaktifkan - Menunggu sinyal satelit...', 'success');
-        
-        // Request one-time position untuk testing
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const accuracy = pos.coords.accuracy;
-                this.addLog(`✅ GPS Aktif - Akurasi: ${accuracy}m`, 'success');
-            },
-            (err) => {
-                this.addLog('⚠️ GPS butuh izin - pastikan izin lokasi diaktifkan', 'warning');
-            }
-        );
+        this.gpsRecoveryAttempts = 0;
+        this.consecutiveLowAccuracyCount = 0;
     }
 
-    handleRealPositionUpdate(position) {
+    // ✅ ENHANCED GPS POSITION VALIDATION
+    isValidGPSPosition(position) {
+        const accuracy = position.coords.accuracy;
+        
+        // Strict accuracy validation - reject positions with very poor accuracy
+        if (accuracy > 1000) {
+            console.warn(`❌ GPS accuracy too poor: ${accuracy}m`);
+            return false;
+        }
+        
+        if (!this.isValidCoordinate(position.coords.latitude, position.coords.longitude)) {
+            console.warn('❌ Invalid coordinates');
+            return false;
+        }
+        
+        return true;
+    }
+
+    handleEnhancedPositionUpdate(position) {
+        // Enhanced accuracy validation with strict limits
+        if (!this.isValidGPSPosition(position)) {
+            console.warn('❌ Invalid GPS position, skipping waypoint');
+            this.consecutiveLowAccuracyCount++;
+            
+            // Show warning to user
+            if (this.consecutiveLowAccuracyCount === 1) {
+                this.addLog(`⚠️ Akurasi GPS rendah: ${position.coords.accuracy}m`, 'warning');
+            }
+            return;
+        }
+        
+        // Reset counter on valid position
+        this.consecutiveLowAccuracyCount = 0;
+
         const accuracy = position.coords.accuracy;
         
         // Enhanced accuracy validation
-        if (accuracy > 1000) {
+        if (accuracy > 500) {
             console.warn(`⚠️ Akurasi GPS rendah: ${accuracy}m`);
             this.addLog(`⚠️ Akurasi rendah (${accuracy}m) - cari area terbuka`, 'warning');
         }
@@ -854,6 +1073,13 @@ class DTGPSLogger {
         if (lat === 0 && lng === 0) {
             return false;
         }
+        
+        // Enhanced validation for Indonesia coordinates
+        if (lng < 95 || lng > 141 || lat < -11 || lat > 6) {
+            console.warn('Koordinat di luar area Indonesia:', lat, lng);
+            // Don't return false - just warn, as users might travel outside Indonesia
+        }
+        
         return true;
     }
 
@@ -878,7 +1104,7 @@ class DTGPSLogger {
             return 0;
         }
 
-        const maxAccuracy = 500;
+        const maxAccuracy = 100; // Reduced from 500m to 100m for better accuracy
         if (currentPosition.accuracy > maxAccuracy) {
             console.warn(`🎯 Akurasi GPS ${currentPosition.accuracy}m terlalu rendah, skip perhitungan`);
             return 0;
@@ -953,7 +1179,7 @@ class DTGPSLogger {
         return average;
     }
 
-    // ✅ GPS ERROR HANDLING
+    // ✅ ENHANCED GPS ERROR HANDLING
     handleGPSError(error) {
         let message = '';
         let instructions = '';
@@ -1107,6 +1333,9 @@ class DTGPSLogger {
         document.getElementById('currentSpeed').textContent = this.currentSpeed.toFixed(1);
         document.getElementById('gpsAccuracy').textContent = waypoint.accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
+        
+        // Update accuracy status
+        this.updateGPSAccuracyDisplay(waypoint.accuracy);
     }
 
     updateWaypointDisplay() {
@@ -1783,6 +2012,11 @@ class DTGPSLogger {
             this.firebaseRef.remove();
         }
         
+        // Stop GPS accuracy monitor
+        if (this.gpsAccuracyMonitorInterval) {
+            clearInterval(this.gpsAccuracyMonitorInterval);
+        }
+        
         this.isTracking = false;
     }
 
@@ -1864,7 +2098,7 @@ class DTGPSLogger {
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
-    window.dtLogger = new DTGPSLogger();
+    window.dtLogger = new EnhancedDTGPSLogger();
 });
 
 // Enhanced visibility change handling
