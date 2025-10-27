@@ -13,7 +13,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
-// ✅ CIRCULAR BUFFER IMPLEMENTATION
+// ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION
 class CircularBuffer {
     constructor(capacity) {
         this.capacity = capacity;
@@ -307,7 +307,7 @@ class GPSValidator {
     }
 }
 
-// ✅ BACKGROUND TRACKING MANAGER
+// ✅ BACKGROUND TRACKING MANAGER (DIPERBAIKI)
 class BackgroundTrackingManager {
     constructor(logger) {
         this.logger = logger;
@@ -317,6 +317,8 @@ class BackgroundTrackingManager {
         this.isInBackground = false;
         this.lastBackgroundPosition = null;
         this.backgroundUpdateCount = 0;
+        this.retryCount = 0;
+        this.maxRetries = 3;
     }
 
     start() {
@@ -366,23 +368,52 @@ class BackgroundTrackingManager {
     }
 
     startBackgroundPositionWatch() {
-        if (!navigator.geolocation) return;
+        if (!navigator.geolocation) {
+            console.warn('❌ Geolocation not supported');
+            return;
+        }
 
-        const backgroundOptions = {
-            enableHighAccuracy: true,
-            timeout: 30000,
-            maximumAge: 60000
-        };
-
+        // Clear previous watch
         if (this.backgroundWatchId) {
             navigator.geolocation.clearWatch(this.backgroundWatchId);
         }
 
+        const backgroundOptions = {
+            enableHighAccuracy: true,
+            timeout: 30000,
+            maximumAge: 60000,
+            distanceFilter: 10
+        };
+
         this.backgroundWatchId = navigator.geolocation.watchPosition(
-            (position) => this.handleBackgroundPosition(position),
-            (error) => this.handleBackgroundError(error),
+            (position) => {
+                this.retryCount = 0;
+                this.handleBackgroundPosition(position);
+            },
+            (error) => {
+                this.handleBackgroundError(error);
+                this.retryBackgroundWatch();
+            },
             backgroundOptions
         );
+    }
+
+    retryBackgroundWatch() {
+        if (this.retryCount < this.maxRetries) {
+            this.retryCount++;
+            console.log(`🔄 Retrying background GPS (attempt ${this.retryCount}/${this.maxRetries})...`);
+            
+            setTimeout(() => {
+                if (this.isActive) {
+                    this.startBackgroundPositionWatch();
+                }
+            }, 5000 * this.retryCount);
+        } else {
+            console.warn('❌ Max GPS retries reached, giving up...');
+            if (!this.logger.isInBackground) {
+                this.logger.addLog('⚠️ GPS background tracking paused - poor signal', 'warning');
+            }
+        }
     }
 
     handleBackgroundPosition(position) {
@@ -479,7 +510,29 @@ class BackgroundTrackingManager {
     }
 
     handleBackgroundError(error) {
-        console.warn('Background GPS Error:', error);
+        let errorMessage = 'Background GPS Error: ';
+        
+        switch(error.code) {
+            case error.PERMISSION_DENIED:
+                errorMessage += 'Permission denied';
+                break;
+            case error.POSITION_UNAVAILABLE:
+                errorMessage += 'Position unavailable';
+                break;
+            case error.TIMEOUT:
+                errorMessage += 'Timeout expired';
+                console.warn('⏱️ Background GPS timeout - will retry...');
+                return;
+            default:
+                errorMessage += 'Unknown error';
+                break;
+        }
+        
+        console.warn(errorMessage);
+        
+        if (error.code !== error.TIMEOUT && !this.logger.isInBackground) {
+            this.logger.addLog(`⚠️ ${errorMessage}`, 'warning');
+        }
     }
 
     onEnterBackground() {
@@ -558,6 +611,7 @@ class BackgroundTrackingManager {
         
         this.lastBackgroundPosition = null;
         this.backgroundUpdateCount = 0;
+        this.retryCount = 0;
         
         this.updateBackgroundIndicator(false);
     }
@@ -697,20 +751,34 @@ class EnhancedDTGPSLogger {
     }
 
     checkPersistedSession() {
-        const persistedSession = this.storageManager.loadPersistedSession();
-        if (persistedSession && persistedSession.driverData) {
-            console.log('📂 Found persisted session, attempting to restore...');
-            
-            const persistedAt = new Date(persistedSession.persistedAt);
-            const now = new Date();
-            const hoursDiff = (now - persistedAt) / (1000 * 60 * 60);
-            
-            if (hoursDiff < 24) {
-                this.restoreSession(persistedSession);
+        try {
+            const persistedSession = this.storageManager.loadPersistedSession();
+            if (persistedSession && persistedSession.driverData) {
+                console.log('📂 Found persisted session, validating...');
+                
+                if (!persistedSession.driverData.unit || !persistedSession.driverData.name) {
+                    console.warn('❌ Invalid session data, clearing...');
+                    this.storageManager.clearPersistedSession();
+                    return;
+                }
+                
+                const persistedAt = new Date(persistedSession.persistedAt);
+                const now = new Date();
+                const hoursDiff = (now - persistedAt) / (1000 * 60 * 60);
+                
+                if (hoursDiff < 6) {
+                    console.log('🔄 Restoring persisted session...');
+                    this.restoreSession(persistedSession);
+                } else {
+                    console.log('🕒 Persisted session expired, clearing...');
+                    this.storageManager.clearPersistedSession();
+                }
             } else {
-                console.log('🕒 Persisted session too old, discarding...');
-                this.storageManager.clearPersistedSession();
+                console.log('📭 No persisted session found');
             }
+        } catch (error) {
+            console.error('❌ Error checking persisted session:', error);
+            this.storageManager.clearPersistedSession();
         }
     }
 
@@ -784,9 +852,29 @@ class EnhancedDTGPSLogger {
         this.setupButtonListeners();
         
         document.addEventListener('visibilitychange', () => {
+            const wasInBackground = this.isInBackground;
             this.isInBackground = document.hidden;
-            if (this.driverData) {
-                this.persistSession();
+            
+            if (document.hidden) {
+                console.log('📱 App moved to background');
+                if (!wasInBackground) {
+                    this.addLog('📱 Mode background aktif', 'info');
+                    this.persistSession();
+                }
+            } else {
+                console.log('📱 App returned to foreground');
+                if (wasInBackground) {
+                    this.addLog('📱 Mode foreground aktif', 'success');
+                    this.updateWaypointDisplay();
+                    this.updateSessionDuration();
+                    
+                    if (this.isOnline) {
+                        setTimeout(() => {
+                            this.syncWaypointsToServer();
+                            this.offlineQueue.processQueue();
+                        }, 1000);
+                    }
+                }
             }
         });
     }
@@ -825,20 +913,27 @@ class EnhancedDTGPSLogger {
 
         console.log('📍 Starting ENHANCED REAL GPS tracking...');
         
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 5000,
-            distanceFilter: 1
-        };
-
         if (this.watchId) {
             navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
         }
 
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+            distanceFilter: 5
+        };
+
         this.watchId = navigator.geolocation.watchPosition(
-            (position) => this.handleEnhancedPositionUpdate(position),
-            (error) => this.handleGPSError(error),
+            (position) => {
+                console.log('📍 GPS position received');
+                this.handleEnhancedPositionUpdate(position);
+            },
+            (error) => {
+                console.warn('❌ GPS watchPosition error:', error);
+                this.handleGPSError(error);
+            },
             options
         );
 
@@ -848,15 +943,40 @@ class EnhancedDTGPSLogger {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const accuracy = pos.coords.accuracy;
-                this.addLog(`✅ GPS Aktif - Akurasi: ${accuracy}m`, 'success');
-                if (accuracy > 50) {
-                    this.addLog('💡 Tips: Cari area terbuka untuk akurasi lebih baik', 'info');
+                let accuracyMessage = `✅ GPS Aktif - Akurasi: ${accuracy}m`;
+                
+                if (accuracy > 100) {
+                    accuracyMessage += ' - Cari area terbuka';
+                    this.addLog(accuracyMessage, 'warning');
+                } else if (accuracy > 50) {
+                    accuracyMessage += ' - Akurasi sedang';
+                    this.addLog(accuracyMessage, 'info');
+                } else {
+                    this.addLog(accuracyMessage, 'success');
                 }
             },
             (err) => {
-                this.addLog('⚠️ GPS butuh izin - pastikan izin lokasi diaktifkan', 'warning');
+                let message = '⚠️ GPS initialization: ';
+                switch(err.code) {
+                    case err.PERMISSION_DENIED:
+                        message += 'Izin ditolak - aktifkan lokasi di browser';
+                        break;
+                    case err.POSITION_UNAVAILABLE:
+                        message += 'Posisi tidak tersedia - periksa GPS device';
+                        break;
+                    case err.TIMEOUT:
+                        message += 'Timeout - cari sinyal lebih baik';
+                        break;
+                    default:
+                        message += 'Error tidak diketahui';
+                }
+                this.addLog(message, 'warning');
             },
-            { enableHighAccuracy: true, timeout: 10000 }
+            { 
+                enableHighAccuracy: true, 
+                timeout: 8000,
+                maximumAge: 0 
+            }
         );
     }
 
@@ -1330,7 +1450,9 @@ class EnhancedDTGPSLogger {
     }
 
     addLog(message, type = 'info') {
-        if (this.isInBackground) return;
+        if (this.isInBackground && type !== 'error') {
+            return;
+        }
         
         const logContainer = document.getElementById('dataLogs');
         if (!logContainer) return;
@@ -1350,9 +1472,11 @@ class EnhancedDTGPSLogger {
         
         logContainer.insertBefore(logEntry, logContainer.firstChild);
         
-        if (logContainer.children.length > 6) {
+        if (logContainer.children.length > 8) {
             logContainer.removeChild(logContainer.lastChild);
         }
+        
+        console.log(`📝 [${type.toUpperCase()}] ${message}`);
     }
 
     updateTime() {
@@ -1943,22 +2067,6 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('❌ Failed to initialize Enhanced DT GPS Logger:', error);
         alert('Gagal menginisialisasi aplikasi. Silakan refresh halaman.');
-    }
-});
-
-// Enhanced visibility change handling
-document.addEventListener('visibilitychange', function() {
-    if (window.dtLogger && window.dtLogger.driverData) {
-        if (document.hidden) {
-            console.log('📱 App moved to background - background tracking active');
-            window.dtLogger.persistSession();
-        } else {
-            if (!window.dtLogger.isInBackground) {
-                window.dtLogger.addLog('📱 App aktif kembali', 'success');
-            }
-            window.dtLogger.updateWaypointDisplay();
-            window.dtLogger.updateSessionDuration();
-        }
     }
 });
 
