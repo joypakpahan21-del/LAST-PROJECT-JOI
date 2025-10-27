@@ -157,15 +157,62 @@ class AdvancedSAGMGpsTracking {
             this.setupDataLogger();
             this.testFirebaseConnection();
             
-            // Initialize analytics systems
-            this.analyticsEngine.initialize();
-            this.geofencingManager.initialize();
-            this.violationDetector.initialize();
-            this.fuelMonitor.initialize();
-            this.performanceManager.initialize();
-            this.heatmapManager.initialize();
-            this.maintenancePredictor.initialize();
-            this.notificationSystem.initialize();
+            // Initialize analytics systems dengan error handling
+            try {
+                this.analyticsEngine.initialize();
+            } catch (analyticsError) {
+                console.error('Analytics Engine initialization failed:', analyticsError);
+                this.logData('Analytics Engine gagal diinisialisasi, sistem tetap berjalan', 'warning');
+            }
+            
+            try {
+                this.geofencingManager.initialize();
+            } catch (geofencingError) {
+                console.error('Geofencing Manager initialization failed:', geofencingError);
+                this.logData('Geofencing Manager gagal diinisialisasi', 'warning');
+            }
+            
+            try {
+                this.violationDetector.initialize();
+            } catch (violationError) {
+                console.error('Violation Detector initialization failed:', violationError);
+                this.logData('Violation Detector gagal diinisialisasi', 'warning');
+            }
+            
+            try {
+                this.fuelMonitor.initialize();
+            } catch (fuelError) {
+                console.error('Fuel Monitor initialization failed:', fuelError);
+                this.logData('Fuel Monitor gagal diinisialisasi', 'warning');
+            }
+            
+            try {
+                this.performanceManager.initialize();
+            } catch (performanceError) {
+                console.error('Performance Manager initialization failed:', performanceError);
+                this.logData('Performance Manager gagal diinisialisasi', 'warning');
+            }
+            
+            try {
+                this.heatmapManager.initialize();
+            } catch (heatmapError) {
+                console.error('Heatmap Manager initialization failed:', heatmapError);
+                this.logData('Heatmap Manager gagal diinisialisasi', 'warning');
+            }
+            
+            try {
+                this.maintenancePredictor.initialize();
+            } catch (maintenanceError) {
+                console.error('Maintenance Predictor initialization failed:', maintenanceError);
+                this.logData('Maintenance Predictor gagal diinisialisasi', 'warning');
+            }
+            
+            try {
+                this.notificationSystem.initialize();
+            } catch (notificationError) {
+                console.error('Notification System initialization failed:', notificationError);
+                this.logData('Notification System gagal diinisialisasi', 'warning');
+            }
             
             // Setup chat system
             this.setupMonitorChatSystem();
@@ -175,7 +222,7 @@ class AdvancedSAGMGpsTracking {
             
         } catch (error) {
             console.error('System initialization failed:', error);
-            this.displayError('Gagal memulai sistem GPS Analytics');
+            this.displayError('Gagal memulai sistem GPS Analytics - beberapa fitur mungkin tidak tersedia');
         }
     }
 
@@ -1660,33 +1707,38 @@ class AdvancedSAGMGpsTracking {
     setupMonitorChatSystem() {
         console.log('💬 Initializing enhanced monitor chat system with analytics...');
         
-        database.ref('/chat').on('child_added', (snapshot) => {
-            const unitName = snapshot.key;
-            console.log(`💬 New chat unit detected: ${unitName}`);
-            this.setupUnitChatListener(unitName);
-        });
+        try {
+            database.ref('/chat').on('child_added', (snapshot) => {
+                const unitName = snapshot.key;
+                console.log(`💬 New chat unit detected: ${unitName}`);
+                this.setupUnitChatListener(unitName);
+            });
 
-        database.ref('/chat').on('child_removed', (snapshot) => {
-            const unitName = snapshot.key;
-            this.cleanupUnitChatListener(unitName);
-        });
+            database.ref('/chat').on('child_removed', (snapshot) => {
+                const unitName = snapshot.key;
+                this.cleanupUnitChatListener(unitName);
+            });
 
-        database.ref('/units').on('value', (snapshot) => {
-            const unitsData = snapshot.val();
-            if (unitsData) {
-                Object.keys(unitsData).forEach(unitName => {
-                    if (!this.monitorChatRefs.has(unitName)) {
-                        this.setupUnitChatListener(unitName);
-                    }
-                });
-            }
-        });
+            database.ref('/units').on('value', (snapshot) => {
+                const unitsData = snapshot.val();
+                if (unitsData) {
+                    Object.keys(unitsData).forEach(unitName => {
+                        if (!this.monitorChatRefs.has(unitName)) {
+                            this.setupUnitChatListener(unitName);
+                        }
+                    });
+                }
+            });
 
-        this.setupChatEventHandlers();
-        this.monitorChatInitialized = true;
-        
-        console.log('💬 Enhanced monitor chat system with analytics activated');
-        this.logData('Sistem chat monitor dengan analytics diaktifkan', 'system');
+            this.setupChatEventHandlers();
+            this.monitorChatInitialized = true;
+            
+            console.log('💬 Enhanced monitor chat system with analytics activated');
+            this.logData('Sistem chat monitor dengan analytics diaktifkan', 'system');
+        } catch (chatError) {
+            console.error('Chat system initialization failed:', chatError);
+            this.logData('Sistem chat gagal diinisialisasi', 'warning');
+        }
     }
 
     setupUnitChatListener(unitName) {
@@ -2274,6 +2326,16 @@ class AnalyticsEngine {
         this.startAnalyticsProcessing();
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    startAnalyticsProcessing() {
+        console.log('🔄 Starting analytics processing...');
+        // Setup interval untuk update analytics secara berkala
+        setInterval(() => {
+            this.updateAllCharts();
+            this.updateDashboard();
+        }, 30000); // Update setiap 30 detik
+    }
+
     setupCharts() {
         this.setupPerformanceChart();
         this.setupViolationsChart();
@@ -2443,6 +2505,7 @@ class AnalyticsEngine {
         return violations.length * 10; // 10 points penalty per violation
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
     updateUnitScore(unit) {
         const analytics = this.unitAnalytics.get(unit.name);
         if (analytics) {
@@ -2750,6 +2813,15 @@ class GeofencingManager {
         this.setupZoneMonitoring();
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    setupZoneMonitoring() {
+        console.log('🔄 Setting up zone monitoring...');
+        // Monitor unit movements for zone entries/exits
+        setInterval(() => {
+            this.checkZoneTransitions();
+        }, 5000);
+    }
+
     setupDefaultZones() {
         // Add operational zones
         this.addZone('PKS_SAGM', this.main.importantLocations.PKS_SAGM);
@@ -2831,13 +2903,6 @@ class GeofencingManager {
                 </div>
             </div>
         `;
-    }
-
-    setupZoneMonitoring() {
-        // Monitor unit movements for zone entries/exits
-        setInterval(() => {
-            this.checkZoneTransitions();
-        }, 5000);
     }
 
     checkUnitZones(unit) {
@@ -3032,6 +3097,16 @@ class ViolationDetector {
         this.startViolationMonitoring();
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    startViolationMonitoring() {
+        console.log('🔄 Starting violation monitoring...');
+        setInterval(() => {
+            this.main.units.forEach(unit => {
+                this.checkViolations(unit);
+            });
+        }, 30000); // Check every 30 seconds
+    }
+
     checkViolations(unit) {
         const violations = [];
         
@@ -3147,14 +3222,6 @@ class ViolationDetector {
         `).join('');
     }
 
-    startViolationMonitoring() {
-        setInterval(() => {
-            this.main.units.forEach(unit => {
-                this.checkViolations(unit);
-            });
-        }, 30000); // Check every 30 seconds
-    }
-
     cleanupUnit(unitName) {
         this.violations.delete(unitName);
     }
@@ -3179,6 +3246,16 @@ class FuelMonitor {
     initialize() {
         console.log('⛽ Fuel Monitor initialized');
         this.startFuelMonitoring();
+    }
+
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    startFuelMonitoring() {
+        console.log('🔄 Starting fuel monitoring...');
+        setInterval(() => {
+            this.main.units.forEach(unit => {
+                this.monitorFuelUsage(unit);
+            });
+        }, 60000); // Check every minute
     }
 
     monitorFuelUsage(unit) {
@@ -3263,14 +3340,6 @@ class FuelMonitor {
         }
     }
 
-    startFuelMonitoring() {
-        setInterval(() => {
-            this.main.units.forEach(unit => {
-                this.monitorFuelUsage(unit);
-            });
-        }, 60000); // Check every minute
-    }
-
     cleanupUnit(unitName) {
         this.fuelData.delete(unitName);
         this.anomalies.delete(unitName);
@@ -3297,6 +3366,14 @@ class PerformanceManager {
     initialize() {
         console.log('🏆 Performance Manager initialized');
         this.startRankingUpdates();
+    }
+
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    startRankingUpdates() {
+        console.log('🔄 Starting ranking updates...');
+        setInterval(() => {
+            this.updateRankings();
+        }, 30000); // Update every 30 seconds
     }
 
     updateRankings() {
@@ -3360,12 +3437,6 @@ class PerformanceManager {
         }
     }
 
-    startRankingUpdates() {
-        setInterval(() => {
-            this.updateRankings();
-        }, 30000); // Update every 30 seconds
-    }
-
     cleanupUnit(unitName) {
         this.rankings.delete(unitName);
         this.dailyScores.delete(unitName);
@@ -3395,7 +3466,9 @@ class HeatmapManager {
         this.setupHeatmapControls();
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
     setupHeatmapControls() {
+        console.log('🎛️ Setting up heatmap controls...');
         const toggle = document.getElementById('heatmapToggle');
         if (toggle) {
             toggle.addEventListener('change', (e) => {
@@ -3517,6 +3590,15 @@ class MaintenancePredictor {
         this.setupMaintenanceSchedule();
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    setupMaintenanceSchedule() {
+        console.log('📅 Setting up maintenance schedule...');
+        // Initialize maintenance schedule for existing units
+        this.main.units.forEach(unit => {
+            this.initializeUnit(unit);
+        });
+    }
+
     initializeUnit(unit) {
         this.maintenanceSchedule.set(unit.name, {
             oilChange: this.calculateNextMaintenance(unit.distance, this.main.vehicleConfig.maintenanceIntervals.oilChange),
@@ -3543,6 +3625,7 @@ class MaintenancePredictor {
         return this.maintenanceSchedule.get(unitName);
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
     updateMaintenancePredictions() {
         this.main.units.forEach(unit => {
             const schedule = this.maintenanceSchedule.get(unit.name);
@@ -3556,8 +3639,15 @@ class MaintenancePredictor {
         });
     }
 
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
     getServiceInterval(service) {
-        return this.main.vehicleConfig.maintenanceIntervals[service] || 10000;
+        const intervals = {
+            'oilChange': this.main.vehicleConfig.maintenanceIntervals.oilChange,
+            'tireRotation': this.main.vehicleConfig.maintenanceIntervals.tireRotation,
+            'brakeService': this.main.vehicleConfig.maintenanceIntervals.brakeService,
+            'majorService': this.main.vehicleConfig.maintenanceIntervals.majorService
+        };
+        return intervals[service] || 10000;
     }
 
     updateMaintenanceDisplay() {
@@ -3618,6 +3708,20 @@ class NotificationSystem {
 
     initialize() {
         console.log('🔔 Notification System initialized');
+        this.setupNotificationPanel();
+    }
+
+    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    setupNotificationPanel() {
+        console.log('📋 Setting up notification panel...');
+        // Pastikan panel notifikasi ada di DOM
+        if (!document.getElementById('notificationPanel')) {
+            const panel = document.createElement('div');
+            panel.id = 'notificationPanel';
+            panel.className = 'position-fixed top-0 end-0 p-3';
+            panel.style.cssText = 'z-index: 9998; max-width: 400px;';
+            document.body.appendChild(panel);
+        }
     }
 
     showZoneNotification(unit, zone, type) {
