@@ -157,62 +157,33 @@ class AdvancedSAGMGpsTracking {
             this.setupDataLogger();
             this.testFirebaseConnection();
             
-            // Initialize analytics systems dengan error handling
-            try {
-                this.analyticsEngine.initialize();
-            } catch (analyticsError) {
-                console.error('Analytics Engine initialization failed:', analyticsError);
-                this.logData('Analytics Engine gagal diinisialisasi, sistem tetap berjalan', 'warning');
-            }
-            
-            try {
-                this.geofencingManager.initialize();
-            } catch (geofencingError) {
-                console.error('Geofencing Manager initialization failed:', geofencingError);
-                this.logData('Geofencing Manager gagal diinisialisasi', 'warning');
-            }
-            
-            try {
-                this.violationDetector.initialize();
-            } catch (violationError) {
-                console.error('Violation Detector initialization failed:', violationError);
-                this.logData('Violation Detector gagal diinisialisasi', 'warning');
-            }
-            
-            try {
-                this.fuelMonitor.initialize();
-            } catch (fuelError) {
-                console.error('Fuel Monitor initialization failed:', fuelError);
-                this.logData('Fuel Monitor gagal diinisialisasi', 'warning');
-            }
-            
-            try {
-                this.performanceManager.initialize();
-            } catch (performanceError) {
-                console.error('Performance Manager initialization failed:', performanceError);
-                this.logData('Performance Manager gagal diinisialisasi', 'warning');
-            }
-            
-            try {
-                this.heatmapManager.initialize();
-            } catch (heatmapError) {
-                console.error('Heatmap Manager initialization failed:', heatmapError);
-                this.logData('Heatmap Manager gagal diinisialisasi', 'warning');
-            }
-            
-            try {
-                this.maintenancePredictor.initialize();
-            } catch (maintenanceError) {
-                console.error('Maintenance Predictor initialization failed:', maintenanceError);
-                this.logData('Maintenance Predictor gagal diinisialisasi', 'warning');
-            }
-            
-            try {
-                this.notificationSystem.initialize();
-            } catch (notificationError) {
-                console.error('Notification System initialization failed:', notificationError);
-                this.logData('Notification System gagal diinisialisasi', 'warning');
-            }
+            // ✅ FIX: Initialize analytics systems dengan error handling yang lebih baik
+            const systems = [
+                { name: 'Analytics Engine', instance: this.analyticsEngine },
+                { name: 'Geofencing Manager', instance: this.geofencingManager },
+                { name: 'Violation Detector', instance: this.violationDetector },
+                { name: 'Fuel Monitor', instance: this.fuelMonitor },
+                { name: 'Performance Manager', instance: this.performanceManager },
+                { name: 'Heatmap Manager', instance: this.heatmapManager },
+                { name: 'Maintenance Predictor', instance: this.maintenancePredictor },
+                { name: 'Notification System', instance: this.notificationSystem }
+            ];
+
+            systems.forEach(system => {
+                try {
+                    if (system.instance && typeof system.instance.initialize === 'function') {
+                        system.instance.initialize();
+                        console.log(`✅ ${system.name} initialized successfully`);
+                    } else {
+                        console.warn(`⚠️ ${system.name} not available or missing initialize method`);
+                    }
+                } catch (error) {
+                    console.error(`❌ ${system.name} initialization failed:`, error);
+                    this.logData(`${system.name} gagal diinisialisasi`, 'warning', {
+                        error: error.message
+                    });
+                }
+            });
             
             // Setup chat system
             this.setupMonitorChatSystem();
@@ -220,9 +191,16 @@ class AdvancedSAGMGpsTracking {
             
             setTimeout(() => this.showDebugPanel(), 2000);
             
+            console.log('🎉 Advanced GPS Analytics System fully initialized');
+            
         } catch (error) {
             console.error('System initialization failed:', error);
             this.displayError('Gagal memulai sistem GPS Analytics - beberapa fitur mungkin tidak tersedia');
+            
+            // ✅ FIX: Tetap lanjutkan dengan fitur dasar meski ada error
+            this.logData('System initialization partially failed, continuing with basic features', 'error', {
+                error: error.message
+            });
         }
     }
 
@@ -950,7 +928,13 @@ class AdvancedSAGMGpsTracking {
         
         const lat = parseFloat(unitData.lat);
         const lng = parseFloat(unitData.lng);
-        return !isNaN(lat) && !isNaN(lng);
+        
+        // ✅ FIX: Validasi koordinat yang tidak valid
+        if (isNaN(lat) || isNaN(lng)) return false;
+        if (lat === 0 && lng === 0) return false; // Koordinat null island
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+        
+        return true;
     }
 
     correctUnitData(unitName, unitData) {
@@ -2318,139 +2302,61 @@ class AnalyticsEngine {
             totalViolations: 0,
             fuelEfficiency: 0
         };
+        
+        // ✅ FIX: Inisialisasi interval tracking
+        this.analyticsInterval = null;
     }
 
     initialize() {
         console.log('📊 Analytics Engine initialized');
         this.setupCharts();
-        this.startAnalyticsProcessing();
+        this.startAnalyticsProcessing(); // ✅ SEKARANG METHOD INI ADA
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan method yang hilang
     startAnalyticsProcessing() {
         console.log('🔄 Starting analytics processing...');
+        
+        // Hentikan interval sebelumnya jika ada
+        if (this.analyticsInterval) {
+            clearInterval(this.analyticsInterval);
+        }
+        
         // Setup interval untuk update analytics secara berkala
-        setInterval(() => {
+        this.analyticsInterval = setInterval(() => {
             this.updateAllCharts();
             this.updateDashboard();
+            this.processAllUnitsAnalytics();
         }, 30000); // Update setiap 30 detik
-    }
-
-    setupCharts() {
-        this.setupPerformanceChart();
-        this.setupViolationsChart();
-        this.setupFuelChart();
-        this.setupMaintenanceChart();
-        this.setupZonesChart();
-    }
-
-    setupPerformanceChart() {
-        const ctx = document.getElementById('performanceChart')?.getContext('2d');
-        if (!ctx) return;
-
-        this.charts.set('performance', new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: 10}, (_, i) => `${i * 5}m lalu`),
-                datasets: [{
-                    label: 'Skor Performa Rata-rata',
-                    data: Array(10).fill(75),
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100
-                    }
-                }
-            }
-        }));
-    }
-
-    setupViolationsChart() {
-        const ctx = document.getElementById('violationsChart')?.getContext('2d');
-        if (!ctx) return;
-
-        this.charts.set('violations', new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Kecepatan', 'Idle Time', 'Bahan Bakar', 'Zona'],
-                datasets: [{
-                    data: [0, 0, 0, 0],
-                    backgroundColor: ['#ff6b6b', '#ffd93d', '#6bcf7f', '#4d96ff']
-                }]
-            }
-        }));
-    }
-
-    setupFuelChart() {
-        const ctx = document.getElementById('fuelChart')?.getContext('2d');
-        if (!ctx) return;
-
-        this.charts.set('fuel', new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Konsumsi Bahan Bakar (L)',
-                    data: [],
-                    backgroundColor: '#17a2b8'
-                }]
-            }
-        }));
-    }
-
-    setupMaintenanceChart() {
-        const ctx = document.getElementById('maintenanceChart')?.getContext('2d');
-        if (!ctx) return;
-
-        this.charts.set('maintenance', new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Oil Change', 'Tire Rotation', 'Brake Service', 'Major Service'],
-                datasets: [{
-                    label: 'KM Tersisa',
-                    data: [5000, 10000, 15000, 20000],
-                    backgroundColor: ['#28a745', '#20c997', '#ffc107', '#fd7e14']
-                }]
-            }
-        }));
-    }
-
-    setupZonesChart() {
-        const ctx = document.getElementById('zonesChart')?.getContext('2d');
-        if (!ctx) return;
-
-        this.charts.set('zones', new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['PKS', 'Kantor', 'Afdeling I', 'Afdeling II', 'Afdeling III'],
-                datasets: [{
-                    data: [0, 0, 0, 0, 0],
-                    backgroundColor: ['#6f42c1', '#e83e8c', '#28a745', '#20c997', '#ffc107']
-                }]
-            }
-        }));
-    }
-
-    processUnitData(unit) {
-        const analytics = this.calculateUnitAnalytics(unit);
-        this.unitAnalytics.set(unit.name, analytics);
-        unit.analytics = { ...unit.analytics, ...analytics };
         
-        this.updateUnitScore(unit);
+        console.log('✅ Analytics processing started');
+    }
+
+    // ✅ FIX: Tambahkan method untuk proses semua unit
+    processAllUnitsAnalytics() {
+        this.main.units.forEach(unit => {
+            if (unit.isOnline) {
+                this.processUnitData(unit);
+            }
+        });
+    }
+
+    // ✅ FIX: Perbaiki method processUnitData
+    processUnitData(unit) {
+        try {
+            const analytics = this.calculateUnitAnalytics(unit);
+            this.unitAnalytics.set(unit.name, analytics);
+            unit.analytics = { ...unit.analytics, ...analytics };
+            
+            this.updateUnitScore(unit);
+            
+        } catch (error) {
+            console.error(`Error processing analytics for ${unit.name}:`, error);
+            this.main.logData(`Analytics error for ${unit.name}`, 'error', {
+                unit: unit.name,
+                error: error.message
+            });
+        }
     }
 
     calculateUnitAnalytics(unit) {
@@ -2505,7 +2411,6 @@ class AnalyticsEngine {
         return violations.length * 10; // 10 points penalty per violation
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
     updateUnitScore(unit) {
         const analytics = this.unitAnalytics.get(unit.name);
         if (analytics) {
@@ -2711,6 +2616,115 @@ class AnalyticsEngine {
         `).join('');
     }
 
+    setupCharts() {
+        this.setupPerformanceChart();
+        this.setupViolationsChart();
+        this.setupFuelChart();
+        this.setupMaintenanceChart();
+        this.setupZonesChart();
+    }
+
+    setupPerformanceChart() {
+        const ctx = document.getElementById('performanceChart')?.getContext('2d');
+        if (!ctx) return;
+
+        this.charts.set('performance', new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 10}, (_, i) => `${i * 5}m lalu`),
+                datasets: [{
+                    label: 'Skor Performa Rata-rata',
+                    data: Array(10).fill(75),
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        }));
+    }
+
+    setupViolationsChart() {
+        const ctx = document.getElementById('violationsChart')?.getContext('2d');
+        if (!ctx) return;
+
+        this.charts.set('violations', new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Kecepatan', 'Idle Time', 'Bahan Bakar', 'Zona'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#ff6b6b', '#ffd93d', '#6bcf7f', '#4d96ff']
+                }]
+            }
+        }));
+    }
+
+    setupFuelChart() {
+        const ctx = document.getElementById('fuelChart')?.getContext('2d');
+        if (!ctx) return;
+
+        this.charts.set('fuel', new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Konsumsi Bahan Bakar (L)',
+                    data: [],
+                    backgroundColor: '#17a2b8'
+                }]
+            }
+        }));
+    }
+
+    setupMaintenanceChart() {
+        const ctx = document.getElementById('maintenanceChart')?.getContext('2d');
+        if (!ctx) return;
+
+        this.charts.set('maintenance', new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Oil Change', 'Tire Rotation', 'Brake Service', 'Major Service'],
+                datasets: [{
+                    label: 'KM Tersisa',
+                    data: [5000, 10000, 15000, 20000],
+                    backgroundColor: ['#28a745', '#20c997', '#ffc107', '#fd7e14']
+                }]
+            }
+        }));
+    }
+
+    setupZonesChart() {
+        const ctx = document.getElementById('zonesChart')?.getContext('2d');
+        if (!ctx) return;
+
+        this.charts.set('zones', new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['PKS', 'Kantor', 'Afdeling I', 'Afdeling II', 'Afdeling III'],
+                datasets: [{
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: ['#6f42c1', '#e83e8c', '#28a745', '#20c997', '#ffc107']
+                }]
+            }
+        }));
+    }
+
     updateAllCharts() {
         this.updatePerformanceChart();
         this.updateViolationsChart();
@@ -2792,8 +2806,14 @@ class AnalyticsEngine {
         this.charts.clear();
     }
 
+    // ✅ FIX: Perbaiki method cleanup
     cleanup() {
+        if (this.analyticsInterval) {
+            clearInterval(this.analyticsInterval);
+            this.analyticsInterval = null;
+        }
         this.clearAll();
+        console.log('🧹 Analytics Engine cleaned up');
     }
 }
 
@@ -2805,19 +2825,24 @@ class GeofencingManager {
         this.zoneMarkers = new Map();
         this.zoneListeners = new Map();
         this.zoneViolations = new Map();
+        this.monitoringInterval = null; // ✅ FIX: Tambahkan properti
     }
 
     initialize() {
         console.log('📍 Geofencing Manager initialized');
         this.setupDefaultZones();
-        this.setupZoneMonitoring();
+        this.startZoneMonitoring(); // ✅ FIX: Ganti nama method
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
-    setupZoneMonitoring() {
-        console.log('🔄 Setting up zone monitoring...');
-        // Monitor unit movements for zone entries/exits
-        setInterval(() => {
+    // ✅ FIX: Ganti nama method dan tambahkan properti
+    startZoneMonitoring() {
+        console.log('🔄 Starting zone monitoring...');
+        
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+        }
+        
+        this.monitoringInterval = setInterval(() => {
             this.checkZoneTransitions();
         }, 5000);
     }
@@ -3060,7 +3085,12 @@ class GeofencingManager {
     }
 
     cleanup() {
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+            this.monitoringInterval = null;
+        }
         this.clearAll();
+        console.log('🧹 Geofencing Manager cleaned up');
     }
 }
 
@@ -3069,6 +3099,7 @@ class ViolationDetector {
     constructor(mainSystem) {
         this.main = mainSystem;
         this.violations = new Map();
+        this.monitoringInterval = null; // ✅ FIX: Tambahkan properti
         this.violationTypes = {
             SPEEDING: {
                 threshold: 80,
@@ -3097,14 +3128,19 @@ class ViolationDetector {
         this.startViolationMonitoring();
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan properti interval
     startViolationMonitoring() {
         console.log('🔄 Starting violation monitoring...');
-        setInterval(() => {
+        
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+        }
+        
+        this.monitoringInterval = setInterval(() => {
             this.main.units.forEach(unit => {
                 this.checkViolations(unit);
             });
-        }, 30000); // Check every 30 seconds
+        }, 30000);
     }
 
     checkViolations(unit) {
@@ -3231,7 +3267,12 @@ class ViolationDetector {
     }
 
     cleanup() {
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+            this.monitoringInterval = null;
+        }
         this.clearAll();
+        console.log('🧹 Violation Detector cleaned up');
     }
 }
 
@@ -3241,6 +3282,7 @@ class FuelMonitor {
         this.main = mainSystem;
         this.fuelData = new Map();
         this.anomalies = new Map();
+        this.monitoringInterval = null; // ✅ FIX: Tambahkan properti
     }
 
     initialize() {
@@ -3248,14 +3290,19 @@ class FuelMonitor {
         this.startFuelMonitoring();
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan properti interval
     startFuelMonitoring() {
         console.log('🔄 Starting fuel monitoring...');
-        setInterval(() => {
+        
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+        }
+        
+        this.monitoringInterval = setInterval(() => {
             this.main.units.forEach(unit => {
                 this.monitorFuelUsage(unit);
             });
-        }, 60000); // Check every minute
+        }, 60000);
     }
 
     monitorFuelUsage(unit) {
@@ -3351,7 +3398,12 @@ class FuelMonitor {
     }
 
     cleanup() {
+        if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+            this.monitoringInterval = null;
+        }
         this.clearAll();
+        console.log('🧹 Fuel Monitor cleaned up');
     }
 }
 
@@ -3361,6 +3413,7 @@ class PerformanceManager {
         this.main = mainSystem;
         this.rankings = new Map();
         this.dailyScores = new Map();
+        this.rankingInterval = null; // ✅ FIX: Tambahkan properti
     }
 
     initialize() {
@@ -3368,12 +3421,17 @@ class PerformanceManager {
         this.startRankingUpdates();
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan properti interval
     startRankingUpdates() {
         console.log('🔄 Starting ranking updates...');
-        setInterval(() => {
+        
+        if (this.rankingInterval) {
+            clearInterval(this.rankingInterval);
+        }
+        
+        this.rankingInterval = setInterval(() => {
             this.updateRankings();
-        }, 30000); // Update every 30 seconds
+        }, 30000);
     }
 
     updateRankings() {
@@ -3448,7 +3506,12 @@ class PerformanceManager {
     }
 
     cleanup() {
+        if (this.rankingInterval) {
+            clearInterval(this.rankingInterval);
+            this.rankingInterval = null;
+        }
         this.clearAll();
+        console.log('🧹 Performance Manager cleaned up');
     }
 }
 
@@ -3466,7 +3529,7 @@ class HeatmapManager {
         this.setupHeatmapControls();
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan method yang hilang
     setupHeatmapControls() {
         console.log('🎛️ Setting up heatmap controls...');
         const toggle = document.getElementById('heatmapToggle');
@@ -3590,7 +3653,7 @@ class MaintenancePredictor {
         this.setupMaintenanceSchedule();
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan method yang hilang
     setupMaintenanceSchedule() {
         console.log('📅 Setting up maintenance schedule...');
         // Initialize maintenance schedule for existing units
@@ -3625,7 +3688,7 @@ class MaintenancePredictor {
         return this.maintenanceSchedule.get(unitName);
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan method yang hilang
     updateMaintenancePredictions() {
         this.main.units.forEach(unit => {
             const schedule = this.maintenanceSchedule.get(unit.name);
@@ -3639,7 +3702,7 @@ class MaintenancePredictor {
         });
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan method yang hilang
     getServiceInterval(service) {
         const intervals = {
             'oilChange': this.main.vehicleConfig.maintenanceIntervals.oilChange,
@@ -3711,7 +3774,7 @@ class NotificationSystem {
         this.setupNotificationPanel();
     }
 
-    // ✅ PERBAIKAN: Tambahkan method yang hilang
+    // ✅ FIX: Tambahkan method yang hilang
     setupNotificationPanel() {
         console.log('📋 Setting up notification panel...');
         // Pastikan panel notifikasi ada di DOM
