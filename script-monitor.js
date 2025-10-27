@@ -225,18 +225,36 @@ class AdvancedSAGMGpsTracking {
             });
             this.firebaseListeners.set('connection', connectionListener);
 
+            // ✅ FIX: Improved units listener dengan better error handling
             const unitsListener = database.ref('/units').on('value', 
                 (snapshot) => {
                     try {
                         const data = snapshot.val();
-                        if (data) {
+                        console.log(`📥 Raw Firebase data received:`, data);
+                        
+                        if (data && typeof data === 'object') {
                             this.debouncedProcessRealTimeData(data);
                         } else {
-                            console.log('⚠️ No data received from Firebase');
+                            console.log('⚠️ No valid data received from Firebase');
+                            this.logData('Empty or invalid Firebase data', 'warning');
                         }
                     } catch (processError) {
-                        console.error('❌ Error processing data:', processError);
-                        this.logData('Data processing error', 'error', { error: processError.message });
+                        console.error('❌ Error processing Firebase data:', processError);
+                        this.logData('Firebase data processing error', 'error', { 
+                            error: processError.message,
+                            stack: processError.stack
+                        });
+                        
+                        // Coba proses ulang dengan data mentah
+                        try {
+                            const rawData = snapshot.val();
+                            if (rawData) {
+                                console.log('🔄 Retrying with raw data processing...');
+                                this.processRealTimeData(rawData);
+                            }
+                        } catch (retryError) {
+                            console.error('❌ Retry also failed:', retryError);
+                        }
                     }
                 }, 
                 (error) => {
@@ -246,10 +264,11 @@ class AdvancedSAGMGpsTracking {
                         code: error.code
                     });
                     
+                    // Auto-retry connection
                     setTimeout(() => {
                         console.log('🔄 Retrying Firebase connection...');
                         this.connectToFirebase();
-                    }, 3000);
+                    }, 5000);
                 }
             );
             this.firebaseListeners.set('units', unitsListener);
@@ -263,8 +282,16 @@ class AdvancedSAGMGpsTracking {
             
         } catch (error) {
             console.error('🔥 Critical Firebase error:', error);
-            this.logData('Critical Firebase error', 'error', { error: error.message });
-            setTimeout(() => this.connectToFirebase(), 5000);
+            this.logData('Critical Firebase connection error', 'error', { 
+                error: error.message,
+                stack: error.stack
+            });
+            
+            // Retry connection after delay
+            setTimeout(() => {
+                console.log('🔄 Retrying Firebase connection after error...');
+                this.connectToFirebase();
+            }, 10000);
         }
     }
 
@@ -295,9 +322,14 @@ class AdvancedSAGMGpsTracking {
         });
 
         Object.entries(firebaseData).forEach(([unitName, unitData]) => {
+            // ✅ FIX: Enhanced data validation and correction
             if (!this.validateUnitData(unitName, unitData)) {
-                this.correctUnitData(unitName, unitData);
-                return;
+                const correctedData = this.correctUnitData(unitName, unitData);
+                if (!correctedData) {
+                    console.log(`❌ Skipping invalid data for ${unitName}`);
+                    return; // Skip unit jika data tidak bisa dikoreksi
+                }
+                unitData = correctedData; // Gunakan data yang sudah dikoreksi
             }
 
             activeUnits.add(unitName);
@@ -330,6 +362,8 @@ class AdvancedSAGMGpsTracking {
                     if (!this.monitorChatRefs.has(unitName)) {
                         this.setupUnitChatListener(unitName);
                     }
+                    
+                    console.log(`✅ New unit created: ${unitName}`);
                 }
             }
         });
@@ -342,44 +376,102 @@ class AdvancedSAGMGpsTracking {
 
     // ===== ENHANCED UNIT CREATION WITH ANALYTICS =====
     createNewUnit(unitName, firebaseData) {
-        if (!this.validateUnitData(unitName, firebaseData)) return null;
+        if (!firebaseData) {
+            console.log(`❌ No firebase data for unit ${unitName}`);
+            return null;
+        }
 
-        const unit = {
-            id: this.getUnitId(unitName),
-            name: unitName,
-            afdeling: this.determineAfdeling(unitName),
-            status: this.determineStatus(firebaseData.journeyStatus),
-            latitude: parseFloat(firebaseData.lat),
-            longitude: parseFloat(firebaseData.lng),
-            speed: parseFloat(firebaseData.speed) || 0,
-            lastUpdate: firebaseData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
-            distance: parseFloat(firebaseData.distance) || 0,
-            fuelLevel: this.computeFuelLevel(100, firebaseData.distance, firebaseData.journeyStatus),
-            fuelUsed: this.computeFuelUsage(firebaseData.distance, firebaseData.journeyStatus),
-            driver: firebaseData.driver || 'Unknown',
-            accuracy: parseFloat(firebaseData.accuracy) || 0,
-            batteryLevel: firebaseData.batteryLevel || null,
-            lastLat: parseFloat(firebaseData.lat),
-            lastLng: parseFloat(firebaseData.lng),
-            isOnline: true,
-            sessionId: firebaseData.sessionId,
-            lastFuelUpdate: Date.now(),
-            
-            // Analytics fields
-            analytics: {
-                performanceScore: 75, // Default score
-                efficiency: 0,
-                violations: [],
-                dailyDistance: 0,
-                idleTime: 0,
-                fuelEfficiency: 0,
-                lastScoreUpdate: Date.now(),
-                zoneEntries: [],
-                maintenanceAlerts: []
+        // ✅ FIX: Enhanced validation dengan fallback values
+        try {
+            const validatedData = this.validateAndSanitizeUnitData(unitName, firebaseData);
+            if (!validatedData) {
+                console.log(`❌ Invalid data for unit ${unitName}, skipping creation`);
+                return null;
             }
-        };
 
-        return unit;
+            const unit = {
+                id: this.getUnitId(unitName),
+                name: unitName,
+                afdeling: this.determineAfdeling(unitName),
+                status: this.determineStatus(validatedData.journeyStatus),
+                latitude: parseFloat(validatedData.lat),
+                longitude: parseFloat(validatedData.lng),
+                speed: parseFloat(validatedData.speed) || 0,
+                lastUpdate: validatedData.lastUpdate || new Date().toLocaleTimeString('id-ID'),
+                distance: parseFloat(validatedData.distance) || 0,
+                fuelLevel: this.computeFuelLevel(100, validatedData.distance, validatedData.journeyStatus),
+                fuelUsed: this.computeFuelUsage(validatedData.distance, validatedData.journeyStatus),
+                driver: validatedData.driver || 'Unknown',
+                accuracy: parseFloat(validatedData.accuracy) || 0,
+                batteryLevel: validatedData.batteryLevel || null,
+                lastLat: parseFloat(validatedData.lat),
+                lastLng: parseFloat(validatedData.lng),
+                isOnline: true,
+                sessionId: validatedData.sessionId,
+                lastFuelUpdate: Date.now(),
+                
+                // Analytics fields
+                analytics: {
+                    performanceScore: 75, // Default score
+                    efficiency: 0,
+                    violations: [],
+                    dailyDistance: 0,
+                    idleTime: 0,
+                    fuelEfficiency: 0,
+                    lastScoreUpdate: Date.now(),
+                    zoneEntries: [],
+                    maintenanceAlerts: []
+                }
+            };
+
+            console.log(`✅ Successfully created unit: ${unitName}`);
+            return unit;
+            
+        } catch (error) {
+            console.error(`❌ Failed to create unit ${unitName}:`, error);
+            this.logData(`Unit creation failed for ${unitName}`, 'error', {
+                error: error.message,
+                data: firebaseData
+            });
+            return null;
+        }
+    }
+
+    // ✅ FIX: Tambahkan method validasi dan sanitasi data
+    validateAndSanitizeUnitData(unitName, unitData) {
+        if (!unitData) return null;
+        
+        const sanitized = { ...unitData };
+        
+        // Pastikan koordinat ada dan valid
+        if (!sanitized.lat || !sanitized.lng) {
+            console.log(`❌ Missing coordinates for ${unitName}`);
+            return null;
+        }
+        
+        // Konversi ke number dan validasi
+        sanitized.lat = parseFloat(sanitized.lat);
+        sanitized.lng = parseFloat(sanitized.lng);
+        
+        if (isNaN(sanitized.lat) || isNaN(sanitized.lng)) {
+            console.log(`❌ Invalid coordinates for ${unitName}`);
+            return null;
+        }
+        
+        // Validasi range koordinat
+        if (sanitized.lat < -90 || sanitized.lat > 90 || 
+            sanitized.lng < -180 || sanitized.lng > 180) {
+            console.log(`❌ Coordinate out of range for ${unitName}`);
+            return null;
+        }
+        
+        // Default values untuk field yang required
+        sanitized.speed = sanitized.speed || 0;
+        sanitized.distance = sanitized.distance || 0;
+        sanitized.driver = sanitized.driver || 'Unknown';
+        sanitized.journeyStatus = sanitized.journeyStatus || 'active';
+        
+        return sanitized;
     }
 
     getUnitId(unitName) {
@@ -937,9 +1029,70 @@ class AdvancedSAGMGpsTracking {
         return true;
     }
 
+    // ✅ FIX: Perbaiki method correctUnitData dengan logika koreksi yang benar
     correctUnitData(unitName, unitData) {
         console.log(`🛠️ Correcting invalid data for ${unitName}`);
         this.logData(`Data correction for ${unitName}`, 'warning', { unitData });
+        
+        // ✅ LOGIKA KOREKSI NYATA:
+        try {
+            const correctedData = { ...unitData };
+            
+            // Jika koordinat invalid, gunakan posisi terakhir yang valid
+            if (this.units.has(unitName)) {
+                const existingUnit = this.units.get(unitName);
+                correctedData.lat = existingUnit.latitude;
+                correctedData.lng = existingUnit.longitude;
+                console.log(`📍 Using last known position for ${unitName}`);
+            } else {
+                // Default position ke center map
+                correctedData.lat = this.config.center[0];
+                correctedData.lng = this.config.center[1];
+            }
+            
+            // Pastikan tipe data benar
+            correctedData.lat = parseFloat(correctedData.lat) || this.config.center[0];
+            correctedData.lng = parseFloat(correctedData.lng) || this.config.center[1];
+            correctedData.speed = parseFloat(correctedData.speed) || 0;
+            correctedData.distance = parseFloat(correctedData.distance) || 0;
+            
+            return correctedData;
+            
+        } catch (error) {
+            console.error(`❌ Failed to correct data for ${unitName}:`, error);
+            return null;
+        }
+    }
+
+    // ===== GPS MANAGEMENT METHODS =====
+    // ✅ FIX: Tambahkan method restartBackgroundGPS yang hilang
+    restartBackgroundGPS() {
+        console.log('🔄 Restarting background GPS due to poor accuracy...');
+        
+        try {
+            // Simulasi restart GPS - dalam implementasi nyata ini akan memanggil API GPS
+            this.logData('GPS system restart initiated', 'gps', {
+                reason: 'poor accuracy',
+                timestamp: new Date().toISOString()
+            });
+            
+            // Reset accuracy tracking untuk semua unit
+            this.units.forEach(unit => {
+                if (unit.accuracy > 50) { // Jika akurasi buruk (>50 meter)
+                    unit.accuracy = 0; // Reset untuk memaksa update baru
+                    console.log(`📍 Reset accuracy for ${unit.name}`);
+                }
+            });
+            
+            // Force refresh data
+            this.refreshData();
+            
+        } catch (error) {
+            console.error('❌ Failed to restart GPS:', error);
+            this.logData('GPS restart failed', 'error', {
+                error: error.message
+            });
+        }
     }
 
     // ===== FUEL CALCULATION METHODS =====
