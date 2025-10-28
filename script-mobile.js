@@ -13,6 +13,1087 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const database = firebase.database();
 
+// ✅ ENHANCED BACKGROUND SERVICE MANAGER
+class EnhancedBackgroundService {
+    constructor(logger) {
+        this.logger = logger;
+        this.serviceWorker = null;
+        this.backgroundSyncSupported = 'sync' in ServiceWorkerRegistration.prototype;
+        this.periodicSyncSupported = 'periodicSync' in ServiceWorkerRegistration.prototype;
+        this.isServiceWorkerActive = false;
+        
+        this.init();
+    }
+
+    async init() {
+        await this.registerServiceWorker();
+        await this.setupBackgroundSync();
+        this.setupMessageHandling();
+        this.updateSWStatus('connecting');
+    }
+
+    async registerServiceWorker() {
+        if (!'serviceWorker' in navigator) {
+            console.warn('❌ Service Worker not supported');
+            this.updateSWStatus('unsupported');
+            return;
+        }
+
+        try {
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            this.serviceWorker = registration;
+            this.isServiceWorkerActive = true;
+            
+            console.log('🚀 Service Worker registered:', registration);
+            
+            // Listen for service worker state changes
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                console.log('🔄 New Service Worker installing...');
+                
+                newWorker.addEventListener('statechange', () => {
+                    console.log('🎯 Service Worker state:', newWorker.state);
+                    if (newWorker.state === 'activated') {
+                        this.updateSWStatus('connected');
+                    }
+                });
+            });
+
+            // Check initial state
+            if (registration.active) {
+                this.updateSWStatus('connected');
+            }
+
+            // Check for updates every hour
+            setInterval(() => {
+                registration.update();
+            }, 60 * 60 * 1000);
+
+        } catch (error) {
+            console.error('❌ Service Worker registration failed:', error);
+            this.updateSWStatus('error');
+        }
+    }
+
+    async setupBackgroundSync() {
+        if (!this.serviceWorker || !this.backgroundSyncSupported) {
+            console.log('ℹ️ Background Sync not available');
+            return;
+        }
+
+        try {
+            // Register background sync
+            await this.serviceWorker.sync.register('background-gps-sync');
+            console.log('✅ Background Sync registered');
+
+            // Register periodic sync (if supported)
+            if (this.periodicSyncSupported) {
+                try {
+                    await this.serviceWorker.periodicSync.register('periodic-gps-health-check', {
+                        minInterval: 60 * 60 * 1000 // 1 hour
+                    });
+                    console.log('✅ Periodic Sync registered');
+                } catch (periodicError) {
+                    console.log('ℹ️ Periodic Sync not supported');
+                }
+            }
+
+        } catch (error) {
+            console.warn('⚠️ Background Sync not available:', error);
+        }
+    }
+
+    setupMessageHandling() {
+        if (!navigator.serviceWorker) return;
+
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            const { type, data } = event.data;
+            
+            switch (type) {
+                case 'GPS_DATA_REQUEST':
+                    this.handleGPSDataRequest();
+                    break;
+                case 'HEALTH_CHECK':
+                    this.handleHealthCheck(event.ports[0]);
+                    break;
+                case 'STOP_TRACKING':
+                    this.logger.stopTracking();
+                    break;
+                case 'SYNC_STATUS':
+                    this.updateSyncStatus(data.status);
+                    break;
+            }
+        });
+    }
+
+    async cacheGPSData(gpsData) {
+        if (!this.serviceWorker || !this.serviceWorker.active) return;
+
+        try {
+            this.serviceWorker.active.postMessage({
+                type: 'CACHE_GPS_DATA',
+                data: gpsData
+            });
+        } catch (error) {
+            console.error('Failed to cache GPS data:', error);
+        }
+    }
+
+    async triggerBackgroundSync() {
+        if (!this.serviceWorker || !this.backgroundSyncSupported) return;
+
+        try {
+            await this.serviceWorker.sync.register('background-gps-sync');
+            console.log('🔄 Background sync triggered');
+            this.updateSyncStatus('syncing');
+        } catch (error) {
+            console.error('Failed to trigger background sync:', error);
+            this.updateSyncStatus('error');
+        }
+    }
+
+    handleGPSDataRequest() {
+        if (!this.logger.lastPosition) return;
+
+        const gpsData = {
+            lat: this.logger.lastPosition.lat,
+            lng: this.logger.lastPosition.lng,
+            speed: this.logger.currentSpeed,
+            accuracy: this.logger.lastPosition.accuracy,
+            timestamp: new Date().toISOString(),
+            sessionId: this.logger.driverData?.sessionId
+        };
+
+        this.cacheGPSData(gpsData);
+    }
+
+    handleHealthCheck(port) {
+        port.postMessage({ 
+            status: 'healthy',
+            tracking: this.logger.isTracking,
+            lastUpdate: this.logger.lastPosition?.timestamp,
+            backgroundActive: this.logger.backgroundManager?.isActive
+        });
+    }
+
+    updateSWStatus(status) {
+        const swElement = document.getElementById('swStatus');
+        const swBadge = document.getElementById('swStatusBadge');
+        
+        if (swElement) {
+            swElement.className = `sw-status ${status}`;
+            
+            switch (status) {
+                case 'connected':
+                    swElement.textContent = '✅ SW Connected';
+                    if (swBadge) swBadge.className = 'badge bg-success';
+                    break;
+                case 'connecting':
+                    swElement.textContent = '🔄 SW Connecting';
+                    if (swBadge) swBadge.className = 'badge bg-warning';
+                    break;
+                case 'error':
+                    swElement.textContent = '❌ SW Error';
+                    if (swBadge) swBadge.className = 'badge bg-danger';
+                    break;
+                case 'unsupported':
+                    swElement.textContent = 'ℹ️ SW Unsupported';
+                    if (swBadge) swBadge.className = 'badge bg-secondary';
+                    break;
+            }
+        }
+    }
+
+    updateSyncStatus(status) {
+        const syncElement = document.getElementById('syncStatus');
+        const quickSyncElement = document.getElementById('quickSyncStatus');
+        
+        if (syncElement) {
+            switch (status) {
+                case 'syncing':
+                    syncElement.innerHTML = `
+                        <span class="processing-indicator">
+                            <span class="processing-dots">
+                                <span class="processing-dot"></span>
+                                <span class="processing-dot"></span>
+                                <span class="processing-dot"></span>
+                            </span>
+                            Syncing...
+                        </span>
+                    `;
+                    break;
+                case 'completed':
+                    syncElement.innerHTML = '✅ Synced';
+                    setTimeout(() => {
+                        syncElement.innerHTML = '';
+                    }, 3000);
+                    break;
+                case 'error':
+                    syncElement.innerHTML = '❌ Sync Failed';
+                    setTimeout(() => {
+                        syncElement.innerHTML = '';
+                    }, 3000);
+                    break;
+            }
+        }
+        
+        if (quickSyncElement) {
+            quickSyncElement.textContent = status === 'syncing' ? '🔄' : '';
+        }
+    }
+
+    // Request persistent storage (Chrome 76+)
+    async requestPersistentStorage() {
+        if (navigator.storage && navigator.storage.persist) {
+            const isPersisted = await navigator.storage.persist();
+            console.log('💾 Storage persisted:', isPersisted);
+            return isPersisted;
+        }
+        return false;
+    }
+
+    // Estimate storage quota
+    async checkStorageQuota() {
+        if (navigator.storage && navigator.storage.estimate) {
+            const estimate = await navigator.storage.estimate();
+            const percentage = (estimate.usage / estimate.quota) * 100;
+            console.log(`💾 Storage: ${percentage.toFixed(1)}% used`);
+            return percentage;
+        }
+        return 0;
+    }
+}
+
+// ✅ BATTERY MANAGER CLASS
+class BatteryManager {
+    constructor(logger) {
+        this.logger = logger;
+        this.level = 100;
+        this.isCharging = false;
+        this.isLowBattery = false;
+        this.lowBatteryThreshold = 20;
+        this.batteryUpdateCallbacks = [];
+    }
+
+    async init() {
+        if (navigator.getBattery) {
+            try {
+                const battery = await navigator.getBattery();
+                this.updateBatteryStatus(battery);
+                
+                battery.addEventListener('levelchange', () => {
+                    this.updateBatteryStatus(battery);
+                });
+                
+                battery.addEventListener('chargingchange', () => {
+                    this.updateBatteryStatus(battery);
+                });
+                
+                console.log('🔋 Battery API initialized');
+            } catch (error) {
+                console.log('🔋 Battery API not fully supported');
+                this.simulateBattery();
+            }
+        } else {
+            console.log('🔋 Battery API not supported');
+            this.simulateBattery();
+        }
+    }
+
+    updateBatteryStatus(battery) {
+        this.level = Math.round(battery.level * 100);
+        this.isCharging = battery.charging;
+        this.isLowBattery = this.level <= this.lowBatteryThreshold;
+        
+        console.log(`🔋 Battery: ${this.level}%${this.isCharging ? ' (charging)' : ''}`);
+        this.updateBatteryDisplay();
+        
+        // Notify if battery is low
+        if (this.isLowBattery && !this.isCharging) {
+            this.handleLowBattery();
+        }
+        
+        // Trigger callbacks
+        this.batteryUpdateCallbacks.forEach(callback => {
+            callback(this.level, this.isCharging, this.isLowBattery);
+        });
+    }
+
+    simulateBattery() {
+        // Fallback battery simulation
+        this.level = Math.max(20, Math.floor(Math.random() * 100));
+        this.isCharging = false;
+        this.isLowBattery = this.level <= this.lowBatteryThreshold;
+        this.updateBatteryDisplay();
+        
+        // Simulate battery drain
+        setInterval(() => {
+            if (!this.isCharging && this.level > 5) {
+                this.level -= 1;
+                this.isLowBattery = this.level <= this.lowBatteryThreshold;
+                this.updateBatteryDisplay();
+                
+                if (this.isLowBattery) {
+                    this.handleLowBattery();
+                }
+            }
+        }, 60000); // 1% per minute
+    }
+
+    updateBatteryDisplay() {
+        const batteryElement = document.getElementById('batteryStatus');
+        const batteryLevelElement = document.getElementById('batteryLevel');
+        const batteryIconElement = document.getElementById('batteryIcon');
+        const batteryDisplayElement = document.getElementById('batteryLevelDisplay');
+        
+        if (batteryElement && batteryLevelElement && batteryIconElement) {
+            batteryLevelElement.textContent = `${this.level}%`;
+            
+            // Update battery icon and styling
+            let batteryClass = 'battery-high';
+            let batteryIcon = '🔋';
+            
+            if (this.isCharging) {
+                batteryClass = 'battery-charging';
+                batteryIcon = '⚡';
+            } else if (this.level <= 10) {
+                batteryClass = 'battery-low';
+                batteryIcon = '🪫';
+            } else if (this.level <= 30) {
+                batteryClass = 'battery-low';
+                batteryIcon = '🔋';
+            } else if (this.level <= 60) {
+                batteryClass = 'battery-medium';
+                batteryIcon = '🔋';
+            }
+            
+            batteryElement.className = `battery-status ${batteryClass}`;
+            batteryIconElement.textContent = batteryIcon;
+        }
+        
+        if (batteryDisplayElement) {
+            batteryDisplayElement.textContent = `${this.level}%${this.isCharging ? ' ⚡' : ''}`;
+            batteryDisplayElement.className = `fw-bold ${
+                this.isLowBattery ? 'text-danger' : 
+                this.level < 50 ? 'text-warning' : 'text-success'
+            }`;
+        }
+        
+        // Update body class for low battery optimizations
+        if (this.isLowBattery && !this.isCharging) {
+            document.body.classList.add('low-battery');
+        } else {
+            document.body.classList.remove('low-battery');
+        }
+    }
+
+    handleLowBattery() {
+        console.warn(`🔋 Low battery: ${this.level}% - optimizing for battery life`);
+        
+        if (this.logger.backgroundManager) {
+            this.logger.backgroundManager.optimizeForLowBattery();
+        }
+        
+        // Show low battery warning (only once per session)
+        if (!this.lowBatteryWarningShown) {
+            this.lowBatteryWarningShown = true;
+            
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🔋 Battery Low', {
+                    body: `Battery at ${this.level}%. GPS tracking optimized for battery life.`,
+                    icon: '/icon-192.png',
+                    tag: 'low-battery'
+                });
+            }
+            
+            this.logger.addLog(`🔋 Battery low: ${this.level}% - optimizing tracking`, 'warning');
+        }
+    }
+
+    onBatteryUpdate(callback) {
+        this.batteryUpdateCallbacks.push(callback);
+    }
+}
+
+// ✅ GEOFENCE MANAGER CLASS
+class GeofenceManager {
+    constructor(logger) {
+        this.logger = logger;
+        this.geofences = new Map();
+        this.lastTriggeredGeofence = null;
+        this.currentGeofence = null;
+    }
+
+    setupGeofences() {
+        // Default geofences untuk area penting (Jakarta area)
+        this.addGeofence('office', -6.208800, 106.845600, 500, { name: 'Kantor Pusat' });
+        this.addGeofence('warehouse', -6.220000, 106.830000, 300, { name: 'Gudang Utama' });
+        this.addGeofence('client_site', -6.200000, 106.850000, 200, { name: 'Site Klien' });
+        
+        console.log('📍 Geofences initialized:', this.geofences.size);
+    }
+
+    addGeofence(id, lat, lng, radius, metadata = {}) {
+        this.geofences.set(id, {
+            id,
+            lat,
+            lng,
+            radius,
+            metadata,
+            lastTriggered: null
+        });
+        
+        console.log(`📍 Geofence added: ${id} (${radius}m radius)`);
+        return this.geofences.get(id);
+    }
+
+    removeGeofence(id) {
+        const removed = this.geofences.delete(id);
+        console.log(`📍 Geofence ${removed ? 'removed' : 'not found'}: ${id}`);
+        return removed;
+    }
+
+    checkPosition(position) {
+        const currentLat = position.coords.latitude;
+        const currentLng = position.coords.longitude;
+
+        for (const [id, geofence] of this.geofences) {
+            const distance = this.calculateDistance(
+                currentLat, currentLng,
+                geofence.lat, geofence.lng
+            );
+
+            const isInside = distance <= (geofence.radius / 1000); // Convert to km
+            const wasInside = this.currentGeofence === id;
+            
+            if (isInside && !wasInside) {
+                // Entering geofence
+                this.triggerGeofence(geofence, position, 'enter');
+                this.currentGeofence = id;
+            } else if (!isInside && wasInside) {
+                // Exiting geofence
+                this.triggerGeofence(geofence, position, 'exit');
+                this.currentGeofence = null;
+            }
+        }
+    }
+
+    triggerGeofence(geofence, position, eventType) {
+        console.log(`📍 Geofence ${eventType}: ${geofence.id}`);
+        
+        // Update geofence status display
+        this.updateGeofenceStatus(geofence, eventType);
+        
+        // Log the geofence event
+        this.logger.addLog(
+            `📍 ${eventType.toUpperCase()} area: ${geofence.metadata.name || geofence.id}`,
+            'info'
+        );
+
+        // Update Firebase dengan geofence info
+        if (this.logger.firebaseRef && this.logger.driverData) {
+            const geofenceData = {
+                geofenceEvent: {
+                    id: geofence.id,
+                    type: eventType,
+                    timestamp: new Date().toISOString(),
+                    position: {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    },
+                    metadata: geofence.metadata
+                }
+            };
+
+            this.logger.firebaseRef.update(geofenceData);
+        }
+
+        // Show notification untuk events penting
+        if (eventType === 'enter') {
+            this.showGeofenceNotification(geofence, eventType);
+        }
+    }
+
+    updateGeofenceStatus(geofence, eventType) {
+        const geofenceElement = document.getElementById('geofenceStatus');
+        const geofenceBadge = document.getElementById('geofenceStatusBadge');
+        
+        if (geofenceElement) {
+            if (eventType === 'enter') {
+                geofenceElement.textContent = `📍 ${geofence.metadata.name || geofence.id}`;
+                geofenceElement.style.background = 'rgba(40, 167, 69, 0.3)';
+            } else {
+                geofenceElement.textContent = '📍 No Area';
+                geofenceElement.style.background = 'rgba(255, 255, 255, 0.2)';
+            }
+        }
+        
+        if (geofenceBadge) {
+            geofenceBadge.textContent = eventType === 'enter' ? 'In Area' : 'Active';
+        }
+    }
+
+    showGeofenceNotification(geofence, eventType) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`📍 ${geofence.metadata.name || geofence.id}`, {
+                body: `Anda ${eventType === 'enter' ? 'memasuki' : 'meninggalkan'} area ${geofence.metadata.name || geofence.id}`,
+                icon: '/icon-192.png',
+                tag: `geofence-${geofence.id}`,
+                requireInteraction: true
+            });
+        }
+    }
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    clearGeofences() {
+        this.geofences.clear();
+        this.currentGeofence = null;
+        this.updateGeofenceStatus(null, 'exit');
+    }
+}
+
+// ✅ ENHANCED BACKGROUND TRACKING MANAGER
+class EnhancedBackgroundTrackingManager {
+    constructor(logger) {
+        this.logger = logger;
+        this.isActive = false;
+        this.backgroundWatchId = null;
+        this.backgroundInterval = null;
+        this.isInBackground = false;
+        this.lastBackgroundPosition = null;
+        this.backgroundUpdateCount = 0;
+        this.consecutiveLowAccuracyCount = 0;
+        this.maxConsecutiveLowAccuracy = 3;
+        
+        // Enhanced background features
+        this.backgroundService = new EnhancedBackgroundService(logger);
+        this.geofenceManager = new GeofenceManager(logger);
+        this.batteryManager = new BatteryManager(logger);
+        
+        this.init();
+    }
+
+    async init() {
+        await this.batteryManager.init();
+        this.geofenceManager.setupGeofences();
+        
+        // Setup battery update listener
+        this.batteryManager.onBatteryUpdate((level, isCharging, isLowBattery) => {
+            if (isLowBattery) {
+                this.optimizeForLowBattery();
+            }
+        });
+    }
+
+    start() {
+        if (this.isActive) return;
+        
+        console.log('🔄 Starting ENHANCED background tracking...');
+        this.isActive = true;
+        
+        this.setupVisibilityHandlers();
+        this.startBackgroundPositionWatch();
+        this.startBackgroundProcessing();
+        
+        // Request persistent storage
+        this.backgroundService.requestPersistentStorage();
+        
+        this.updateBackgroundIndicator();
+        this.logger.addLog('🔄 Enhanced background tracking started', 'success');
+    }
+
+    startBackgroundProcessing() {
+        // Background data processing (optimized for battery)
+        this.backgroundInterval = setInterval(() => {
+            this.processBackgroundData();
+            
+            // Battery-aware processing
+            if (this.batteryManager.isLowBattery) {
+                this.optimizeForLowBattery();
+            }
+            
+        }, this.getOptimizedInterval());
+    }
+
+    getOptimizedInterval() {
+        if (this.batteryManager.isLowBattery) return 30000; // 30s
+        if (this.isInBackground) return 15000; // 15s
+        return 5000; // 5s
+    }
+
+    optimizeForLowBattery() {
+        // Reduce accuracy requirements and frequency
+        if (this.backgroundWatchId) {
+            navigator.geolocation.clearWatch(this.backgroundWatchId);
+        }
+        
+        const lowBatteryOptions = {
+            enableHighAccuracy: false,
+            timeout: 30000,
+            maximumAge: 120000,
+            distanceFilter: 50
+        };
+
+        this.backgroundWatchId = navigator.geolocation.watchPosition(
+            (position) => this.handleBackgroundPosition(position),
+            (error) => this.handleBackgroundError(error),
+            lowBatteryOptions
+        );
+        
+        console.log('🔋 Low battery mode activated - optimized for battery life');
+    }
+
+    startBackgroundPositionWatch() {
+        if (!navigator.geolocation) {
+            console.warn('❌ Geolocation not supported');
+            return;
+        }
+
+        const backgroundOptions = {
+            enableHighAccuracy: true,
+            timeout: 30000,
+            maximumAge: 60000,
+            distanceFilter: 10
+        };
+
+        if (this.backgroundWatchId) {
+            navigator.geolocation.clearWatch(this.backgroundWatchId);
+        }
+
+        this.backgroundWatchId = navigator.geolocation.watchPosition(
+            (position) => this.handleBackgroundPosition(position),
+            (error) => this.handleBackgroundError(error),
+            backgroundOptions
+        );
+    }
+
+    // Enhanced background position handling dengan geofencing
+    handleBackgroundPosition(position) {
+        if (!this.isValidBackgroundPosition(position)) {
+            this.consecutiveLowAccuracyCount++;
+            
+            if (this.consecutiveLowAccuracyCount >= this.maxConsecutiveLowAccuracy) {
+                this.restartBackgroundGPS();
+            }
+            return;
+        }
+        
+        this.consecutiveLowAccuracyCount = 0;
+        this.lastBackgroundPosition = position;
+        this.backgroundUpdateCount++;
+
+        // Check geofence triggers
+        this.geofenceManager.checkPosition(position);
+
+        // Process if significant movement or time-based
+        if (!this.isInBackground || this.isSignificantMovement(position)) {
+            this.processBackgroundPosition(position);
+        }
+
+        // Cache for background sync
+        this.cachePositionForSync(position);
+    }
+
+    isValidBackgroundPosition(position) {
+        const accuracy = position.coords.accuracy;
+        
+        // Strict accuracy requirements for background
+        if (accuracy > 100) {
+            console.warn(`🎯 Background accuracy too low: ${accuracy}m`);
+            return false;
+        }
+        
+        if (!this.logger.isValidCoordinate(
+            position.coords.latitude, 
+            position.coords.longitude
+        )) {
+            console.warn('🎯 Invalid coordinates in background');
+            return false;
+        }
+        
+        return true;
+    }
+
+    isSignificantMovement(newPosition) {
+        if (!this.lastBackgroundPosition) return true;
+        
+        const distance = this.calculateDistance(
+            this.lastBackgroundPosition.coords.latitude,
+            this.lastBackgroundPosition.coords.longitude,
+            newPosition.coords.latitude,
+            newPosition.coords.longitude
+        );
+        
+        return distance > 0.02; // 20 meters
+    }
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    restartBackgroundGPS() {
+        console.log('🔄 Restarting background GPS due to poor accuracy...');
+        
+        if (this.backgroundWatchId) {
+            navigator.geolocation.clearWatch(this.backgroundWatchId);
+            this.backgroundWatchId = null;
+        }
+        
+        this.consecutiveLowAccuracyCount = 0;
+        
+        // Restart after short delay
+        setTimeout(() => {
+            this.startBackgroundPositionWatch();
+        }, 2000);
+    }
+
+    processBackgroundPosition(position) {
+        if (!this.logger.driverData || !this.logger.isTracking) return;
+
+        const accuracy = position.coords.accuracy;
+        
+        // Enhanced accuracy check for background
+        if (accuracy > 100) {
+            console.log('🔄 Background position accuracy too low, skipping');
+            return;
+        }
+
+        const waypoint = {
+            id: `wp_bg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            lat: parseFloat(position.coords.latitude.toFixed(6)),
+            lng: parseFloat(position.coords.longitude.toFixed(6)),
+            accuracy: parseFloat(accuracy.toFixed(1)),
+            speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
+            bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
+            timestamp: new Date().toISOString(),
+            timeDisplay: new Date().toLocaleTimeString('id-ID'),
+            sessionId: this.logger.driverData.sessionId,
+            unit: this.logger.driverData.unit,
+            driver: this.logger.driverData.name,
+            synced: false,
+            isOnline: this.logger.isOnline,
+            lowAccuracy: accuracy > 50,
+            isSimulated: false,
+            isBackground: true,
+            batteryLevel: this.batteryManager.level
+        };
+
+        this.logger.processWaypoint(waypoint);
+        
+        this.logger.lastPosition = {
+            lat: waypoint.lat,
+            lng: waypoint.lng,
+            speed: waypoint.speed,
+            accuracy: waypoint.accuracy,
+            bearing: waypoint.bearing,
+            timestamp: new Date()
+        };
+
+        // Persist session in background
+        this.logger.persistSession();
+    }
+
+    cachePositionForSync(position) {
+        const gpsData = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            speed: position.coords.speed,
+            timestamp: new Date().toISOString(),
+            isBackground: true,
+            batteryLevel: this.batteryManager.level,
+            sessionId: this.logger.driverData?.sessionId
+        };
+
+        this.backgroundService.cacheGPSData(gpsData);
+    }
+
+    async processBackgroundData() {
+        if (!this.isInBackground || !this.lastBackgroundPosition) return;
+        
+        console.log('🔄 Processing background data...');
+        
+        // Sync data every 10 updates in background
+        if (this.backgroundUpdateCount % 10 === 0) {
+            await this.backgroundService.triggerBackgroundSync();
+        }
+        
+        // Check storage quota periodically
+        if (this.backgroundUpdateCount % 30 === 0) {
+            await this.backgroundService.checkStorageQuota();
+        }
+    }
+
+    handleBackgroundError(error) {
+        console.warn('Background GPS Error:', error);
+        
+        if (error.code === error.TIMEOUT) {
+            console.log('⏱️ Background GPS timeout - will retry...');
+            setTimeout(() => {
+                if (this.isActive) {
+                    this.startBackgroundPositionWatch();
+                }
+            }, 5000);
+        }
+    }
+
+    // Enhanced visibility handlers dengan Page Visibility API
+    setupVisibilityHandlers() {
+        // Page Visibility API
+        document.addEventListener('visibilitychange', () => {
+            this.handleVisibilityChange();
+        });
+
+        // Page Lifecycle API
+        document.addEventListener('freeze', () => {
+            this.onFreeze();
+        });
+
+        document.addEventListener('resume', () => {
+            this.onResume();
+        });
+
+        // Network status for background sync
+        window.addEventListener('online', () => {
+            this.onNetworkRestored();
+        });
+
+        window.addEventListener('offline', () => {
+            this.onNetworkLost();
+        });
+
+        // Beforeunload untuk persistence
+        window.addEventListener('beforeunload', () => {
+            this.persistState();
+        });
+    }
+
+    handleVisibilityChange() {
+        const wasInBackground = this.isInBackground;
+        this.isInBackground = document.hidden;
+        
+        if (this.isInBackground && !wasInBackground) {
+            this.onEnterBackground();
+        } else if (!this.isInBackground && wasInBackground) {
+            this.onEnterForeground();
+        }
+        
+        this.updateBackgroundIndicator();
+    }
+
+    onEnterBackground() {
+        console.log('🎯 Background mode: Enhanced tracking active');
+        this.updateBackgroundIndicator(true);
+        
+        // Optimize for background
+        this.optimizeForBackground();
+        
+        // Backup state
+        this.persistState();
+        
+        // Notify service worker
+        this.notifyBackgroundState(true);
+        
+        this.logger.addLog('📱 App masuk background - tracking tetap aktif', 'info');
+    }
+
+    onEnterForeground() {
+        console.log('🎯 Foreground mode: Restoring full features');
+        this.updateBackgroundIndicator(false);
+        
+        // Restore from backup
+        this.restoreFromBackup();
+        
+        // Sync any pending data
+        if (this.logger.isOnline) {
+            setTimeout(() => {
+                this.logger.syncWaypointsToServer();
+                this.backgroundService.triggerBackgroundSync();
+            }, 2000);
+        }
+        
+        this.notifyBackgroundState(false);
+        this.logger.addLog('📱 App aktif kembali - sync data background', 'success');
+    }
+
+    onFreeze() {
+        console.log('❄️ Page freezing - persisting state');
+        this.persistState();
+        this.notifyBackgroundState(true);
+    }
+
+    onResume() {
+        console.log('🔁 Page resuming - restoring state');
+        this.restoreFromBackup();
+        this.notifyBackgroundState(false);
+    }
+
+    onNetworkRestored() {
+        console.log('📱 Network restored - triggering sync');
+        this.updateOfflineIndicator(false);
+        
+        setTimeout(() => {
+            this.backgroundService.triggerBackgroundSync();
+            this.logger.offlineQueue.processQueue();
+        }, 3000);
+        
+        this.logger.addLog('📶 Koneksi pulih - sync data offline', 'success');
+    }
+
+    onNetworkLost() {
+        console.log('📱 Network lost - caching data locally');
+        this.updateOfflineIndicator(true);
+        this.logger.addLog('📶 Koneksi terputus - data disimpan offline', 'warning');
+    }
+
+    notifyBackgroundState(isBackground) {
+        if (this.backgroundService.serviceWorker?.active) {
+            this.backgroundService.serviceWorker.active.postMessage({
+                type: 'BACKGROUND_STATE_CHANGE',
+                data: { isBackground }
+            });
+        }
+        
+        // Update body class for CSS optimizations
+        if (isBackground) {
+            document.body.classList.add('background-mode');
+        } else {
+            document.body.classList.remove('background-mode');
+        }
+    }
+
+    updateBackgroundIndicator(show = false) {
+        const indicator = document.getElementById('backgroundIndicator');
+        const statusBar = document.getElementById('backgroundStatusBar');
+        
+        if (indicator) {
+            if (show && this.isInBackground) {
+                indicator.style.display = 'block';
+                indicator.textContent = '🔄 Background Tracking Active';
+            } else {
+                indicator.style.display = 'none';
+            }
+        }
+        
+        if (statusBar) {
+            if (show && this.isInBackground) {
+                statusBar.classList.add('active');
+            } else {
+                statusBar.classList.remove('active');
+            }
+        }
+    }
+
+    updateOfflineIndicator(show = false) {
+        const offlineElement = document.getElementById('offlineIndicator');
+        if (offlineElement) {
+            if (show) {
+                offlineElement.classList.add('active');
+            } else {
+                offlineElement.classList.remove('active');
+            }
+        }
+    }
+
+    optimizeForBackground() {
+        // Adjust intervals and accuracy for background mode
+        if (this.backgroundInterval) {
+            clearInterval(this.backgroundInterval);
+        }
+        
+        this.backgroundInterval = setInterval(() => {
+            this.processBackgroundData();
+        }, 15000); // 15 seconds in background
+    }
+
+    persistState() {
+        if (!this.logger.driverData) return;
+        
+        const state = {
+            driverData: this.logger.driverData,
+            trackingData: {
+                totalDistance: this.logger.totalDistance,
+                dataPoints: this.logger.dataPoints,
+                sessionStartTime: this.logger.sessionStartTime,
+                journeyStatus: this.logger.journeyStatus,
+                currentSpeed: this.logger.currentSpeed,
+                lastPosition: this.logger.lastPosition
+            },
+            backgroundState: {
+                lastBackgroundPosition: this.lastBackgroundPosition,
+                backgroundUpdateCount: this.backgroundUpdateCount,
+                isActive: this.isActive
+            },
+            persistedAt: new Date().toISOString()
+        };
+
+        this.logger.storageManager.backupBackgroundData(state);
+    }
+
+    restoreFromBackup() {
+        const backup = this.logger.storageManager.loadBackgroundBackup();
+        if (backup && backup.driverData) {
+            console.log('📂 Restoring from background backup...');
+            
+            // Restore background waypoints
+            if (backup.waypoints && backup.waypoints.length > 0) {
+                backup.waypoints.forEach(waypoint => {
+                    if (!waypoint.synced) {
+                        this.logger.waypointBuffer.push(waypoint);
+                        this.logger.unsyncedWaypoints.add(waypoint.id);
+                    }
+                });
+            }
+            
+            this.logger.storageManager.clearBackgroundBackup();
+        }
+    }
+
+    stop() {
+        console.log('🛑 Stopping enhanced background tracking...');
+        this.isActive = false;
+        
+        if (this.backgroundWatchId) {
+            navigator.geolocation.clearWatch(this.backgroundWatchId);
+            this.backgroundWatchId = null;
+        }
+        
+        if (this.backgroundInterval) {
+            clearInterval(this.backgroundInterval);
+            this.backgroundInterval = null;
+        }
+        
+        this.geofenceManager.clearGeofences();
+        this.lastBackgroundPosition = null;
+        this.backgroundUpdateCount = 0;
+        this.consecutiveLowAccuracyCount = 0;
+        
+        this.updateBackgroundIndicator(false);
+        this.updateOfflineIndicator(false);
+        
+        document.body.classList.remove('background-mode', 'low-battery');
+    }
+}
+
 // ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION
 class CircularBuffer {
     constructor(capacity) {
@@ -307,316 +1388,6 @@ class GPSValidator {
     }
 }
 
-// ✅ BACKGROUND TRACKING MANAGER (DIPERBAIKI)
-class BackgroundTrackingManager {
-    constructor(logger) {
-        this.logger = logger;
-        this.isActive = false;
-        this.backgroundWatchId = null;
-        this.backgroundInterval = null;
-        this.isInBackground = false;
-        this.lastBackgroundPosition = null;
-        this.backgroundUpdateCount = 0;
-        this.retryCount = 0;
-        this.maxRetries = 3;
-    }
-
-    start() {
-        if (this.isActive) return;
-        
-        console.log('🔄 Starting enhanced background tracking...');
-        this.isActive = true;
-        
-        this.setupVisibilityHandlers();
-        this.startBackgroundPositionWatch();
-        
-        this.backgroundInterval = setInterval(() => {
-            this.processBackgroundData();
-        }, 15000);
-        
-        this.updateBackgroundIndicator();
-    }
-
-    setupVisibilityHandlers() {
-        document.addEventListener('visibilitychange', () => {
-            this.isInBackground = document.hidden;
-            
-            if (this.isInBackground) {
-                this.onEnterBackground();
-            } else {
-                this.onEnterForeground();
-            }
-            
-            this.updateBackgroundIndicator();
-        });
-
-        window.addEventListener('pagehide', () => {
-            this.isInBackground = true;
-            this.onEnterBackground();
-        });
-
-        window.addEventListener('pageshow', () => {
-            this.isInBackground = false;
-            this.onEnterForeground();
-        });
-
-        window.addEventListener('beforeunload', () => {
-            if (this.logger.driverData) {
-                this.logger.persistSession();
-            }
-        });
-    }
-
-    startBackgroundPositionWatch() {
-        if (!navigator.geolocation) {
-            console.warn('❌ Geolocation not supported');
-            return;
-        }
-
-        // Clear previous watch
-        if (this.backgroundWatchId) {
-            navigator.geolocation.clearWatch(this.backgroundWatchId);
-        }
-
-        const backgroundOptions = {
-            enableHighAccuracy: true,
-            timeout: 30000,
-            maximumAge: 60000,
-            distanceFilter: 10
-        };
-
-        this.backgroundWatchId = navigator.geolocation.watchPosition(
-            (position) => {
-                this.retryCount = 0;
-                this.handleBackgroundPosition(position);
-            },
-            (error) => {
-                this.handleBackgroundError(error);
-                this.retryBackgroundWatch();
-            },
-            backgroundOptions
-        );
-    }
-
-    retryBackgroundWatch() {
-        if (this.retryCount < this.maxRetries) {
-            this.retryCount++;
-            console.log(`🔄 Retrying background GPS (attempt ${this.retryCount}/${this.maxRetries})...`);
-            
-            setTimeout(() => {
-                if (this.isActive) {
-                    this.startBackgroundPositionWatch();
-                }
-            }, 5000 * this.retryCount);
-        } else {
-            console.warn('❌ Max GPS retries reached, giving up...');
-            if (!this.logger.isInBackground) {
-                this.logger.addLog('⚠️ GPS background tracking paused - poor signal', 'warning');
-            }
-        }
-    }
-
-    handleBackgroundPosition(position) {
-        if (!GPSValidator.isValidBackgroundPosition(position)) {
-            return;
-        }
-        
-        this.lastBackgroundPosition = position;
-        this.backgroundUpdateCount++;
-        
-        if (!this.isInBackground || this.isSignificantMovement(position)) {
-            this.processBackgroundPosition(position);
-        }
-    }
-
-    isSignificantMovement(newPosition) {
-        if (!this.lastBackgroundPosition) return true;
-        
-        const distance = this.calculateDistance(
-            this.lastBackgroundPosition.coords.latitude,
-            this.lastBackgroundPosition.coords.longitude,
-            newPosition.coords.latitude,
-            newPosition.coords.longitude
-        );
-        
-        return distance > 0.02;
-    }
-
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    processBackgroundPosition(position) {
-        if (!this.logger.driverData || !this.logger.isTracking) return;
-
-        const accuracy = position.coords.accuracy;
-        
-        if (accuracy > 200) {
-            console.log('🔄 Background position accuracy too low, skipping');
-            return;
-        }
-
-        const waypoint = {
-            id: `wp_bg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            lat: parseFloat(position.coords.latitude.toFixed(6)),
-            lng: parseFloat(position.coords.longitude.toFixed(6)),
-            accuracy: parseFloat(accuracy.toFixed(1)),
-            speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
-            bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            sessionId: this.logger.driverData.sessionId,
-            unit: this.logger.driverData.unit,
-            driver: this.logger.driverData.name,
-            synced: false,
-            isOnline: this.logger.isOnline,
-            lowAccuracy: accuracy > 50,
-            isSimulated: false,
-            isBackground: true,
-            batteryLevel: this.logger.getBatteryLevel()
-        };
-
-        this.logger.processWaypoint(waypoint);
-        
-        this.logger.lastPosition = {
-            lat: waypoint.lat,
-            lng: waypoint.lng,
-            speed: waypoint.speed,
-            accuracy: waypoint.accuracy,
-            bearing: waypoint.bearing,
-            timestamp: new Date()
-        };
-
-        this.logger.persistSession();
-    }
-
-    processBackgroundData() {
-        if (!this.isInBackground || !this.lastBackgroundPosition) return;
-        
-        console.log('🔄 Processing background data...');
-        this.processBackgroundPosition(this.lastBackgroundPosition);
-        
-        if (this.backgroundUpdateCount % 3 === 0 && this.logger.lastPosition) {
-            this.logger.sendToFirebase();
-        }
-    }
-
-    handleBackgroundError(error) {
-        let errorMessage = 'Background GPS Error: ';
-        
-        switch(error.code) {
-            case error.PERMISSION_DENIED:
-                errorMessage += 'Permission denied';
-                break;
-            case error.POSITION_UNAVAILABLE:
-                errorMessage += 'Position unavailable';
-                break;
-            case error.TIMEOUT:
-                errorMessage += 'Timeout expired';
-                console.warn('⏱️ Background GPS timeout - will retry...');
-                return;
-            default:
-                errorMessage += 'Unknown error';
-                break;
-        }
-        
-        console.warn(errorMessage);
-        
-        if (error.code !== error.TIMEOUT && !this.logger.isInBackground) {
-            this.logger.addLog(`⚠️ ${errorMessage}`, 'warning');
-        }
-    }
-
-    onEnterBackground() {
-        console.log('🎯 Background mode: Continuing tracking with optimized settings');
-        this.updateBackgroundIndicator(true);
-        
-        if (this.logger.driverData) {
-            this.logger.storageManager.backupBackgroundData({
-                driverData: this.logger.driverData,
-                trackingData: {
-                    totalDistance: this.logger.totalDistance,
-                    dataPoints: this.logger.dataPoints,
-                    sessionStartTime: this.logger.sessionStartTime,
-                    journeyStatus: this.logger.journeyStatus
-                },
-                waypoints: this.logger.waypointBuffer.getAll().slice(-100)
-            });
-        }
-    }
-
-    onEnterForeground() {
-        console.log('🎯 Foreground mode: Restoring full functionality');
-        this.updateBackgroundIndicator(false);
-        
-        this.restoreFromBackup();
-        
-        if (this.logger.isOnline) {
-            setTimeout(() => {
-                this.logger.syncWaypointsToServer();
-                this.logger.offlineQueue.processQueue();
-            }, 2000);
-        }
-    }
-
-    restoreFromBackup() {
-        const backup = this.logger.storageManager.loadBackgroundBackup();
-        if (backup && backup.driverData) {
-            console.log('📂 Restoring from background backup...');
-            if (backup.waypoints && backup.waypoints.length > 0) {
-                backup.waypoints.forEach(waypoint => {
-                    if (!waypoint.synced) {
-                        this.logger.waypointBuffer.push(waypoint);
-                        this.logger.unsyncedWaypoints.add(waypoint.id);
-                    }
-                });
-            }
-            this.logger.storageManager.clearBackgroundBackup();
-        }
-    }
-
-    updateBackgroundIndicator(show = false) {
-        const indicator = document.getElementById('backgroundIndicator');
-        if (indicator) {
-            if (show && this.isInBackground) {
-                indicator.style.display = 'block';
-                indicator.textContent = '🔄 Background Tracking Active';
-            } else {
-                indicator.style.display = 'none';
-            }
-        }
-    }
-
-    stop() {
-        console.log('🛑 Stopping background tracking...');
-        this.isActive = false;
-        
-        if (this.backgroundWatchId) {
-            navigator.geolocation.clearWatch(this.backgroundWatchId);
-            this.backgroundWatchId = null;
-        }
-        
-        if (this.backgroundInterval) {
-            clearInterval(this.backgroundInterval);
-            this.backgroundInterval = null;
-        }
-        
-        this.lastBackgroundPosition = null;
-        this.backgroundUpdateCount = 0;
-        this.retryCount = 0;
-        
-        this.updateBackgroundIndicator(false);
-    }
-}
-
 // ✅ OFFLINE QUEUE MANAGER
 class OfflineQueueManager {
     constructor() {
@@ -715,7 +1486,8 @@ class EnhancedDTGPSLogger {
         
         this.completeHistory = this.loadCompleteHistory();
         
-        this.backgroundManager = new BackgroundTrackingManager(this);
+        // Enhanced Background Tracking System
+        this.backgroundManager = new EnhancedBackgroundTrackingManager(this);
         this.isInBackground = false;
         
         this.chatRef = null;
@@ -902,6 +1674,10 @@ class EnhancedDTGPSLogger {
                 }
             });
         }
+
+        // Quick actions
+        document.getElementById('quickStatusBtn')?.addEventListener('click', () => this.showQuickStatus());
+        document.getElementById('refreshDataBtn')?.addEventListener('click', () => this.forceSync());
     }
 
     startRealGPSTracking() {
@@ -1290,6 +2066,37 @@ class EnhancedDTGPSLogger {
         document.getElementById('currentSpeed').textContent = this.currentSpeed.toFixed(1);
         document.getElementById('gpsAccuracy').textContent = waypoint.accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
+        
+        // Update accuracy status display
+        this.updateGPSAccuracyDisplay(waypoint.accuracy);
+    }
+
+    updateGPSAccuracyDisplay(accuracy) {
+        const accuracyElement = document.getElementById('gpsAccuracyStatus');
+        if (!accuracyElement) return;
+        
+        let status = '';
+        let className = '';
+        
+        if (accuracy <= 10) {
+            status = 'Excellent';
+            className = 'gps-accuracy-excellent';
+        } else if (accuracy <= 25) {
+            status = 'Good';
+            className = 'gps-accuracy-good';
+        } else if (accuracy <= 50) {
+            status = 'Fair';
+            className = 'gps-accuracy-fair';
+        } else if (accuracy <= 100) {
+            status = 'Poor';
+            className = 'gps-accuracy-poor';
+        } else {
+            status = 'Bad';
+            className = 'gps-accuracy-bad';
+        }
+        
+        accuracyElement.textContent = `${accuracy}m (${status})`;
+        accuracyElement.className = `accuracy-indicator ${className}`;
     }
 
     updateWaypointDisplay() {
@@ -1426,15 +2233,16 @@ class EnhancedDTGPSLogger {
         
         const dot = document.getElementById('connectionDot');
         const status = document.getElementById('connectionStatus');
+        const wrapper = document.getElementById('connectionStatusWrapper');
         
         if (connected) {
-            if (dot) dot.className = 'connection-status connected';
+            if (dot) dot.className = 'connection-dot connected';
             if (status) {
                 status.textContent = 'TERHUBUNG';
                 status.className = 'text-success';
             }
         } else {
-            if (dot) dot.className = 'connection-status disconnected';
+            if (dot) dot.className = 'connection-dot disconnected';
             if (status) {
                 status.textContent = `OFFLINE (${this.unsyncedWaypoints.size} waypoint menunggu)`;
                 status.className = 'text-danger';
@@ -1983,6 +2791,28 @@ class EnhancedDTGPSLogger {
         this.isTracking = false;
     }
 
+    showQuickStatus() {
+        const status = this.getQuickStatus();
+        alert(`Quick Status:\n${status}`);
+    }
+
+    getQuickStatus() {
+        return `
+Driver: ${this.driverData?.name || '-'}
+Unit: ${this.driverData?.unit || '-'}
+Status: ${this.journeyStatus || 'ready'}
+Distance: ${this.totalDistance?.toFixed(3) || '0.000'} km
+Speed: ${this.currentSpeed?.toFixed(1) || '0.0'} km/h
+Waypoints: ${this.waypointBuffer?.count || 0}
+Unsynced: ${this.unsyncedWaypoints?.size || 0}
+Connection: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}
+GPS Accuracy: ${this.lastPosition?.accuracy || '0'} m
+Session Duration: ${document.getElementById('sessionDuration')?.textContent || '00:00:00'}
+Background: ${this.backgroundManager?.isActive ? 'ACTIVE' : 'INACTIVE'}
+Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
+        `.trim();
+    }
+
     logout() {
         if (confirm('Yakin ingin logout? Tracking akan dihentikan permanen.')) {
             this.stopRealGPSTracking();
@@ -2108,4 +2938,57 @@ window.addEventListener('error', (event) => {
 
 window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled promise rejection:', event.reason);
+});
+
+// Additional initialization for enhanced features
+document.addEventListener('DOMContentLoaded', function() {
+    // Character counter for chat input
+    const chatInput = document.getElementById('chatInput');
+    const charCounter = document.getElementById('charCounter');
+    
+    if (chatInput && charCounter) {
+        chatInput.addEventListener('input', function() {
+            const length = this.value.length;
+            charCounter.textContent = `${length}/500`;
+            
+            if (length > 450) {
+                charCounter.className = 'text-warning';
+            } else if (length > 490) {
+                charCounter.className = 'text-danger';
+            } else {
+                charCounter.className = 'text-muted';
+            }
+        });
+    }
+
+    // Update fuel level display
+    function updateFuelStatus() {
+        const fuelElement = document.getElementById('fuelLevel');
+        if (fuelElement && window.dtLogger) {
+            const fuel = window.dtLogger.calculateFuelLevel();
+            fuelElement.textContent = fuel + '%';
+            
+            if (fuel < 25) {
+                fuelElement.className = 'fw-bold text-danger';
+            } else if (fuel < 50) {
+                fuelElement.className = 'fw-bold text-warning';
+            } else {
+                fuelElement.className = 'fw-bold text-success';
+            }
+        }
+    }
+
+    // Update status every 30 seconds
+    setInterval(() => {
+        updateFuelStatus();
+        
+        // Update last update time
+        const lastUpdateElement = document.getElementById('lastUpdateTime');
+        if (lastUpdateElement) {
+            lastUpdateElement.textContent = new Date().toLocaleTimeString('id-ID');
+        }
+    }, 30000);
+
+    // Initial update
+    updateFuelStatus();
 });
