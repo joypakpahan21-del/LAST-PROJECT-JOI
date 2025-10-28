@@ -1000,7 +1000,7 @@ class AdvancedSAGMGpsTracking {
                     ${routeInfo}
                 </div>
                 <div class="mt-2">
-                    <button class="btn btn-sm btn-primary w-100" onclick="window.gpsSystem.showUnitAnalytics('${unit.name}')">
+                    <button class="btn btn-sm btn-primary w-100" onclick="showUnitAnalytics('${unit.name}')">
                         📊 Lihat Analytics
                     </button>
                 </div>
@@ -2628,12 +2628,164 @@ class AnalyticsEngine {
     }
 
     showUnitAnalytics(unitName) {
-        const unit = this.main.units.get(unitName);
-        if (!unit) return;
+        try {
+            const unit = this.main.units.get(unitName);
+            if (!unit) {
+                console.warn(`Unit ${unitName} tidak ditemukan`);
+                return;
+            }
 
-        const analytics = this.unitAnalytics.get(unitName) || {};
+            const analytics = this.unitAnalytics.get(unitName) || {};
+            
+            // ✅ FIX: Periksa apakah elemen modal ada sebelum mengaksesnya
+            const modalTitle = document.getElementById('analyticsModalTitle');
+            const modalBody = document.getElementById('analyticsModalBody');
+            
+            if (!modalTitle || !modalBody) {
+                console.error('Modal elements not found in DOM');
+                
+                // Fallback: tampilkan di console atau alert
+                console.log(`📊 Analytics untuk ${unitName}:`, {
+                    performanceScore: analytics.performanceScore || 0,
+                    efficiency: analytics.efficiency || 0,
+                    speedEfficiency: analytics.speedEfficiency || 0,
+                    fuelEfficiency: analytics.fuelEfficiency || 0
+                });
+                
+                // Atau buat modal secara dinamis
+                this.createDynamicAnalyticsModal(unitName, unit, analytics);
+                return;
+            }
+
+            const modalBodyContent = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>📊 Analytics Detail - ${unitName}</h5>
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="h2 text-${this.main.getScoreClass(analytics.performanceScore)}">
+                                            ${analytics.performanceScore || 0}
+                                        </div>
+                                        <small>Overall Score</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="h4 text-success">${analytics.efficiency || 0}%</div>
+                                        <small>Efficiency</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h6>📈 Metrik Detail</h6>
+                        <div class="list-group">
+                            <div class="list-group-item d-flex justify-content-between">
+                                <span>Kecepatan:</span>
+                                <span>${unit.speed} km/h</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between">
+                                <span>Efisiensi Kecepatan:</span>
+                                <span>${analytics.speedEfficiency || 0}%</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between">
+                                <span>Jarak Tempuh:</span>
+                                <span>${unit.distance.toFixed(1)} km</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between">
+                                <span>Efisiensi Bahan Bakar:</span>
+                                <span>${analytics.fuelEfficiency || 0}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>⚠️ Pelanggaran</h6>
+                        <div id="unitViolationsList">
+                            ${this.renderUnitViolations(unit)}
+                        </div>
+                        
+                        <h6 class="mt-3">💡 Rekomendasi</h6>
+                        <div id="unitRecommendations">
+                            ${this.generateRecommendations(unit)}
+                        </div>
+
+                        <h6 class="mt-3">🔧 Maintenance</h6>
+                        <div id="unitMaintenance">
+                            ${this.renderUnitMaintenance(unit)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            modalTitle.textContent = `Analytics - ${unitName}`;
+            modalBody.innerHTML = modalBodyContent;
+            
+            // ✅ FIX: Gunakan Bootstrap modal dengan error handling
+            const modalElement = document.getElementById('analyticsModal');
+            if (modalElement) {
+                const modal = new bootstrap.Modal(modalElement);
+                modal.show();
+            } else {
+                console.error('Analytics modal element not found');
+                // Fallback: tampilkan dalam div sederhana
+                this.showFallbackAnalytics(unitName, unit, analytics);
+            }
+
+        } catch (error) {
+            console.error('Error showing unit analytics:', error);
+            this.main.logData(`Gagal menampilkan analytics untuk ${unitName}`, 'error', {
+                error: error.message,
+                stack: error.stack
+            });
+        }
+    }
+
+    // ✅ FIX: Tambahkan method fallback untuk menampilkan analytics
+    createDynamicAnalyticsModal(unitName, unit, analytics) {
+        // Cek jika modal sudah ada
+        let modalElement = document.getElementById('analyticsModal');
         
-        const modalBody = `
+        if (!modalElement) {
+            // Buat modal secara dinamis
+            const modalHTML = `
+                <div class="modal fade" id="analyticsModal" tabindex="-1" aria-labelledby="analyticsModalTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="analyticsModalTitle">Analytics</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body" id="analyticsModalBody">
+                                <!-- Content will be loaded here -->
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            modalElement = document.getElementById('analyticsModal');
+        }
+
+        // Sekarang tampilkan modal
+        const modalTitle = document.getElementById('analyticsModalTitle');
+        const modalBody = document.getElementById('analyticsModalBody');
+        
+        if (modalTitle && modalBody) {
+            modalTitle.textContent = `Analytics - ${unitName}`;
+            modalBody.innerHTML = this.createAnalyticsContent(unitName, unit, analytics);
+            
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+        }
+    }
+
+    // ✅ FIX: Method untuk membuat konten analytics
+    createAnalyticsContent(unitName, unit, analytics) {
+        return `
             <div class="row">
                 <div class="col-md-6">
                     <h5>📊 Analytics Detail - ${unitName}</h5>
@@ -2693,12 +2845,33 @@ class AnalyticsEngine {
                 </div>
             </div>
         `;
+    }
 
-        document.getElementById('analyticsModalTitle').textContent = `Analytics - ${unitName}`;
-        document.getElementById('analyticsModalBody').innerHTML = modalBody;
+    // ✅ FIX: Fallback sederhana jika modal tidak bisa ditampilkan
+    showFallbackAnalytics(unitName, unit, analytics) {
+        const fallbackHTML = `
+            <div class="alert alert-info position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999; min-width: 300px;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6>📊 ${unitName} Analytics</h6>
+                        <div class="small">
+                            Score: ${analytics.performanceScore || 0}<br>
+                            Efficiency: ${analytics.efficiency || 0}%<br>
+                            Speed: ${unit.speed} km/h
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+                </div>
+            </div>
+        `;
         
-        const modal = new bootstrap.Modal(document.getElementById('analyticsModal'));
-        modal.show();
+        document.body.insertAdjacentHTML('beforeend', fallbackHTML);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            const alert = document.querySelector('.alert-info');
+            if (alert) alert.remove();
+        }, 5000);
     }
 
     renderUnitViolations(unit) {
@@ -4102,6 +4275,34 @@ window.addEventListener('beforeunload', function() {
     }
 });
 
+// ✅ ENHANCED GLOBAL FUNCTIONS - IMPROVED ERROR HANDLING
+function showUnitAnalytics(unitName) {
+    try {
+        if (window.gpsSystem && window.gpsSystem.analyticsEngine) {
+            window.gpsSystem.analyticsEngine.showUnitAnalytics(unitName);
+        } else {
+            console.warn('GPS System atau Analytics Engine belum siap');
+            // Fallback sederhana
+            alert(`Analytics untuk ${unitName}\nSistem sedang memuat...`);
+        }
+    } catch (error) {
+        console.error('Error in showUnitAnalytics:', error);
+        alert('Terjadi error saat menampilkan analytics. Silakan coba lagi.');
+    }
+}
+
+function showZoneManager() {
+    try {
+        if (window.gpsSystem && window.gpsSystem.geofencingManager) {
+            window.gpsSystem.geofencingManager.showZoneManager();
+        } else {
+            console.warn('GPS System atau Geofencing Manager belum siap');
+        }
+    } catch (error) {
+        console.error('Error in showZoneManager:', error);
+    }
+}
+
 // Global functions for HTML onclick handlers
 function refreshData() {
     if (window.gpsSystem) {
@@ -4141,18 +4342,6 @@ function toggleHeatmap() {
 function toggleGeofencing() {
     if (window.gpsSystem && window.gpsSystem.geofencingManager) {
         window.gpsSystem.geofencingManager.toggleZones();
-    }
-}
-
-function showZoneManager() {
-    if (window.gpsSystem && window.gpsSystem.geofencingManager) {
-        window.gpsSystem.geofencingManager.showZoneManager();
-    }
-}
-
-function showUnitAnalytics(unitName) {
-    if (window.gpsSystem && window.gpsSystem.analyticsEngine) {
-        window.gpsSystem.analyticsEngine.showUnitAnalytics(unitName);
     }
 }
 
