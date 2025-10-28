@@ -11,8 +11,208 @@ body {
     min-height: 100vh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     padding-bottom: 80px;
+    transition: all 0.3s ease;
 }
 
+/* Background Mode Styles */
+body.background-mode {
+    opacity: 0.95;
+}
+
+body.background-mode .driver-app {
+    filter: grayscale(0.3);
+}
+
+body.low-battery .stats-card {
+    opacity: 0.8;
+}
+
+body.low-battery .control-btn:not(.btn-primary) {
+    opacity: 0.6;
+}
+
+/* Enhanced Background Status Bar */
+.background-status-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 8px 15px;
+    font-size: 0.8rem;
+    z-index: 9999;
+    display: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    justify-content: space-between;
+    align-items: center;
+}
+
+.background-status-bar.active {
+    display: flex;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Service Worker Status */
+.sw-status {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.7rem;
+    z-index: 1000;
+}
+
+.sw-status.connected { 
+    background: rgba(40, 167, 69, 0.9); 
+}
+
+.sw-status.disconnected { 
+    background: rgba(220, 53, 69, 0.9); 
+}
+
+.sw-status.syncing {
+    background: rgba(23, 162, 184, 0.9);
+    animation: pulse 2s infinite;
+}
+
+/* Offline Indicator */
+.offline-indicator {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+    padding: 8px 15px;
+    text-align: center;
+    font-size: 0.8rem;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    display: none;
+}
+
+.offline-indicator.active {
+    display: block;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Enhanced Connection Status */
+.connection-status-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.1);
+}
+
+.connection-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.connection-dot.connected {
+    background: #28a745;
+    box-shadow: 0 0 10px #28a745;
+}
+
+.connection-dot.disconnected {
+    background: #dc3545;
+    box-shadow: 0 0 10px #dc3545;
+}
+
+.connection-dot.syncing {
+    background: #17a2b8;
+    box-shadow: 0 0 10px #17a2b8;
+    animation: pulse 1s infinite;
+}
+
+/* Background Processing Animation */
+.processing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.processing-dots {
+    display: flex;
+    gap: 2px;
+}
+
+.processing-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: processing 1.4s infinite ease-in-out;
+}
+
+.processing-dot:nth-child(1) { animation-delay: -0.32s; }
+.processing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes processing {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+    40% { transform: scale(1); opacity: 1; }
+}
+
+/* Geofence Status */
+.geofence-status {
+    background: rgba(255,255,255,0.2);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    margin-left: 10px;
+}
+
+/* Battery Status */
+.battery-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.battery-high { background: rgba(40, 167, 69, 0.3); }
+.battery-medium { background: rgba(255, 193, 7, 0.3); }
+.battery-low { background: rgba(220, 53, 69, 0.3); }
+.battery-charging { background: rgba(0, 123, 255, 0.3); }
+
+/* Sync Status */
+.sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.6rem;
+    background: rgba(255,255,255,0.1);
+}
+
+/* Existing Styles */
 .login-container, .driver-app {
     background: white;
     border-radius: 15px;
@@ -56,18 +256,6 @@ body {
     padding: 12px 20px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
-
-.connection-status {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 5px;
-}
-
-.connected { background: var(--success); }
-.disconnected { background: var(--danger); }
-.connecting { background: var(--warning); }
 
 .data-log {
     max-height: 200px;
@@ -192,6 +380,7 @@ body {
     border-radius: 12px;
     max-width: 85%;
     word-wrap: break-word;
+    animation: messageSlideIn 0.3s ease-out;
 }
 
 .message-sent {
@@ -277,6 +466,109 @@ body {
     margin-left: 10px;
 }
 
+/* Background Indicator */
+.background-indicator {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.7rem;
+    z-index: 1002;
+    display: none;
+}
+
+/* GPS Recovery Status */
+.gps-recovery-status {
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px 0;
+    display: none;
+}
+
+/* Enhanced GPS Accuracy Colors */
+.gps-accuracy-excellent { color: #28a745; background: rgba(40, 167, 69, 0.1); }
+.gps-accuracy-good { color: #17a2b8; background: rgba(23, 162, 184, 0.1); }
+.gps-accuracy-fair { color: #ffc107; background: rgba(255, 193, 7, 0.1); }
+.gps-accuracy-poor { color: #fd7e14; background: rgba(253, 126, 20, 0.1); }
+.gps-accuracy-bad { color: #dc3545; background: rgba(220, 53, 69, 0.1); }
+
+.accuracy-indicator {
+    font-size: 0.8rem;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.gps-mode-selector {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.debug-controls {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+/* GPS Status Badges */
+.gps-status-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 8px;
+    margin-left: 5px;
+}
+
+.gps-status-active {
+    background: #198754;
+    color: white;
+}
+
+.gps-status-warning {
+    background: #ffc107;
+    color: black;
+}
+
+.gps-status-error {
+    background: #dc3545;
+    color: white;
+}
+
+/* Chat Notification */
+.chat-notification {
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Message Animations */
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .chat-window {
@@ -315,6 +607,23 @@ body {
         padding: 10px 15px;
         font-size: 0.9rem;
     }
+    
+    .background-status-bar {
+        font-size: 0.7rem;
+        padding: 6px 10px;
+    }
+    
+    .geofence-status, .battery-status {
+        font-size: 0.6rem;
+        padding: 2px 6px;
+    }
+    
+    .sw-status {
+        bottom: 5px;
+        left: 5px;
+        font-size: 0.6rem;
+        padding: 3px 8px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -327,48 +636,14 @@ body {
     .speed-gauge, .distance-counter {
         font-size: 1.7rem;
     }
-}
-
-/* Additional Styles */
-.control-btn {
-    margin-bottom: 10px;
-    padding: 12px;
-    font-weight: bold;
-}
-
-.data-log {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-/* Chat Notification */
-.chat-notification {
-    animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
+    
+    .background-status-bar {
+        flex-direction: column;
+        gap: 3px;
+        text-align: center;
     }
-    to {
-        transform: translateX(0);
-        opacity: 1;
+    
+    .connection-status-wrapper {
+        justify-content: center;
     }
-}
-
-/* Message Animations */
-@keyframes messageSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.chat-message {
-    animation: messageSlideIn 0.3s ease-out;
 }
