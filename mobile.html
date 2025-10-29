@@ -3,28 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DT Driver - Enhanced GPS Logger</title><!-- Jika pakai OPTION 1 -->
-    <link rel="apple-touch-icon" sizes="57x57" href="/logo-57x57.png">
-    <link rel="apple-touch-icon" sizes="60x60" href="/logo-60x60.png">
-    <link rel="apple-touch-icon" sizes="72x72" href="/logo-72x72.png">
-    <link rel="apple-touch-icon" sizes="76x76" href="/logo-76x76.png">
-    <link rel="apple-touch-icon" sizes="114x114" href="/logo-114x114.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="/logo-120x120.png">
-    <link rel="apple-touch-icon" sizes="144x144" href="/logo-144x144.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/logo-152x152.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/logo-180x180.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/logo-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <meta name="msapplication-TileImage" content="/logo-144x144-ms.png">
-    
+    <title>DT Driver - Enhanced GPS Logger</title>
+    <!-- Simplified Favicon Section -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="manifest" href="manifest.json">
+
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#007bff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="manifest.json">
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -602,6 +593,32 @@
             }
         }
 
+        /* Fallback untuk icon yang tidak ditemukan */
+        .app-icon {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            width: 192px;
+            height: 192px;
+            font-size: 48px;
+        }
+
+        /* Hide broken images dan gunakan fallback */
+        img[src*="icon-"]:not([src=""]) {
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        /* Fallback untuk favicon */
+        link[rel*="icon"]:not([href]),
+        link[rel*="apple-touch-icon"]:not([href]) {
+            display: none;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .chat-window {
@@ -1169,7 +1186,7 @@
         firebase.initializeApp(FIREBASE_CONFIG);
         const database = firebase.database();
 
-        // ✅ ENHANCED BACKGROUND SERVICE MANAGER
+        // ✅ ENHANCED BACKGROUND SERVICE MANAGER - VERSI DIPERBAIKI
         class EnhancedBackgroundService {
             constructor(logger) {
                 this.logger = logger;
@@ -1189,59 +1206,36 @@
             }
 
             async registerServiceWorker() {
-  if (!'serviceWorker' in navigator) {
-    console.warn('❌ Service Worker not supported');
-    this.updateSWStatus('unsupported');
-    return;
-  }
+                if (!'serviceWorker' in navigator) {
+                    console.warn('❌ Service Worker not supported');
+                    this.updateSWStatus('unsupported');
+                    return;
+                }
 
-  try {
-    // ✅ GUNAKAN PATH RELATIF untuk GitHub Pages
-    const registration = await navigator.serviceWorker.register('./sw.js', {
-      scope: './'
-    });
-    
-    this.serviceWorker = registration;
-    this.isServiceWorkerActive = true;
-    
-    console.log('🚀 Service Worker registered:', registration);
-    
-    // Listen for service worker state changes
-    registration.addEventListener('updatefound', () => {
-      const newWorker = registration.installing;
-      console.log('🔄 New Service Worker installing...');
-      
-      newWorker.addEventListener('statechange', () => {
-        console.log('🎯 Service Worker state:', newWorker.state);
-        if (newWorker.state === 'activated') {
-          this.updateSWStatus('connected');
-        }
-      });
-    });
+                try {
+                    // ✅ GUNAKAN PATH RELATIF untuk GitHub Pages
+                    const registration = await navigator.serviceWorker.register('./sw.js', {
+                        scope: './'
+                    });
+                    
+                    this.serviceWorker = registration;
+                    this.isServiceWorkerActive = true;
+                    
+                    console.log('🚀 Service Worker registered:', registration);
+                    
+                    // Listen for service worker state changes
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('🔄 New Service Worker installing...');
+                        
+                        newWorker.addEventListener('statechange', () => {
+                            console.log('🎯 Service Worker state:', newWorker.state);
+                            if (newWorker.state === 'activated') {
+                                this.updateSWStatus('connected');
+                            }
+                        });
+                    });
 
-    // Check initial state
-    if (registration.active) {
-      this.updateSWStatus('connected');
-    }
-
-    // Check for updates every hour
-    setInterval(() => {
-      registration.update();
-    }, 60 * 60 * 1000);
-
-  } catch (error) {
-    console.error('❌ Service Worker registration failed:', error);
-    this.updateSWStatus('error');
-    
-    // ✅ FALLBACK GRACEFUL - aplikasi tetap berjalan
-    console.log('ℹ️ Continuing without Service Worker - core features will still work');
-    
-    // Optional: Tampilkan pesan ke user
-    if (window.dtLogger && !window.dtLogger.isInBackground) {
-      window.dtLogger.addLog('⚠️ Background sync tidak tersedia, tetapi tracking tetap berjalan', 'warning');
-    }
-  }
-}
                     // Check initial state
                     if (registration.active) {
                         this.updateSWStatus('connected');
@@ -1255,6 +1249,14 @@
                 } catch (error) {
                     console.error('❌ Service Worker registration failed:', error);
                     this.updateSWStatus('error');
+                    
+                    // ✅ FALLBACK GRACEFUL - aplikasi tetap berjalan
+                    console.log('ℹ️ Continuing without Service Worker - core features will still work');
+                    
+                    // Optional: Tampilkan pesan ke user
+                    if (window.dtLogger && !window.dtLogger.isInBackground) {
+                        window.dtLogger.addLog('⚠️ Background sync tidak tersedia, tetapi tracking tetap berjalan', 'warning');
+                    }
                 }
             }
 
@@ -4178,6 +4180,3 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
     </script>
 </body>
 </html>
-
-
-
