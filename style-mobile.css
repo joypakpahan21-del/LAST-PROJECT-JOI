@@ -647,3 +647,19 @@ body.low-battery .control-btn:not(.btn-primary) {
         justify-content: center;
     }
 }
+/* Fallback untuk icon yang tidak ditemukan */
+.app-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+/* Hide broken images */
+img[src*="icon-"]:not([src=""]) {
+  background: #f8f9fa;
+  border-radius: 8px;
+}
