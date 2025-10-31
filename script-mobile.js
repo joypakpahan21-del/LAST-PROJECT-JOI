@@ -1,35 +1,39 @@
-// ✅ ENHANCED MOBILE GPS LOGGER - ULTRA SENSITIVE 1 METER DETECTION
-class EnhancedSpeedCalculator {
+// ✅ REAL-TIME SPEED CALCULATOR - NO THRESHOLDS
+class RealTimeSpeedCalculator {
     constructor() {
         this.positionHistory = [];
         this.maxHistorySize = 8;
         this.lastValidSpeed = 0;
-        this.speedSmoothingFactor = 0.6;
-        this.minDistanceThreshold = 0.001; // 1 METER
-        this.minTimeThreshold = 500; // 0.5 detik
+        this.speedSmoothingFactor = 0.7;
+        // TIDAK ADA MIN TIME THRESHOLD - semua pergerakan dihitung
     }
 
-    calculateEnhancedSpeed(newPosition, previousPosition) {
-        if (!previousPosition || !newPosition) return 0;
+    calculateRealTimeSpeed(newPosition, previousPosition) {
+        if (!previousPosition || !newPosition) return this.lastValidSpeed;
 
         const timeDiff = (newPosition.timestamp - previousPosition.timestamp);
-        if (timeDiff < this.minTimeThreshold) return 0;
+        
+        // TIDAK ADA BATASAN WAKTU - bahkan 1ms sekalipun dihitung
+        if (timeDiff <= 0) return this.lastValidSpeed;
 
+        // Hitung jarak langsung dari koordinat TANPA THRESHOLD
         const distance = this.calculateHaversineDistance(
             previousPosition.lat, previousPosition.lng,
             newPosition.lat, newPosition.lng
         );
 
-        if (distance < this.minDistanceThreshold) {
-            return 0;
-        }
-
+        // Konversi ke km/h - TANPA FILTER MINIMUM DISTANCE
         const speedKmh = (distance / (timeDiff / 3600000));
 
-        if (speedKmh > 200) {
+        // Batasan kecepatan realistis untuk Canter PS 125 di perkebunan
+        const MAX_PLANTATION_SPEED = 60; // km/h (realistis untuk perkebunan)
+        
+        if (speedKmh > MAX_PLANTATION_SPEED) {
+            console.warn(`🚫 Kecepatan ${speedKmh.toFixed(1)} km/h tidak realistis untuk perkebunan`);
             return this.lastValidSpeed;
         }
 
+        // Smoothing untuk menghindari fluktuasi tajam
         const smoothedSpeed = this.smoothSpeed(speedKmh);
         this.lastValidSpeed = smoothedSpeed;
         
@@ -37,7 +41,7 @@ class EnhancedSpeedCalculator {
     }
 
     calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
+        const R = 6371; // Earth's radius in kilometers
         const dLat = this.toRad(lat2 - lat1);
         const dLon = this.toRad(lon2 - lon1);
         
@@ -224,6 +228,12 @@ class EnhancedBackgroundService {
                 case 'SYNC_STATUS':
                     this.updateSyncStatus(data.status);
                     break;
+                case 'SYNC_COMPLETED':
+                    this.handleSyncCompleted(data);
+                    break;
+                case 'SYNC_FAILED':
+                    this.handleSyncFailed(data);
+                    break;
             }
         });
     }
@@ -276,6 +286,18 @@ class EnhancedBackgroundService {
             lastUpdate: this.logger.lastPosition?.timestamp,
             backgroundActive: this.logger.backgroundManager?.isActive
         });
+    }
+
+    handleSyncCompleted(data) {
+        console.log('✅ Background sync completed:', data);
+        this.logger.addLog(`📡 Sync berhasil: ${data.successCount} data terkirim`, 'success');
+        this.updateSyncStatus('completed');
+    }
+
+    handleSyncFailed(data) {
+        console.error('❌ Background sync failed:', data);
+        this.logger.addLog('❌ Sync gagal, data tetap disimpan offline', 'warning');
+        this.updateSyncStatus('error');
     }
 
     updateSWStatus(status) {
@@ -682,6 +704,7 @@ class EnhancedBackgroundTrackingManager {
         this.backgroundService = new EnhancedBackgroundService(logger);
         this.geofenceManager = new GeofenceManager(logger);
         this.batteryManager = new BatteryManager(logger);
+        this.speedCalculator = new RealTimeSpeedCalculator();
         
         this.init();
     }
@@ -766,7 +789,7 @@ class EnhancedBackgroundTrackingManager {
             enableHighAccuracy: true,
             timeout: 30000,
             maximumAge: 60000,
-            distanceFilter: 10
+            distanceFilter: 0 // NO DISTANCE FILTER - semua pergerakan
         };
 
         if (this.backgroundWatchId) {
@@ -798,10 +821,8 @@ class EnhancedBackgroundTrackingManager {
         // Check geofence triggers
         this.geofenceManager.checkPosition(position);
 
-        // Process if significant movement or time-based
-        if (!this.isInBackground || this.isSignificantMovement(position)) {
-            this.processBackgroundPosition(position);
-        }
+        // Process real-time movement TANPA THRESHOLD
+        this.processRealTimeBackgroundMovement(position);
 
         // Cache for background sync
         this.cachePositionForSync(position);
@@ -816,7 +837,7 @@ class EnhancedBackgroundTrackingManager {
             return false;
         }
         
-        if (!this.logger.isValidCoordinate(
+        if (!this.isValidCoordinate(
             position.coords.latitude, 
             position.coords.longitude
         )) {
@@ -827,17 +848,91 @@ class EnhancedBackgroundTrackingManager {
         return true;
     }
 
-    isSignificantMovement(newPosition) {
-        if (!this.lastBackgroundPosition) return true;
+    isValidCoordinate(lat, lng) {
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+            return false;
+        }
         
-        const distance = this.calculateDistance(
-            this.lastBackgroundPosition.coords.latitude,
-            this.lastBackgroundPosition.coords.longitude,
-            newPosition.coords.latitude,
-            newPosition.coords.longitude
-        );
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return false;
+        }
         
-        return distance > 0.02; // 20 meters
+        if (lat === 0 && lng === 0) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    processRealTimeBackgroundMovement(position) {
+        if (!this.logger.driverData || !this.logger.isTracking) return;
+
+        const currentTime = new Date().getTime();
+        const currentPosition = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: currentTime
+        };
+
+        // Hitung pergerakan real-time TANPA THRESHOLD
+        if (this.lastBackgroundPosition) {
+            const prevPosition = {
+                lat: this.lastBackgroundPosition.coords.latitude,
+                lng: this.lastBackgroundPosition.coords.longitude,
+                timestamp: this.lastBackgroundPosition.timestamp
+            };
+
+            const distance = this.calculateDistance(
+                prevPosition.lat, prevPosition.lng,
+                currentPosition.lat, currentPosition.lng
+            );
+
+            const speed = this.speedCalculator.calculateRealTimeSpeed(currentPosition, prevPosition);
+
+            // UPDATE SEMUA DATA - TANPA FILTER
+            this.logger.totalDistance += distance;
+            this.logger.currentSpeed = speed;
+            this.logger.dataPoints++;
+
+            console.log(`📏 Background Movement: +${(distance * 1000).toFixed(3)}m | 🚀 ${speed.toFixed(1)} km/h | Total: ${this.logger.totalDistance.toFixed(6)}km`);
+
+            // Process waypoint untuk semua pergerakan
+            const waypoint = {
+                id: `wp_bg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                lat: parseFloat(position.coords.latitude.toFixed(6)),
+                lng: parseFloat(position.coords.longitude.toFixed(6)),
+                accuracy: parseFloat(position.coords.accuracy.toFixed(1)),
+                speed: parseFloat(speed.toFixed(1)),
+                bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
+                timestamp: new Date().toISOString(),
+                timeDisplay: new Date().toLocaleTimeString('id-ID'),
+                sessionId: this.logger.driverData.sessionId,
+                unit: this.logger.driverData.unit,
+                driver: this.logger.driverData.name,
+                synced: false,
+                isOnline: this.logger.isOnline,
+                lowAccuracy: position.coords.accuracy > 50,
+                isSimulated: false,
+                isBackground: true,
+                batteryLevel: this.batteryManager.level,
+                distanceIncrement: distance
+            };
+
+            this.logger.processWaypoint(waypoint);
+        }
+
+        this.logger.lastPosition = {
+            lat: currentPosition.lat,
+            lng: currentPosition.lng,
+            speed: this.logger.currentSpeed,
+            accuracy: currentPosition.accuracy,
+            bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
+            timestamp: new Date()
+        };
+
+        // Persist session in background
+        this.logger.persistSession();
     }
 
     calculateDistance(lat1, lon1, lat2, lon2) {
@@ -868,62 +963,17 @@ class EnhancedBackgroundTrackingManager {
         }, 2000);
     }
 
-    processBackgroundPosition(position) {
-        if (!this.logger.driverData || !this.logger.isTracking) return;
-
-        const accuracy = position.coords.accuracy;
-        
-        // Enhanced accuracy check for background
-        if (accuracy > 100) {
-            console.log('🔄 Background position accuracy too low, skipping');
-            return;
-        }
-
-        const waypoint = {
-            id: `wp_bg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            lat: parseFloat(position.coords.latitude.toFixed(6)),
-            lng: parseFloat(position.coords.longitude.toFixed(6)),
-            accuracy: parseFloat(accuracy.toFixed(1)),
-            speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
-            bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
-            timestamp: new Date().toISOString(),
-            timeDisplay: new Date().toLocaleTimeString('id-ID'),
-            sessionId: this.logger.driverData.sessionId,
-            unit: this.logger.driverData.unit,
-            driver: this.logger.driverData.name,
-            synced: false,
-            isOnline: this.logger.isOnline,
-            lowAccuracy: accuracy > 50,
-            isSimulated: false,
-            isBackground: true,
-            batteryLevel: this.batteryManager.level
-        };
-
-        this.logger.processWaypoint(waypoint);
-        
-        this.logger.lastPosition = {
-            lat: waypoint.lat,
-            lng: waypoint.lng,
-            speed: waypoint.speed,
-            accuracy: waypoint.accuracy,
-            bearing: waypoint.bearing,
-            timestamp: new Date()
-        };
-
-        // Persist session in background
-        this.logger.persistSession();
-    }
-
     cachePositionForSync(position) {
         const gpsData = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             accuracy: position.coords.accuracy,
-            speed: position.coords.speed,
+            speed: this.logger.currentSpeed,
             timestamp: new Date().toISOString(),
             isBackground: true,
             batteryLevel: this.batteryManager.level,
-            sessionId: this.logger.driverData?.sessionId
+            sessionId: this.logger.driverData?.sessionId,
+            totalDistance: this.logger.totalDistance
         };
 
         this.backgroundService.cacheGPSData(gpsData);
@@ -1055,7 +1105,7 @@ class EnhancedBackgroundTrackingManager {
         
         setTimeout(() => {
             this.backgroundService.triggerBackgroundSync();
-            this.logger.offlineQueue.processQueue();
+            this.logger.syncWaypointsToServer();
         }, 3000);
         
         this.logger.addLog('📶 Koneksi pulih - sync data offline', 'success');
@@ -1156,15 +1206,10 @@ class EnhancedBackgroundTrackingManager {
         if (backup && backup.driverData) {
             console.log('📂 Restoring from background backup...');
             
-            // Restore background waypoints
-            if (backup.waypoints && backup.waypoints.length > 0) {
-                backup.waypoints.forEach(waypoint => {
-                    if (!waypoint.synced) {
-                        this.logger.waypointBuffer.push(waypoint);
-                        this.logger.unsyncedWaypoints.add(waypoint.id);
-                    }
-                });
-            }
+            // Restore tracking data
+            this.logger.totalDistance = backup.trackingData?.totalDistance || 0;
+            this.logger.dataPoints = backup.trackingData?.dataPoints || 0;
+            this.logger.currentSpeed = backup.trackingData?.currentSpeed || 0;
             
             this.logger.storageManager.clearBackgroundBackup();
         }
@@ -1193,65 +1238,6 @@ class EnhancedBackgroundTrackingManager {
         this.updateOfflineIndicator(false);
         
         document.body.classList.remove('background-mode', 'low-battery');
-    }
-}
-
-// ✅ ENHANCED CIRCULAR BUFFER IMPLEMENTATION
-class CircularBuffer {
-    constructor(capacity) {
-        this.capacity = capacity;
-        this.buffer = new Array(capacity);
-        this.head = 0;
-        this.tail = 0;
-        this._count = 0;
-        this.isFull = false;
-    }
-
-    push(item) {
-        this.buffer[this.tail] = item;
-        this.tail = (this.tail + 1) % this.capacity;
-        
-        if (this.isFull) {
-            this.head = (this.head + 1) % this.capacity;
-        } else {
-            this._count++;
-            if (this._count === this.capacity) {
-                this.isFull = true;
-            }
-        }
-    }
-
-    getAll() {
-        if (this._count === 0) return [];
-        
-        const result = [];
-        if (this.isFull) {
-            for (let i = 0; i < this.capacity; i++) {
-                const index = (this.head + i) % this.capacity;
-                result.push(this.buffer[index]);
-            }
-        } else {
-            for (let i = 0; i < this._count; i++) {
-                result.push(this.buffer[i]);
-            }
-        }
-        return result;
-    }
-
-    getUnsynced() {
-        return this.getAll().filter(wp => !wp.synced);
-    }
-
-    clear() {
-        this.head = 0;
-        this.tail = 0;
-        this._count = 0;
-        this.isFull = false;
-        this.buffer = new Array(this.capacity);
-    }
-
-    get count() {
-        return this.isFull ? this.capacity : this._count;
     }
 }
 
@@ -1441,55 +1427,6 @@ class EnhancedStorageManager {
     }
 }
 
-// ✅ GPS VALIDATOR CLASS
-class GPSValidator {
-    static isValidCoordinate(lat, lng) {
-        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
-            return false;
-        }
-        
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            return false;
-        }
-        
-        if (lat === 0 && lng === 0) {
-            return false;
-        }
-        
-        return true;
-    }
-
-    static isValidGPSPosition(position) {
-        const accuracy = position.coords.accuracy;
-        
-        if (accuracy > 100000) {
-            console.warn('🎯 GPS accuracy extremely poor:', accuracy, 'm - skipping');
-            return false;
-        }
-        
-        if (!this.isValidCoordinate(position.coords.latitude, position.coords.longitude)) {
-            return false;
-        }
-        
-        return true;
-    }
-
-    static isValidBackgroundPosition(position) {
-        const accuracy = position.coords.accuracy;
-        
-        if (accuracy > 50000) {
-            console.warn('🎯 Background accuracy too low:', accuracy, 'm - skipping');
-            return false;
-        }
-        
-        if (!this.isValidCoordinate(position.coords.latitude, position.coords.longitude)) {
-            return false;
-        }
-        
-        return true;
-    }
-}
-
 // ✅ OFFLINE QUEUE MANAGER
 class OfflineQueueManager {
     constructor() {
@@ -1556,7 +1493,7 @@ class OfflineQueueManager {
     }
 }
 
-// ✅ ENHANCED MOBILE GPS LOGGER
+// ✅ ENHANCED MOBILE GPS LOGGER - REAL TIME NO THRESHOLDS
 class EnhancedDTGPSLogger {
     constructor() {
         this.waypointConfig = {
@@ -1566,7 +1503,7 @@ class EnhancedDTGPSLogger {
             syncInterval: 30000,
         };
 
-        this.waypointBuffer = new CircularBuffer(this.waypointConfig.maxWaypoints);
+        this.waypointBuffer = [];
         this.unsyncedWaypoints = new Set();
         this.storageManager = new EnhancedStorageManager();
         
@@ -1578,7 +1515,7 @@ class EnhancedDTGPSLogger {
         this.totalDistance = 0;
         this.lastPosition = null;
         this.dataPoints = 0;
-        this.isOnline = false;
+        this.isOnline = navigator.onLine;
         this.journeyStatus = 'ready';
         this.firebaseRef = null;
         
@@ -1600,6 +1537,7 @@ class EnhancedDTGPSLogger {
         this.lastMessageId = null;
         
         this.offlineQueue = new OfflineQueueManager();
+        this.speedCalculator = new RealTimeSpeedCalculator();
         
         this.init();
     }
@@ -1618,7 +1556,7 @@ class EnhancedDTGPSLogger {
                 this.checkPersistedSession();
             }, 1000);
             
-            console.log('🚀 Enhanced DT GPS Logger initialized - BACKGROUND TRACKING READY');
+            console.log('🚀 Enhanced DT GPS Logger initialized - REAL TIME TRACKING READY');
         } catch (error) {
             console.error('❌ Error during initialization:', error);
         }
@@ -1789,7 +1727,7 @@ class EnhancedDTGPSLogger {
             return;
         }
 
-        console.log('📍 Starting ENHANCED REAL GPS tracking...');
+        console.log('📍 Starting REAL-TIME GPS tracking...');
         
         if (this.watchId) {
             navigator.geolocation.clearWatch(this.watchId);
@@ -1800,7 +1738,7 @@ class EnhancedDTGPSLogger {
             enableHighAccuracy: true,
             timeout: 10000,
             maximumAge: 0,
-            distanceFilter: 5
+            distanceFilter: 0 // NO DISTANCE FILTER - semua pergerakan
         };
 
         this.watchId = navigator.geolocation.watchPosition(
@@ -1816,7 +1754,7 @@ class EnhancedDTGPSLogger {
         );
 
         this.isTracking = true;
-        this.addLog('📍 Enhanced GPS Real diaktifkan', 'success');
+        this.addLog('📍 Enhanced GPS Real-time diaktifkan - semua pergerakan terdeteksi', 'success');
         
         navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -1859,7 +1797,7 @@ class EnhancedDTGPSLogger {
     }
 
     handleEnhancedPositionUpdate(position) {
-        if (!GPSValidator.isValidGPSPosition(position)) {
+        if (!this.isValidGPSPosition(position)) {
             return;
         }
 
@@ -1870,19 +1808,21 @@ class EnhancedDTGPSLogger {
             this.addLog(`⚠️ Akurasi sangat rendah (${accuracy}m) - data mungkin tidak akurat`, 'warning');
         }
 
+        const currentTime = new Date().getTime();
         const currentPosition = {
             lat: parseFloat(position.coords.latitude.toFixed(6)),
             lng: parseFloat(position.coords.longitude.toFixed(6)),
             accuracy: parseFloat(accuracy.toFixed(1)),
-            speed: position.coords.speed ? parseFloat((position.coords.speed * 3.6).toFixed(1)) : 0,
+            speed: 0,
             bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
-            timestamp: new Date(),
+            timestamp: currentTime,
             isOnline: this.isOnline,
             altitude: position.coords.altitude ? parseFloat(position.coords.altitude.toFixed(1)) : null,
             altitudeAccuracy: position.coords.altitudeAccuracy ? parseFloat(position.coords.altitudeAccuracy.toFixed(1)) : null
         };
 
-        this.calculateDistanceWithCoordinates(currentPosition);
+        // REAL-TIME CALCULATION - TANPA THRESHOLD
+        this.calculateRealTimeMovement(currentPosition);
 
         this.processWaypoint({
             ...currentPosition,
@@ -1903,7 +1843,34 @@ class EnhancedDTGPSLogger {
         }
     }
 
-    calculateDistanceWithCoordinates(currentPosition) {
+    isValidGPSPosition(position) {
+        if (!position || !position.coords) return false;
+        
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+            return false;
+        }
+        
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return false;
+        }
+        
+        if (lat === 0 && lng === 0) {
+            return false;
+        }
+        
+        if (accuracy > 100000) {
+            console.warn('🎯 GPS accuracy extremely poor:', accuracy, 'm - skipping');
+            return false;
+        }
+        
+        return true;
+    }
+
+    calculateRealTimeMovement(currentPosition) {
         if (!this.lastPosition || !this.lastPosition.timestamp) {
             this.lastPosition = currentPosition;
             return 0;
@@ -1911,10 +1878,12 @@ class EnhancedDTGPSLogger {
 
         const timeDiffMs = currentPosition.timestamp - this.lastPosition.timestamp;
         
-        if (timeDiffMs < 1000) {
+        // TIDAK ADA MIN TIME THRESHOLD - semua waktu dihitung
+        if (timeDiffMs <= 0) {
             return 0;
         }
 
+        // Hitung jarak langsung menggunakan Haversine - TANPA MIN DISTANCE
         const distanceKm = this.haversineDistance(
             this.lastPosition.lat, 
             this.lastPosition.lng,
@@ -1922,41 +1891,20 @@ class EnhancedDTGPSLogger {
             currentPosition.lng
         );
 
-        const timeDiffHours = timeDiffMs / 1000 / 3600;
+        // Hitung kecepatan real-time
+        const speed = this.speedCalculator.calculateRealTimeSpeed(currentPosition, this.lastPosition);
 
-        const maxAccuracy = 500;
-        if (currentPosition.accuracy > maxAccuracy) {
-            console.warn(`🎯 Akurasi GPS ${currentPosition.accuracy}m terlalu rendah, skip perhitungan jarak`);
-            return 0;
-        }
-
-        const minDistance = 0.003;
-        if (distanceKm < minDistance) {
-            return 0;
-        }
-
-        let actualSpeed = 0;
-        if (timeDiffHours > 0) {
-            actualSpeed = distanceKm / timeDiffHours;
-            
-            const MAX_REALISTIC_SPEED = 120;
-            if (actualSpeed > MAX_REALISTIC_SPEED) {
-                console.warn(`🚫 Kecepatan ${actualSpeed.toFixed(1)} km/h tidak realistis, diabaikan`);
-                return 0;
-            }
-        }
-
-        if (actualSpeed > 1 && this.journeyStatus === 'started') {
+        // UPDATE SEMUA DATA - TANPA FILTER
+        if (this.journeyStatus === 'started') {
             this.totalDistance += distanceKm;
-            
-            this.currentSpeed = this.enhancedSmoothSpeed(actualSpeed);
+            this.currentSpeed = speed;
             
             if (!this.isInBackground) {
                 document.getElementById('todayDistance').textContent = this.totalDistance.toFixed(3);
                 document.getElementById('currentSpeed').textContent = this.currentSpeed.toFixed(1);
             }
             
-            console.log(`📏 +${(distanceKm * 1000).toFixed(1)}m | 🚀 ${actualSpeed.toFixed(1)} km/h | Total: ${this.totalDistance.toFixed(3)}km`);
+            console.log(`📏 Real-time: +${(distanceKm * 1000).toFixed(3)}m | 🚀 ${speed.toFixed(1)} km/h | Total: ${this.totalDistance.toFixed(6)}km`);
             
             this.updateAverageSpeed();
             
@@ -1968,15 +1916,12 @@ class EnhancedDTGPSLogger {
 
     haversineDistance(lat1, lon1, lat2, lon2) {
         const R = 6371;
-        
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        
         const a = 
             Math.sin(dLat/2) * Math.sin(dLat/2) +
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
             Math.sin(dLon/2) * Math.sin(dLon/2);
-        
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         const distance = R * c;
         
@@ -2140,7 +2085,7 @@ class EnhancedDTGPSLogger {
     }
 
     processWaypoint(waypoint) {
-        if (!GPSValidator.isValidCoordinate(waypoint.lat, waypoint.lng)) {
+        if (!this.isValidCoordinate(waypoint.lat, waypoint.lng)) {
             console.warn('❌ Invalid coordinates, skipping waypoint:', waypoint);
             return;
         }
@@ -2160,6 +2105,22 @@ class EnhancedDTGPSLogger {
         }
 
         console.log(`📍 ${waypoint.isBackground ? 'BACKGROUND' : 'FOREGROUND'} GPS: ${waypoint.lat}, ${waypoint.lng}, Speed: ${waypoint.speed} km/h`);
+    }
+
+    isValidCoordinate(lat, lng) {
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+            return false;
+        }
+        
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return false;
+        }
+        
+        if (lat === 0 && lng === 0) {
+            return false;
+        }
+        
+        return true;
     }
 
     updateGPSDisplay(waypoint) {
@@ -2206,7 +2167,7 @@ class EnhancedDTGPSLogger {
         const unsyncedCount = document.getElementById('unsyncedCount');
         const waypointStatus = document.getElementById('waypointStatus');
 
-        if (waypointCount) waypointCount.textContent = this.waypointBuffer.count;
+        if (waypointCount) waypointCount.textContent = this.waypointBuffer.length;
         if (unsyncedCount) unsyncedCount.textContent = this.unsyncedWaypoints.size;
         if (waypointStatus) {
             waypointStatus.textContent = this.isOnline ? 
@@ -2272,6 +2233,7 @@ class EnhancedDTGPSLogger {
                 this.updateConnectionStatus(true);
             } else {
                 this.offlineQueue.addToQueue(gpsData);
+                this.backgroundManager.backgroundService.cacheGPSData(gpsData);
                 if (!this.isInBackground) {
                     this.addLog(`💾 Data disimpan offline (${this.offlineQueue.getQueueSize()} dalam antrian)`, 'warning');
                 }
@@ -2487,6 +2449,7 @@ class EnhancedDTGPSLogger {
         if (this.offlineQueue.getQueueSize() > 0) {
             this.offlineQueue.processQueue();
         }
+        this.backgroundManager.backgroundService.triggerBackgroundSync();
     }
 
     async runGPSDiagnostic() {
@@ -2797,7 +2760,7 @@ class EnhancedDTGPSLogger {
             return;
         }
 
-        const unsynced = this.getUnsyncedWaypoints();
+        const unsynced = this.waypointBuffer.filter(wp => !wp.synced);
         if (unsynced.length === 0) {
             console.log('✅ All waypoints synced');
             return;
@@ -2850,16 +2813,12 @@ class EnhancedDTGPSLogger {
             waypoints: batch,
             uploadedAt: new Date().toISOString(),
             batchSize: batch.length,
-            totalWaypoints: this.waypointBuffer.count,
+            totalWaypoints: this.waypointBuffer.length,
             batchIndex: batchIndex
         };
 
         await batchRef.set(batchData);
         console.log(`✅ Batch ${batchIndex} uploaded: ${batch.length} waypoints`);
-    }
-
-    getUnsyncedWaypoints() {
-        return this.waypointBuffer.getAll().filter(wp => !wp.synced);
     }
 
     createBatches(array, batchSize) {
@@ -2905,7 +2864,7 @@ Unit: ${this.driverData?.unit || '-'}
 Status: ${this.journeyStatus || 'ready'}
 Distance: ${this.totalDistance?.toFixed(3) || '0.000'} km
 Speed: ${this.currentSpeed?.toFixed(1) || '0.0'} km/h
-Waypoints: ${this.waypointBuffer?.count || 0}
+Waypoints: ${this.waypointBuffer?.length || 0}
 Unsynced: ${this.unsyncedWaypoints?.size || 0}
 Connection: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}
 GPS Accuracy: ${this.lastPosition?.accuracy || '0'} m
@@ -2939,6 +2898,13 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
                 this.chatRef.off();
             }
             
+            // Kirim cleanup command ke Service Worker
+            if (navigator.serviceWorker?.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'LOGOUT_CLEANUP'
+                });
+            }
+            
             this.clearPersistedSession();
             
             if (this.isOnline) {
@@ -2952,16 +2918,16 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
                 duration: document.getElementById('sessionDuration')?.textContent || '00:00:00',
                 totalDistance: this.totalDistance.toFixed(3),
                 dataPoints: this.dataPoints,
-                waypointsCollected: this.waypointBuffer.count,
+                waypointsCollected: this.waypointBuffer.length,
                 unsyncedWaypoints: this.unsyncedWaypoints.size,
                 avgSpeed: document.getElementById('avgSpeed')?.textContent || '0',
                 sessionId: this.driverData.sessionId
             };
             
             console.log('Session Summary:', sessionSummary);
-            this.addLog(`Session ended - ${this.waypointBuffer.count} waypoints collected`, 'info');
+            this.addLog(`Session ended - ${this.waypointBuffer.length} waypoints collected`, 'info');
             
-            this.waypointBuffer.clear();
+            this.waypointBuffer = [];
             this.unsyncedWaypoints.clear();
             
             this.driverData = null;
