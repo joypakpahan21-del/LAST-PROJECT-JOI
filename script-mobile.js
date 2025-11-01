@@ -1,3 +1,18 @@
+// ✅ FIREBASE CONFIG
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
+    authDomain: "joi-gps-tracker.firebaseapp.com",
+    databaseURL: "https://joi-gps-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "joi-gps-tracker",
+    storageBucket: "joi-gps-tracker.firebasestorage.app",
+    messagingSenderId: "216572191895",
+    appId: "1:216572191895:web:a4fef1794daf200a2775d2"
+};
+
+// Initialize Firebase
+firebase.initializeApp(FIREBASE_CONFIG);
+const database = firebase.database();
+
 // ✅ REAL-TIME SPEED CALCULATOR - NO THRESHOLDS
 class RealTimeSpeedCalculator {
     constructor() {
@@ -5,7 +20,6 @@ class RealTimeSpeedCalculator {
         this.maxHistorySize = 8;
         this.lastValidSpeed = 0;
         this.speedSmoothingFactor = 0.7;
-        // TIDAK ADA MIN TIME THRESHOLD - semua pergerakan dihitung
     }
 
     calculateRealTimeSpeed(newPosition, previousPosition) {
@@ -13,27 +27,22 @@ class RealTimeSpeedCalculator {
 
         const timeDiff = (newPosition.timestamp - previousPosition.timestamp);
         
-        // TIDAK ADA BATASAN WAKTU - bahkan 1ms sekalipun dihitung
         if (timeDiff <= 0) return this.lastValidSpeed;
 
-        // Hitung jarak langsung dari koordinat TANPA THRESHOLD
         const distance = this.calculateHaversineDistance(
             previousPosition.lat, previousPosition.lng,
             newPosition.lat, newPosition.lng
         );
 
-        // Konversi ke km/h - TANPA FILTER MINIMUM DISTANCE
         const speedKmh = (distance / (timeDiff / 3600000));
-
-        // Batasan kecepatan realistis untuk Canter PS 125 di perkebunan
-        const MAX_PLANTATION_SPEED = 60; // km/h (realistis untuk perkebunan)
+        
+        const MAX_PLANTATION_SPEED = 60;
         
         if (speedKmh > MAX_PLANTATION_SPEED) {
-            console.warn(`🚫 Kecepatan ${speedKmh.toFixed(1)} km/h tidak realistis untuk perkebunan`);
+            console.warn(`🚫 Kecepatan ${speedKmh.toFixed(1)} km/h tidak realistis`);
             return this.lastValidSpeed;
         }
 
-        // Smoothing untuk menghindari fluktuasi tajam
         const smoothedSpeed = this.smoothSpeed(speedKmh);
         this.lastValidSpeed = smoothedSpeed;
         
@@ -41,7 +50,7 @@ class RealTimeSpeedCalculator {
     }
 
     calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Earth's radius in kilometers
+        const R = 6371;
         const dLat = this.toRad(lat2 - lat1);
         const dLon = this.toRad(lon2 - lon1);
         
@@ -95,7 +104,6 @@ class EnhancedBackgroundService {
         try {
             console.log('🔄 Attempting Service Worker registration...');
             
-            // Coba berbagai path sampai berhasil
             const paths = ['/sw.js', './sw.js', 'sw.js'];
             let registration = null;
             
@@ -108,11 +116,11 @@ class EnhancedBackgroundService {
                     });
                     
                     console.log(`✅ Service Worker registered successfully at: ${path}`);
-                    break; // Berhasil, keluar dari loop
+                    break;
                     
                 } catch (pathError) {
                     console.warn(`❌ Path ${path} failed:`, pathError.message);
-                    continue; // Coba path berikutnya
+                    continue;
                 }
             }
 
@@ -125,7 +133,6 @@ class EnhancedBackgroundService {
             
             console.log('🚀 Service Worker registered:', registration);
             
-            // Listen for service worker state changes
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 console.log('🔄 New Service Worker installing...');
@@ -134,25 +141,21 @@ class EnhancedBackgroundService {
                     console.log('🎯 Service Worker state:', newWorker.state);
                     if (newWorker.state === 'activated') {
                         this.updateSWStatus('connected');
-                        // Trigger initial sync setelah activation
                         setTimeout(() => this.triggerBackgroundSync(), 2000);
                     }
                 });
             });
 
-            // Check initial state
             if (registration.active) {
                 this.updateSWStatus('connected');
                 console.log('✅ Service Worker active and ready');
             }
 
-            // Listen for controller change
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 console.log('🔄 Service Worker controller changed');
                 this.updateSWStatus('connected');
             });
 
-            // Check for updates periodically
             setInterval(() => {
                 try {
                     registration.update();
@@ -160,13 +163,12 @@ class EnhancedBackgroundService {
                 } catch (updateError) {
                     console.warn('Service Worker update check failed:', updateError);
                 }
-            }, 60 * 60 * 1000); // 1 hour
+            }, 60 * 60 * 1000);
 
         } catch (error) {
             console.error('❌ All Service Worker registration attempts failed:', error);
             this.updateSWStatus('error');
             
-            // Fallback: Coba sekali lagi dengan path yang paling umum
             try {
                 console.log('🔄 Attempting final fallback registration...');
                 const fallbackRegistration = await navigator.serviceWorker.register('./sw.js');
@@ -188,15 +190,13 @@ class EnhancedBackgroundService {
         }
 
         try {
-            // Register background sync
             await this.serviceWorker.sync.register('background-gps-sync');
             console.log('✅ Background Sync registered');
 
-            // Register periodic sync (if supported)
             if (this.periodicSyncSupported) {
                 try {
                     await this.serviceWorker.periodicSync.register('periodic-gps-health-check', {
-                        minInterval: 60 * 60 * 1000 // 1 hour
+                        minInterval: 60 * 60 * 1000
                     });
                     console.log('✅ Periodic Sync registered');
                 } catch (periodicError) {
@@ -366,7 +366,6 @@ class EnhancedBackgroundService {
         }
     }
 
-    // Request persistent storage (Chrome 76+)
     async requestPersistentStorage() {
         if (navigator.storage && navigator.storage.persist) {
             const isPersisted = await navigator.storage.persist();
@@ -376,7 +375,6 @@ class EnhancedBackgroundService {
         return false;
     }
 
-    // Estimate storage quota
     async checkStorageQuota() {
         if (navigator.storage && navigator.storage.estimate) {
             const estimate = await navigator.storage.estimate();
@@ -432,25 +430,21 @@ class BatteryManager {
         console.log(`🔋 Battery: ${this.level}%${this.isCharging ? ' (charging)' : ''}`);
         this.updateBatteryDisplay();
         
-        // Notify if battery is low
         if (this.isLowBattery && !this.isCharging) {
             this.handleLowBattery();
         }
         
-        // Trigger callbacks
         this.batteryUpdateCallbacks.forEach(callback => {
             callback(this.level, this.isCharging, this.isLowBattery);
         });
     }
 
     simulateBattery() {
-        // Fallback battery simulation
         this.level = Math.max(20, Math.floor(Math.random() * 100));
         this.isCharging = false;
         this.isLowBattery = this.level <= this.lowBatteryThreshold;
         this.updateBatteryDisplay();
         
-        // Simulate battery drain
         setInterval(() => {
             if (!this.isCharging && this.level > 5) {
                 this.level -= 1;
@@ -461,7 +455,7 @@ class BatteryManager {
                     this.handleLowBattery();
                 }
             }
-        }, 60000); // 1% per minute
+        }, 60000);
     }
 
     updateBatteryDisplay() {
@@ -473,7 +467,6 @@ class BatteryManager {
         if (batteryElement && batteryLevelElement && batteryIconElement) {
             batteryLevelElement.textContent = `${this.level}%`;
             
-            // Update battery icon and styling
             let batteryClass = 'battery-high';
             let batteryIcon = '🔋';
             
@@ -503,7 +496,6 @@ class BatteryManager {
             }`;
         }
         
-        // Update body class for low battery optimizations
         if (this.isLowBattery && !this.isCharging) {
             document.body.classList.add('low-battery');
         } else {
@@ -518,7 +510,6 @@ class BatteryManager {
             this.logger.backgroundManager.optimizeForLowBattery();
         }
         
-        // Show low battery warning (only once per session)
         if (!this.lowBatteryWarningShown) {
             this.lowBatteryWarningShown = true;
             
@@ -549,7 +540,6 @@ class GeofenceManager {
     }
 
     setupGeofences() {
-        // Default geofences untuk area penting (Jakarta area)
         this.addGeofence('office', -6.208800, 106.845600, 500, { name: 'Kantor Pusat' });
         this.addGeofence('warehouse', -6.220000, 106.830000, 300, { name: 'Gudang Utama' });
         this.addGeofence('client_site', -6.200000, 106.850000, 200, { name: 'Site Klien' });
@@ -587,15 +577,13 @@ class GeofenceManager {
                 geofence.lat, geofence.lng
             );
 
-            const isInside = distance <= (geofence.radius / 1000); // Convert to km
+            const isInside = distance <= (geofence.radius / 1000);
             const wasInside = this.currentGeofence === id;
             
             if (isInside && !wasInside) {
-                // Entering geofence
                 this.triggerGeofence(geofence, position, 'enter');
                 this.currentGeofence = id;
             } else if (!isInside && wasInside) {
-                // Exiting geofence
                 this.triggerGeofence(geofence, position, 'exit');
                 this.currentGeofence = null;
             }
@@ -605,16 +593,13 @@ class GeofenceManager {
     triggerGeofence(geofence, position, eventType) {
         console.log(`📍 Geofence ${eventType}: ${geofence.id}`);
         
-        // Update geofence status display
         this.updateGeofenceStatus(geofence, eventType);
         
-        // Log the geofence event
         this.logger.addLog(
             `📍 ${eventType.toUpperCase()} area: ${geofence.metadata.name || geofence.id}`,
             'info'
         );
 
-        // Update Firebase dengan geofence info
         if (this.logger.firebaseRef && this.logger.driverData) {
             const geofenceData = {
                 geofenceEvent: {
@@ -632,7 +617,6 @@ class GeofenceManager {
             this.logger.firebaseRef.update(geofenceData);
         }
 
-        // Show notification untuk events penting
         if (eventType === 'enter') {
             this.showGeofenceNotification(geofence, eventType);
         }
@@ -669,7 +653,7 @@ class GeofenceManager {
     }
 
     calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Earth's radius in kilometers
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = 
@@ -700,7 +684,6 @@ class EnhancedBackgroundTrackingManager {
         this.consecutiveLowAccuracyCount = 0;
         this.maxConsecutiveLowAccuracy = 3;
         
-        // Enhanced background features
         this.backgroundService = new EnhancedBackgroundService(logger);
         this.geofenceManager = new GeofenceManager(logger);
         this.batteryManager = new BatteryManager(logger);
@@ -713,7 +696,6 @@ class EnhancedBackgroundTrackingManager {
         await this.batteryManager.init();
         this.geofenceManager.setupGeofences();
         
-        // Setup battery update listener
         this.batteryManager.onBatteryUpdate((level, isCharging, isLowBattery) => {
             if (isLowBattery) {
                 this.optimizeForLowBattery();
@@ -731,7 +713,6 @@ class EnhancedBackgroundTrackingManager {
         this.startBackgroundPositionWatch();
         this.startBackgroundProcessing();
         
-        // Request persistent storage
         this.backgroundService.requestPersistentStorage();
         
         this.updateBackgroundIndicator();
@@ -739,11 +720,9 @@ class EnhancedBackgroundTrackingManager {
     }
 
     startBackgroundProcessing() {
-        // Background data processing (optimized for battery)
         this.backgroundInterval = setInterval(() => {
             this.processBackgroundData();
             
-            // Battery-aware processing
             if (this.batteryManager.isLowBattery) {
                 this.optimizeForLowBattery();
             }
@@ -752,13 +731,12 @@ class EnhancedBackgroundTrackingManager {
     }
 
     getOptimizedInterval() {
-        if (this.batteryManager.isLowBattery) return 30000; // 30s
-        if (this.isInBackground) return 15000; // 15s
-        return 5000; // 5s
+        if (this.batteryManager.isLowBattery) return 30000;
+        if (this.isInBackground) return 15000;
+        return 5000;
     }
 
     optimizeForLowBattery() {
-        // Reduce accuracy requirements and frequency
         if (this.backgroundWatchId) {
             navigator.geolocation.clearWatch(this.backgroundWatchId);
         }
@@ -789,7 +767,7 @@ class EnhancedBackgroundTrackingManager {
             enableHighAccuracy: true,
             timeout: 30000,
             maximumAge: 60000,
-            distanceFilter: 0 // NO DISTANCE FILTER - semua pergerakan
+            distanceFilter: 0
         };
 
         if (this.backgroundWatchId) {
@@ -803,7 +781,6 @@ class EnhancedBackgroundTrackingManager {
         );
     }
 
-    // Enhanced background position handling dengan geofencing
     handleBackgroundPosition(position) {
         if (!this.isValidBackgroundPosition(position)) {
             this.consecutiveLowAccuracyCount++;
@@ -818,20 +795,16 @@ class EnhancedBackgroundTrackingManager {
         this.lastBackgroundPosition = position;
         this.backgroundUpdateCount++;
 
-        // Check geofence triggers
         this.geofenceManager.checkPosition(position);
 
-        // Process real-time movement TANPA THRESHOLD
         this.processRealTimeBackgroundMovement(position);
 
-        // Cache for background sync
         this.cachePositionForSync(position);
     }
 
     isValidBackgroundPosition(position) {
         const accuracy = position.coords.accuracy;
         
-        // Strict accuracy requirements for background
         if (accuracy > 100) {
             console.warn(`🎯 Background accuracy too low: ${accuracy}m`);
             return false;
@@ -875,7 +848,6 @@ class EnhancedBackgroundTrackingManager {
             timestamp: currentTime
         };
 
-        // Hitung pergerakan real-time TANPA THRESHOLD
         if (this.lastBackgroundPosition) {
             const prevPosition = {
                 lat: this.lastBackgroundPosition.coords.latitude,
@@ -890,14 +862,12 @@ class EnhancedBackgroundTrackingManager {
 
             const speed = this.speedCalculator.calculateRealTimeSpeed(currentPosition, prevPosition);
 
-            // UPDATE SEMUA DATA - TANPA FILTER
             this.logger.totalDistance += distance;
             this.logger.currentSpeed = speed;
             this.logger.dataPoints++;
 
             console.log(`📏 Background Movement: +${(distance * 1000).toFixed(3)}m | 🚀 ${speed.toFixed(1)} km/h | Total: ${this.logger.totalDistance.toFixed(6)}km`);
 
-            // Process waypoint untuk semua pergerakan
             const waypoint = {
                 id: `wp_bg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 lat: parseFloat(position.coords.latitude.toFixed(6)),
@@ -931,7 +901,6 @@ class EnhancedBackgroundTrackingManager {
             timestamp: new Date()
         };
 
-        // Persist session in background
         this.logger.persistSession();
     }
 
@@ -957,7 +926,6 @@ class EnhancedBackgroundTrackingManager {
         
         this.consecutiveLowAccuracyCount = 0;
         
-        // Restart after short delay
         setTimeout(() => {
             this.startBackgroundPositionWatch();
         }, 2000);
@@ -984,12 +952,10 @@ class EnhancedBackgroundTrackingManager {
         
         console.log('🔄 Processing background data...');
         
-        // Sync data every 10 updates in background
         if (this.backgroundUpdateCount % 10 === 0) {
             await this.backgroundService.triggerBackgroundSync();
         }
         
-        // Check storage quota periodically
         if (this.backgroundUpdateCount % 30 === 0) {
             await this.backgroundService.checkStorageQuota();
         }
@@ -1008,14 +974,11 @@ class EnhancedBackgroundTrackingManager {
         }
     }
 
-    // Enhanced visibility handlers dengan Page Visibility API
     setupVisibilityHandlers() {
-        // Page Visibility API
         document.addEventListener('visibilitychange', () => {
             this.handleVisibilityChange();
         });
 
-        // Page Lifecycle API
         document.addEventListener('freeze', () => {
             this.onFreeze();
         });
@@ -1024,7 +987,6 @@ class EnhancedBackgroundTrackingManager {
             this.onResume();
         });
 
-        // Network status for background sync
         window.addEventListener('online', () => {
             this.onNetworkRestored();
         });
@@ -1033,7 +995,6 @@ class EnhancedBackgroundTrackingManager {
             this.onNetworkLost();
         });
 
-        // Beforeunload untuk persistence
         window.addEventListener('beforeunload', () => {
             this.persistState();
         });
@@ -1056,13 +1017,10 @@ class EnhancedBackgroundTrackingManager {
         console.log('🎯 Background mode: Enhanced tracking active');
         this.updateBackgroundIndicator(true);
         
-        // Optimize for background
         this.optimizeForBackground();
         
-        // Backup state
         this.persistState();
         
-        // Notify service worker
         this.notifyBackgroundState(true);
         
         this.logger.addLog('📱 App masuk background - tracking tetap aktif', 'info');
@@ -1072,10 +1030,8 @@ class EnhancedBackgroundTrackingManager {
         console.log('🎯 Foreground mode: Restoring full features');
         this.updateBackgroundIndicator(false);
         
-        // Restore from backup
         this.restoreFromBackup();
         
-        // Sync any pending data
         if (this.logger.isOnline) {
             setTimeout(() => {
                 this.logger.syncWaypointsToServer();
@@ -1125,7 +1081,6 @@ class EnhancedBackgroundTrackingManager {
             });
         }
         
-        // Update body class for CSS optimizations
         if (isBackground) {
             document.body.classList.add('background-mode');
         } else {
@@ -1167,14 +1122,13 @@ class EnhancedBackgroundTrackingManager {
     }
 
     optimizeForBackground() {
-        // Adjust intervals and accuracy for background mode
         if (this.backgroundInterval) {
             clearInterval(this.backgroundInterval);
         }
         
         this.backgroundInterval = setInterval(() => {
             this.processBackgroundData();
-        }, 15000); // 15 seconds in background
+        }, 15000);
     }
 
     persistState() {
@@ -1206,7 +1160,6 @@ class EnhancedBackgroundTrackingManager {
         if (backup && backup.driverData) {
             console.log('📂 Restoring from background backup...');
             
-            // Restore tracking data
             this.logger.totalDistance = backup.trackingData?.totalDistance || 0;
             this.logger.dataPoints = backup.trackingData?.dataPoints || 0;
             this.logger.currentSpeed = backup.trackingData?.currentSpeed || 0;
@@ -1525,7 +1478,6 @@ class EnhancedDTGPSLogger {
         
         this.completeHistory = this.loadCompleteHistory();
         
-        // Enhanced Background Tracking System
         this.backgroundManager = new EnhancedBackgroundTrackingManager(this);
         this.isInBackground = false;
         
@@ -1715,7 +1667,6 @@ class EnhancedDTGPSLogger {
             });
         }
 
-        // Quick actions
         document.getElementById('quickStatusBtn')?.addEventListener('click', () => this.showQuickStatus());
         document.getElementById('refreshDataBtn')?.addEventListener('click', () => this.forceSync());
     }
@@ -1738,7 +1689,7 @@ class EnhancedDTGPSLogger {
             enableHighAccuracy: true,
             timeout: 10000,
             maximumAge: 0,
-            distanceFilter: 0 // NO DISTANCE FILTER - semua pergerakan
+            distanceFilter: 0
         };
 
         this.watchId = navigator.geolocation.watchPosition(
@@ -1821,7 +1772,6 @@ class EnhancedDTGPSLogger {
             altitudeAccuracy: position.coords.altitudeAccuracy ? parseFloat(position.coords.altitudeAccuracy.toFixed(1)) : null
         };
 
-        // REAL-TIME CALCULATION - TANPA THRESHOLD
         this.calculateRealTimeMovement(currentPosition);
 
         this.processWaypoint({
@@ -1878,12 +1828,10 @@ class EnhancedDTGPSLogger {
 
         const timeDiffMs = currentPosition.timestamp - this.lastPosition.timestamp;
         
-        // TIDAK ADA MIN TIME THRESHOLD - semua waktu dihitung
         if (timeDiffMs <= 0) {
             return 0;
         }
 
-        // Hitung jarak langsung menggunakan Haversine - TANPA MIN DISTANCE
         const distanceKm = this.haversineDistance(
             this.lastPosition.lat, 
             this.lastPosition.lng,
@@ -1891,10 +1839,8 @@ class EnhancedDTGPSLogger {
             currentPosition.lng
         );
 
-        // Hitung kecepatan real-time
         const speed = this.speedCalculator.calculateRealTimeSpeed(currentPosition, this.lastPosition);
 
-        // UPDATE SEMUA DATA - TANPA FILTER
         if (this.journeyStatus === 'started') {
             this.totalDistance += distanceKm;
             this.currentSpeed = speed;
@@ -2130,7 +2076,6 @@ class EnhancedDTGPSLogger {
         document.getElementById('gpsAccuracy').textContent = waypoint.accuracy.toFixed(1) + ' m';
         document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
         
-        // Update accuracy status display
         this.updateGPSAccuracyDisplay(waypoint.accuracy);
     }
 
@@ -2898,7 +2843,6 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
                 this.chatRef.off();
             }
             
-            // Kirim cleanup command ke Service Worker
             if (navigator.serviceWorker?.controller) {
                 navigator.serviceWorker.controller.postMessage({
                     type: 'LOGOUT_CLEANUP'
