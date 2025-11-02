@@ -1,4 +1,11 @@
-// ✅ FIREBASE CONFIG
+// =============================================
+// 🚀 ENHANCED MOBILE GPS TRACKING SYSTEM
+// 📍 Script: script-mobile-complete.js
+// 🎯 Version: 4.0 - Complete Integrated System
+// 🌱 Optimized for Plantation Environment
+// =============================================
+
+// ✅ FIREBASE CONFIGURATION
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
     authDomain: "joi-gps-tracker.firebaseapp.com",
@@ -10,10 +17,737 @@ const FIREBASE_CONFIG = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(FIREBASE_CONFIG);
+try {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        console.log('✅ Firebase initialized successfully');
+    }
+} catch (error) {
+    console.error('❌ Firebase initialization failed:', error);
+}
+
 const database = firebase.database();
 
-// ✅ REAL-TIME SPEED CALCULATOR - NO THRESHOLDS
+// =============================================
+// 🎯 ADVANCED KALMAN FILTER WITH MACHINE LEARNING
+// =============================================
+
+class AdvancedKalmanFilter {
+    constructor() {
+        this.state = {
+            lat: 0, lng: 0,
+            velocity_lat: 0, velocity_lng: 0,
+            acceleration_lat: 0, acceleration_lng: 0
+        };
+        
+        this.P = this.createIdentityMatrix(6);
+        this.Q = this.createProcessNoiseMatrix();
+        this.R = this.createMeasurementNoiseMatrix();
+        
+        this.constraints = {
+            maxSpeed: 16.67,
+            maxAcceleration: 3.0,
+            maxDeceleration: -4.0,
+            plantationBounds: {
+                minLat: -6.5, maxLat: -5.8,
+                minLng: 106.5, maxLng: 107.2
+            }
+        };
+        
+        this.mlModel = {
+            errorPatterns: [],
+            accuracyHistory: [],
+            adaptiveWeights: { gps: 1.0, imu: 0.0, network: 0.0 },
+            learningRate: 0.01
+        };
+        
+        this.lastUpdateTime = Date.now();
+        this.positionHistory = [];
+        this.maxHistorySize = 61200;
+        
+        console.log('🎯 Advanced Kalman Filter initialized');
+    }
+
+    createIdentityMatrix(size) {
+        const matrix = [];
+        for (let i = 0; i < size; i++) {
+            matrix[i] = [];
+            for (let j = 0; j < size; j++) {
+                matrix[i][j] = i === j ? 1 : 0;
+            }
+        }
+        return matrix;
+    }
+
+    createProcessNoiseMatrix() {
+        return [
+            [0.1, 0, 0, 0, 0, 0],
+            [0, 0.1, 0, 0, 0, 0],
+            [0, 0, 0.01, 0, 0, 0],
+            [0, 0, 0, 0.01, 0, 0],
+            [0, 0, 0, 0, 0.001, 0],
+            [0, 0, 0, 0, 0, 0.001]
+        ];
+    }
+
+    createMeasurementNoiseMatrix() {
+        return [
+            [1, 0],
+            [0, 1]
+        ];
+    }
+
+    matrixMultiply(A, B) {
+        const result = [];
+        for (let i = 0; i < A.length; i++) {
+            result[i] = [];
+            for (let j = 0; j < B[0].length; j++) {
+                let sum = 0;
+                for (let k = 0; k < A[0].length; k++) {
+                    sum += A[i][k] * B[k][j];
+                }
+                result[i][j] = sum;
+            }
+        }
+        return result;
+    }
+
+    matrixVectorMultiply(matrix, vector) {
+        const result = [];
+        for (let i = 0; i < matrix.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < vector.length; j++) {
+                sum += matrix[i][j] * vector[j];
+            }
+            result[i] = sum;
+        }
+        return result;
+    }
+
+    matrixTranspose(matrix) {
+        return matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+    }
+
+    matrixAdd(A, B) {
+        return A.map((row, i) => row.map((val, j) => val + B[i][j]));
+    }
+
+    matrixSubtract(A, B) {
+        return A.map((row, i) => row.map((val, j) => val - B[i][j]));
+    }
+
+    vectorAdd(v1, v2) {
+        return v1.map((val, i) => val + v2[i]);
+    }
+
+    vectorSubtract(v1, v2) {
+        return v1.map((val, i) => val - v2[i]);
+    }
+
+    matrixInverse2x2(matrix) {
+        const [[a, b], [c, d]] = matrix;
+        const determinant = a * d - b * c;
+        if (determinant === 0) return [[1, 0], [0, 1]];
+        return [
+            [d/determinant, -b/determinant],
+            [-c/determinant, a/determinant]
+        ];
+    }
+
+    calculateStateTransitionMatrix(dt) {
+        return [
+            [1, 0, dt, 0, 0.5*dt*dt, 0],
+            [0, 1, 0, dt, 0, 0.5*dt*dt],
+            [0, 0, 1, 0, dt, 0],
+            [0, 0, 0, 1, 0, dt],
+            [0, 0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 1]
+        ];
+    }
+
+    predict(dt) {
+        if (dt <= 0) return;
+
+        const F = this.calculateStateTransitionMatrix(dt);
+        this.state = this.matrixVectorMultiply(F, Object.values(this.state));
+        
+        this.state = {
+            lat: this.state[0], lng: this.state[1],
+            velocity_lat: this.state[2], velocity_lng: this.state[3],
+            acceleration_lat: this.state[4], acceleration_lng: this.state[5]
+        };
+        
+        const F_T = this.matrixTranspose(F);
+        const F_P = this.matrixMultiply(F, this.P);
+        const F_P_FT = this.matrixMultiply(F_P, F_T);
+        this.P = this.matrixAdd(F_P_FT, this.Q);
+        
+        this.applyPhysicalConstraints();
+        this.lastUpdateTime = Date.now();
+    }
+
+    update(measurement, accuracy) {
+        const H = [
+            [1, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0]
+        ];
+        
+        const z = [measurement.lat, measurement.lng];
+        const H_x = this.matrixVectorMultiply(H, Object.values(this.state));
+        const y = this.vectorSubtract(z, H_x);
+        
+        const H_T = this.matrixTranspose(H);
+        const H_P = this.matrixMultiply(H, this.P);
+        const H_P_HT = this.matrixMultiply(H_P, H_T);
+        const S = this.matrixAdd(H_P_HT, this.R);
+        
+        const S_inv = this.matrixInverse2x2(S);
+        const P_HT = this.matrixMultiply(this.P, H_T);
+        const K = this.matrixMultiply(P_HT, S_inv);
+        
+        const K_y = this.matrixVectorMultiply(K, y);
+        const stateArray = this.vectorAdd(Object.values(this.state), K_y);
+        
+        this.state = {
+            lat: stateArray[0], lng: stateArray[1],
+            velocity_lat: stateArray[2], velocity_lng: stateArray[3],
+            acceleration_lat: stateArray[4], acceleration_lng: stateArray[5]
+        };
+        
+        const I = this.createIdentityMatrix(6);
+        const K_H = this.matrixMultiply(K, H);
+        const I_KH = this.matrixSubtract(I, K_H);
+        this.P = this.matrixMultiply(I_KH, this.P);
+        
+        this.applyPhysicalConstraints();
+        this.adaptNoiseParameters(measurement, this.getPosition(), accuracy);
+        this.addToPositionHistory(this.getPosition());
+    }
+
+    applyPhysicalConstraints() {
+        const speed = this.getCurrentSpeed();
+        const acceleration = this.getCurrentAcceleration();
+        
+        if (speed > this.constraints.maxSpeed) {
+            const scale = this.constraints.maxSpeed / speed;
+            this.state.velocity_lat *= scale;
+            this.state.velocity_lng *= scale;
+        }
+        
+        if (acceleration > this.constraints.maxAcceleration) {
+            const scale = this.constraints.maxAcceleration / acceleration;
+            this.state.acceleration_lat *= scale;
+            this.state.acceleration_lng *= scale;
+        }
+        
+        this.applyGeographicConstraints();
+    }
+
+    applyGeographicConstraints() {
+        const { minLat, maxLat, minLng, maxLng } = this.constraints.plantationBounds;
+        
+        this.state.lat = Math.max(minLat, Math.min(maxLat, this.state.lat));
+        this.state.lng = Math.max(minLng, Math.min(maxLng, this.state.lng));
+    }
+
+    adaptNoiseParameters(rawPosition, filteredPosition, accuracy) {
+        this.mlModel.accuracyHistory.push({
+            accuracy: accuracy,
+            timestamp: Date.now(),
+            signalStrength: this.getGPSSignalStrength(accuracy)
+        });
+        
+        if (this.mlModel.accuracyHistory.length > 50) {
+            this.mlModel.accuracyHistory.shift();
+        }
+        
+        const accuracyFactor = Math.max(0.1, Math.min(1.0, accuracy / 50));
+        this.R[0][0] = accuracyFactor * 2;
+        this.R[1][1] = accuracyFactor * 2;
+        
+        const errorLat = Math.abs(rawPosition.lat - filteredPosition.lat);
+        const errorLng = Math.abs(rawPosition.lng - filteredPosition.lng);
+        
+        if (errorLat > 0.0001 || errorLng > 0.0001) {
+            this.mlModel.errorPatterns.push({
+                error: { lat: errorLat, lng: errorLng },
+                conditions: {
+                    accuracy: accuracy,
+                    time: Date.now(),
+                    velocity: this.getCurrentSpeed()
+                }
+            });
+            
+            if (this.mlModel.errorPatterns.length > 100) {
+                this.mlModel.errorPatterns.shift();
+            }
+        }
+        
+        this.updateAdaptiveWeights(accuracy);
+    }
+
+    updateAdaptiveWeights(currentAccuracy) {
+        if (currentAccuracy < 10) {
+            this.mlModel.adaptiveWeights.gps = 0.8;
+        } else if (currentAccuracy < 25) {
+            this.mlModel.adaptiveWeights.gps = 0.6;
+        } else {
+            this.mlModel.adaptiveWeights.gps = 0.4;
+        }
+        
+        this.mlModel.adaptiveWeights.gps += this.mlModel.learningRate * (0.7 - this.mlModel.adaptiveWeights.gps);
+        this.mlModel.adaptiveWeights.network = 1.0 - this.mlModel.adaptiveWeights.gps;
+    }
+
+    getGPSSignalStrength(accuracy) {
+        if (accuracy < 5) return 'excellent';
+        if (accuracy < 15) return 'good';
+        if (accuracy < 30) return 'fair';
+        return 'poor';
+    }
+
+    async filterPosition(rawPosition, accuracy) {
+        const currentTime = Date.now();
+        const dt = (currentTime - this.lastUpdateTime) / 1000;
+        
+        if (dt > 0) {
+            this.predict(dt);
+        }
+        
+        this.update(rawPosition, accuracy);
+        
+        const filteredPosition = this.getPosition();
+        
+        return {
+            position: filteredPosition,
+            velocity: this.getVelocity(),
+            accuracy: this.calculateFilteredAccuracy(),
+            confidence: this.calculateConfidence(),
+            correctionsApplied: false,
+            mlWeights: this.mlModel.adaptiveWeights
+        };
+    }
+
+    getPosition() {
+        return {
+            lat: this.state.lat,
+            lng: this.state.lng
+        };
+    }
+
+    getVelocity() {
+        return this.getCurrentSpeed() * 3.6;
+    }
+
+    getCurrentSpeed() {
+        return Math.sqrt(this.state.velocity_lat ** 2 + this.state.velocity_lng ** 2);
+    }
+
+    getCurrentAcceleration() {
+        return Math.sqrt(this.state.acceleration_lat ** 2 + this.state.acceleration_lng ** 2);
+    }
+
+    calculateFilteredAccuracy() {
+        return Math.sqrt(this.P[0][0] ** 2 + this.P[1][1] ** 2);
+    }
+
+    calculateConfidence() {
+        const accuracy = this.calculateFilteredAccuracy();
+        return Math.max(0, 1 - accuracy / 100);
+    }
+
+    addToPositionHistory(position) {
+        this.positionHistory.push({
+            ...position,
+            timestamp: Date.now(),
+            velocity: this.getVelocity()
+        });
+        
+        if (this.positionHistory.length > this.maxHistorySize) {
+            this.positionHistory.shift();
+        }
+    }
+
+    calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                 Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                 Math.sin(dLon/2) * Math.sin(dLon/2);
+        
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    reset() {
+        this.state = {
+            lat: 0, lng: 0,
+            velocity_lat: 0, velocity_lng: 0,
+            acceleration_lat: 0, acceleration_lng: 0
+        };
+        
+        this.P = this.createIdentityMatrix(6);
+        this.positionHistory = [];
+        this.mlModel.errorPatterns = [];
+        this.mlModel.accuracyHistory = [];
+    }
+}
+
+// =============================================
+// 🗺️ GOOGLE MAPS POLYLINE MANAGER
+// =============================================
+
+class GoogleMapsPolylineManager {
+    constructor() {
+        this.map = null;
+        this.polyline = null;
+        this.markers = [];
+        this.pathCoordinates = [];
+        this.maxPoints = 61200;
+        this.isInitialized = false;
+    }
+
+    async initializeMap(containerId, initialPosition = { lat: -6.2088, lng: 106.8456 }) {
+        try {
+            await this.loadGoogleMapsAPI();
+            
+            this.map = new google.maps.Map(document.getElementById(containerId), {
+                zoom: 15,
+                center: initialPosition,
+                mapTypeId: 'hybrid',
+                styles: this.getMapStyles(),
+                fullscreenControl: true,
+                mapTypeControl: true
+            });
+
+            this.initializePolyline();
+            this.isInitialized = true;
+            
+            console.log('✅ Google Maps initialized successfully');
+            return true;
+        } catch (error) {
+            console.error('❌ Failed to initialize Google Maps:', error);
+            return false;
+        }
+    }
+
+    loadGoogleMapsAPI() {
+        return new Promise((resolve, reject) => {
+            if (window.google && window.google.maps) {
+                resolve();
+                return;
+            }
+
+            const callbackName = 'googleMapsLoaded';
+            window[callbackName] = () => {
+                resolve();
+                delete window[callbackName];
+            };
+
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=${callbackName}&libraries=geometry`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = () => reject(new Error('Failed to load Google Maps API'));
+            
+            document.head.appendChild(script);
+        });
+    }
+
+    getMapStyles() {
+        return [
+            {
+                featureType: "all",
+                elementType: "geometry",
+                stylers: [{ color: "#242f3e" }]
+            },
+            {
+                featureType: "landscape.man_made",
+                elementType: "geometry",
+                stylers: [{ color: "#2c3e50" }]
+            }
+        ];
+    }
+
+    initializePolyline() {
+        this.polyline = new google.maps.Polyline({
+            path: this.pathCoordinates,
+            geodesic: true,
+            strokeColor: "#FF0000",
+            strokeOpacity: 1.0,
+            strokeWeight: 4
+        });
+        this.polyline.setMap(this.map);
+    }
+
+    addPoint(position, metadata = {}) {
+        if (!this.isInitialized) return;
+
+        const latLng = new google.maps.LatLng(position.lat, position.lng);
+        this.pathCoordinates.push(latLng);
+
+        if (this.pathCoordinates.length > this.maxPoints) {
+            this.pathCoordinates.shift();
+        }
+
+        this.updatePolyline();
+
+        if (this.pathCoordinates.length % 10 === 0) {
+            this.map.panTo(latLng);
+        }
+
+        if (metadata.isSignificant) {
+            this.addMarker(position, metadata);
+        }
+
+        this.updateStatisticsDisplay();
+    }
+
+    updatePolyline() {
+        if (this.polyline) {
+            this.polyline.setPath(this.pathCoordinates);
+        }
+    }
+
+    addMarker(position, metadata = {}) {
+        const marker = new google.maps.Marker({
+            position: position,
+            map: this.map,
+            title: metadata.title || `Point ${this.markers.length + 1}`,
+            label: metadata.label || '',
+            animation: google.maps.Animation.DROP
+        });
+
+        if (metadata.description) {
+            this.addInfoWindow(marker, metadata);
+        }
+
+        this.markers.push(marker);
+    }
+
+    addInfoWindow(marker, metadata) {
+        const infoWindow = new google.maps.InfoWindow({
+            content: `
+                <div class="map-info-window">
+                    <h6>${metadata.title || 'Location Point'}</h6>
+                    <p>${metadata.description}</p>
+                    <small>${new Date().toLocaleString('id-ID')}</small>
+                </div>
+            `
+        });
+
+        marker.addListener('click', () => {
+            infoWindow.open(this.map, marker);
+        });
+    }
+
+    updateStatisticsDisplay() {
+        const stats = this.calculateRouteStatistics();
+        const statsElement = document.getElementById('mapStatistics');
+        
+        if (statsElement) {
+            statsElement.innerHTML = `
+                <div class="row text-center">
+                    <div class="col-4">
+                        <small class="text-muted">Total Points</small>
+                        <div class="fw-bold text-primary">${stats.pointsCount}</div>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted">Distance</small>
+                        <div class="fw-bold text-success">${stats.totalDistance} km</div>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted">Points</small>
+                        <div class="fw-bold text-warning">${stats.pointsCount}</div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    calculateRouteStatistics() {
+        if (this.pathCoordinates.length < 2) {
+            return { totalDistance: 0, averageSpeed: 0, pointsCount: 0 };
+        }
+
+        let totalDistance = 0;
+        for (let i = 1; i < this.pathCoordinates.length; i++) {
+            const prev = this.pathCoordinates[i-1];
+            const curr = this.pathCoordinates[i];
+            totalDistance += google.maps.geometry.spherical.computeDistanceBetween(prev, curr);
+        }
+
+        return {
+            totalDistance: (totalDistance / 1000).toFixed(3),
+            pointsCount: this.pathCoordinates.length,
+            averageSpeed: 0
+        };
+    }
+
+    clearMap() {
+        this.pathCoordinates = [];
+        if (this.polyline) {
+            this.polyline.setPath([]);
+        }
+        this.markers.forEach(marker => marker.setMap(null));
+        this.markers = [];
+    }
+
+    exportRouteData() {
+        return {
+            coordinates: this.pathCoordinates.map(coord => ({
+                lat: coord.lat(),
+                lng: coord.lng()
+            })),
+            statistics: this.calculateRouteStatistics(),
+            exportTime: new Date().toISOString()
+        };
+    }
+}
+
+// =============================================
+// 📊 MASSIVE DATA COLLECTOR
+// =============================================
+
+class MassiveDataCollector {
+    constructor() {
+        this.dataPoints = [];
+        this.maxDataPoints = 61200;
+        this.collectionStartTime = null;
+        this.samplingRate = 1000;
+        this.dataStats = {
+            totalCollected: 0,
+            accuracyImprovement: 0,
+            distanceCovered: 0,
+            averageSpeed: 0
+        };
+    }
+
+    startCollection() {
+        this.collectionStartTime = Date.now();
+        this.dataPoints = [];
+        console.log(`🎯 Starting massive data collection: ${this.maxDataPoints} points target`);
+    }
+
+    addDataPoint(position, accuracy, metadata = {}) {
+        const dataPoint = {
+            timestamp: Date.now(),
+            position: position,
+            accuracy: accuracy,
+            metadata: {
+                ...metadata,
+                pointNumber: this.dataPoints.length + 1,
+                collectionTime: (Date.now() - this.collectionStartTime) / 1000
+            }
+        };
+
+        this.dataPoints.push(dataPoint);
+
+        if (this.dataPoints.length > this.maxDataPoints) {
+            this.dataPoints.shift();
+        }
+
+        this.updateStatistics();
+
+        if (this.dataPoints.length % 1000 === 0) {
+            this.autoSave();
+        }
+
+        return this.dataPoints.length;
+    }
+
+    updateStatistics() {
+        if (this.dataPoints.length < 2) return;
+
+        this.dataStats.totalCollected = this.dataPoints.length;
+        
+        if (this.dataPoints.length > 10) {
+            const earlyAccuracy = this.dataPoints.slice(0, 10).reduce((sum, point) => sum + point.accuracy, 0) / 10;
+            const recentAccuracy = this.dataPoints.slice(-10).reduce((sum, point) => sum + point.accuracy, 0) / 10;
+            this.dataStats.accuracyImprovement = ((earlyAccuracy - recentAccuracy) / earlyAccuracy * 100).toFixed(1);
+        }
+
+        let totalDistance = 0;
+        for (let i = 1; i < this.dataPoints.length; i++) {
+            const prev = this.dataPoints[i-1].position;
+            const curr = this.dataPoints[i].position;
+            totalDistance += this.calculateHaversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+        this.dataStats.distanceCovered = totalDistance;
+
+        console.log(`📊 Data Collection: ${this.dataPoints.length}/${this.maxDataPoints} points`);
+    }
+
+    calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                 Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                 Math.sin(dLon/2) * Math.sin(dLon/2);
+        
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    autoSave() {
+        try {
+            const backup = {
+                dataPoints: this.dataPoints,
+                statistics: this.dataStats,
+                backupTime: new Date().toISOString(),
+                totalPoints: this.dataPoints.length
+            };
+            
+            localStorage.setItem('massive_data_backup', JSON.stringify(backup));
+            console.log(`💾 Auto-saved ${this.dataPoints.length} data points`);
+        } catch (error) {
+            console.warn('Failed to auto-save data:', error);
+        }
+    }
+
+    getCollectionProgress() {
+        return {
+            current: this.dataPoints.length,
+            target: this.maxDataPoints,
+            percentage: ((this.dataPoints.length / this.maxDataPoints) * 100).toFixed(1),
+            remaining: this.maxDataPoints - this.dataPoints.length
+        };
+    }
+
+    exportData() {
+        return {
+            metadata: {
+                totalPoints: this.dataPoints.length,
+                collectionDuration: this.collectionStartTime ? 
+                    (Date.now() - this.collectionStartTime) / 1000 : 0,
+                samplingRate: this.samplingRate,
+                exportTime: new Date().toISOString()
+            },
+            statistics: this.dataStats,
+            dataPoints: this.dataPoints
+        };
+    }
+
+    clearData() {
+        this.dataPoints = [];
+        this.collectionStartTime = null;
+        this.dataStats = {
+            totalCollected: 0,
+            accuracyImprovement: 0,
+            distanceCovered: 0,
+            averageSpeed: 0
+        };
+    }
+}
+
+// =============================================
+// ⚡ REAL-TIME SPEED CALCULATOR - NO THRESHOLDS
+// =============================================
+
 class RealTimeSpeedCalculator {
     constructor() {
         this.positionHistory = [];
@@ -75,7 +809,10 @@ class RealTimeSpeedCalculator {
     }
 }
 
-// ✅ ENHANCED BACKGROUND SERVICE MANAGER
+// =============================================
+// 🔄 ENHANCED BACKGROUND SERVICE MANAGER
+// =============================================
+
 class EnhancedBackgroundService {
     constructor(logger) {
         this.logger = logger;
@@ -386,7 +1123,10 @@ class EnhancedBackgroundService {
     }
 }
 
-// ✅ BATTERY MANAGER CLASS
+// =============================================
+// 🔋 BATTERY MANAGER
+// =============================================
+
 class BatteryManager {
     constructor(logger) {
         this.logger = logger;
@@ -530,7 +1270,10 @@ class BatteryManager {
     }
 }
 
-// ✅ GEOFENCE MANAGER CLASS
+// =============================================
+// 📍 GEOFENCE MANAGER
+// =============================================
+
 class GeofenceManager {
     constructor(logger) {
         this.logger = logger;
@@ -671,7 +1414,268 @@ class GeofenceManager {
     }
 }
 
-// ✅ ENHANCED BACKGROUND TRACKING MANAGER
+// =============================================
+// 💾 ENHANCED STORAGE MANAGER
+// =============================================
+
+class EnhancedStorageManager {
+    constructor() {
+        this.STORAGE_KEYS = {
+            WAYPOINTS: 'enhanced_gps_waypoints',
+            SYNC_STATUS: 'enhanced_sync_status',
+            PERSISTED_SESSION: 'dt_gps_persisted_session',
+            BACKGROUND_DATA: 'dt_gps_backup_data'
+        };
+    }
+
+    saveWaypoint(waypoint) {
+        try {
+            const existing = this.loadAllWaypoints();
+            
+            if (existing.length >= 61200) {
+                const removeCount = Math.floor(existing.length * 0.1);
+                existing.splice(0, removeCount);
+            }
+            
+            existing.push(waypoint);
+            this.saveToStorage(existing);
+            
+            this.updateSyncStatus({
+                totalWaypoints: existing.length,
+                unsyncedCount: existing.filter(w => !w.synced).length,
+                lastSave: new Date().toISOString()
+            });
+            
+        } catch (error) {
+            console.error('Failed to save waypoint:', error);
+            this.handleStorageError(error);
+        }
+    }
+
+    loadAllWaypoints() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEYS.WAYPOINTS);
+            return data ? JSON.parse(data) : [];
+        } catch (error) {
+            console.error('Failed to load waypoints:', error);
+            return [];
+        }
+    }
+
+    loadUnsyncedWaypoints() {
+        const all = this.loadAllWaypoints();
+        return all.filter(waypoint => !waypoint.synced);
+    }
+
+    markWaypointsAsSynced(waypointIds) {
+        try {
+            const all = this.loadAllWaypoints();
+            const updated = all.map(waypoint => {
+                if (waypointIds.includes(waypoint.id)) {
+                    return { ...waypoint, synced: true };
+                }
+                return waypoint;
+            });
+            
+            this.saveToStorage(updated);
+            
+            this.updateSyncStatus({
+                totalWaypoints: updated.length,
+                unsyncedCount: updated.filter(w => !w.synced).length,
+                lastSync: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error marking waypoints as synced:', error);
+        }
+    }
+
+    saveToStorage(waypoints) {
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.WAYPOINTS, JSON.stringify(waypoints));
+        } catch (error) {
+            console.error('Error saving to storage:', error);
+            this.handleStorageError(error);
+        }
+    }
+
+    updateSyncStatus(status) {
+        try {
+            const existing = this.getSyncStatus();
+            localStorage.setItem(this.STORAGE_KEYS.SYNC_STATUS, JSON.stringify({
+                ...existing, ...status, updatedAt: new Date().toISOString()
+            }));
+        } catch (error) {
+            console.error('Error updating sync status:', error);
+        }
+    }
+
+    getSyncStatus() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEYS.SYNC_STATUS);
+            return data ? JSON.parse(data) : {
+                totalWaypoints: 0, unsyncedCount: 0, lastSync: null, lastSave: null
+            };
+        } catch (error) {
+            return { totalWaypoints: 0, unsyncedCount: 0, lastSync: null, lastSave: null };
+        }
+    }
+
+    persistSession(sessionData) {
+        try {
+            if (!sessionData) return;
+            
+            const sessionToSave = {
+                ...sessionData,
+                persistedAt: new Date().toISOString(),
+                appState: document.hidden ? 'background' : 'foreground'
+            };
+            
+            localStorage.setItem(this.STORAGE_KEYS.PERSISTED_SESSION, JSON.stringify(sessionToSave));
+        } catch (error) {
+            console.error('Error persisting session:', error);
+        }
+    }
+
+    loadPersistedSession() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEYS.PERSISTED_SESSION);
+            return data ? JSON.parse(data) : null;
+        } catch (error) {
+            console.error('Error loading persisted session:', error);
+            return null;
+        }
+    }
+
+    clearPersistedSession() {
+        try {
+            localStorage.removeItem(this.STORAGE_KEYS.PERSISTED_SESSION);
+        } catch (error) {
+            console.error('Error clearing persisted session:', error);
+        }
+    }
+
+    backupBackgroundData(backupData) {
+        try {
+            const backup = {
+                ...backupData,
+                backupTimestamp: new Date().toISOString(),
+                waypointCount: backupData.waypoints?.length || 0
+            };
+            
+            localStorage.setItem(this.STORAGE_KEYS.BACKGROUND_DATA, JSON.stringify(backup));
+        } catch (error) {
+            console.error('Error backing up background data:', error);
+        }
+    }
+
+    loadBackgroundBackup() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEYS.BACKGROUND_DATA);
+            return data ? JSON.parse(data) : null;
+        } catch (error) {
+            console.error('Error loading background backup:', error);
+            return null;
+        }
+    }
+
+    clearBackgroundBackup() {
+        try {
+            localStorage.removeItem(this.STORAGE_KEYS.BACKGROUND_DATA);
+        } catch (error) {
+            console.error('Error clearing background backup:', error);
+        }
+    }
+
+    handleStorageError(error) {
+        if (error.name === 'QuotaExceededError' || error.code === 22) {
+            console.warn('Storage quota exceeded, clearing old data...');
+            const allWaypoints = this.loadAllWaypoints();
+            const removeCount = Math.floor(allWaypoints.length * 0.25);
+            const remaining = allWaypoints.slice(removeCount);
+            this.saveToStorage(remaining);
+            
+            this.updateSyncStatus({
+                totalWaypoints: remaining.length,
+                unsyncedCount: remaining.filter(w => !w.synced).length,
+                lastSave: new Date().toISOString()
+            });
+        }
+    }
+}
+
+// =============================================
+// 📡 OFFLINE QUEUE MANAGER
+// =============================================
+
+class OfflineQueueManager {
+    constructor() {
+        this.queue = [];
+        this.isOnline = navigator.onLine;
+        this.maxQueueSize = 1000;
+    }
+
+    addToQueue(gpsData) {
+        if (this.queue.length >= this.maxQueueSize) {
+            const removeCount = Math.floor(this.maxQueueSize * 0.1);
+            this.queue.splice(0, removeCount);
+        }
+        
+        this.queue.push({
+            ...gpsData,
+            queueTimestamp: new Date().toISOString(),
+            queueId: `queue_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        });
+    }
+
+    getQueueSize() {
+        return this.queue.length;
+    }
+
+    async processQueue() {
+        if (this.queue.length === 0 || !this.isOnline) return;
+
+        console.log(`🔄 Processing ${this.queue.length} queued items...`);
+        
+        const successItems = [];
+        const failedItems = [];
+
+        for (const item of this.queue) {
+            try {
+                await this.sendQueuedData(item);
+                successItems.push(item);
+            } catch (error) {
+                console.error('Failed to send queued data:', error);
+                failedItems.push(item);
+                
+                if (failedItems.length > 5) {
+                    break;
+                }
+            }
+        }
+
+        this.queue = failedItems;
+
+        console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
+        
+        if (successItems.length > 0 && window.dtLogger) {
+            window.dtLogger.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
+        }
+    }
+
+    async sendQueuedData(queuedData) {
+        if (!window.dtLogger?.firebaseRef) {
+            throw new Error('No Firebase reference');
+        }
+
+        const { queueTimestamp, queueId, ...cleanData } = queuedData;
+        await window.dtLogger.firebaseRef.set(cleanData);
+    }
+}
+
+// =============================================
+// 🔄 ENHANCED BACKGROUND TRACKING MANAGER
+// =============================================
+
 class EnhancedBackgroundTrackingManager {
     constructor(logger) {
         this.logger = logger;
@@ -1194,259 +2198,10 @@ class EnhancedBackgroundTrackingManager {
     }
 }
 
-// ✅ ENHANCED STORAGE MANAGER
-class EnhancedStorageManager {
-    constructor() {
-        this.STORAGE_KEYS = {
-            WAYPOINTS: 'enhanced_gps_waypoints',
-            SYNC_STATUS: 'enhanced_sync_status',
-            PERSISTED_SESSION: 'dt_gps_persisted_session',
-            BACKGROUND_DATA: 'dt_gps_backup_data'
-        };
-    }
+// =============================================
+// 🚀 COMPLETE ENHANCED MOBILE GPS LOGGER
+// =============================================
 
-    saveWaypoint(waypoint) {
-        try {
-            const existing = this.loadAllWaypoints();
-            
-            if (existing.length >= 61200) {
-                const removeCount = Math.floor(existing.length * 0.1);
-                existing.splice(0, removeCount);
-            }
-            
-            existing.push(waypoint);
-            this.saveToStorage(existing);
-            
-            this.updateSyncStatus({
-                totalWaypoints: existing.length,
-                unsyncedCount: existing.filter(w => !w.synced).length,
-                lastSave: new Date().toISOString()
-            });
-            
-        } catch (error) {
-            console.error('Failed to save waypoint:', error);
-            this.handleStorageError(error);
-        }
-    }
-
-    loadAllWaypoints() {
-        try {
-            const data = localStorage.getItem(this.STORAGE_KEYS.WAYPOINTS);
-            return data ? JSON.parse(data) : [];
-        } catch (error) {
-            console.error('Failed to load waypoints:', error);
-            return [];
-        }
-    }
-
-    loadUnsyncedWaypoints() {
-        const all = this.loadAllWaypoints();
-        return all.filter(waypoint => !waypoint.synced);
-    }
-
-    markWaypointsAsSynced(waypointIds) {
-        try {
-            const all = this.loadAllWaypoints();
-            const updated = all.map(waypoint => {
-                if (waypointIds.includes(waypoint.id)) {
-                    return { ...waypoint, synced: true };
-                }
-                return waypoint;
-            });
-            
-            this.saveToStorage(updated);
-            
-            this.updateSyncStatus({
-                totalWaypoints: updated.length,
-                unsyncedCount: updated.filter(w => !w.synced).length,
-                lastSync: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error('Error marking waypoints as synced:', error);
-        }
-    }
-
-    saveToStorage(waypoints) {
-        try {
-            localStorage.setItem(this.STORAGE_KEYS.WAYPOINTS, JSON.stringify(waypoints));
-        } catch (error) {
-            console.error('Error saving to storage:', error);
-            this.handleStorageError(error);
-        }
-    }
-
-    updateSyncStatus(status) {
-        try {
-            const existing = this.getSyncStatus();
-            localStorage.setItem(this.STORAGE_KEYS.SYNC_STATUS, JSON.stringify({
-                ...existing, ...status, updatedAt: new Date().toISOString()
-            }));
-        } catch (error) {
-            console.error('Error updating sync status:', error);
-        }
-    }
-
-    getSyncStatus() {
-        try {
-            const data = localStorage.getItem(this.STORAGE_KEYS.SYNC_STATUS);
-            return data ? JSON.parse(data) : {
-                totalWaypoints: 0, unsyncedCount: 0, lastSync: null, lastSave: null
-            };
-        } catch (error) {
-            return { totalWaypoints: 0, unsyncedCount: 0, lastSync: null, lastSave: null };
-        }
-    }
-
-    persistSession(sessionData) {
-        try {
-            if (!sessionData) return;
-            
-            const sessionToSave = {
-                ...sessionData,
-                persistedAt: new Date().toISOString(),
-                appState: document.hidden ? 'background' : 'foreground'
-            };
-            
-            localStorage.setItem(this.STORAGE_KEYS.PERSISTED_SESSION, JSON.stringify(sessionToSave));
-        } catch (error) {
-            console.error('Error persisting session:', error);
-        }
-    }
-
-    loadPersistedSession() {
-        try {
-            const data = localStorage.getItem(this.STORAGE_KEYS.PERSISTED_SESSION);
-            return data ? JSON.parse(data) : null;
-        } catch (error) {
-            console.error('Error loading persisted session:', error);
-            return null;
-        }
-    }
-
-    clearPersistedSession() {
-        try {
-            localStorage.removeItem(this.STORAGE_KEYS.PERSISTED_SESSION);
-        } catch (error) {
-            console.error('Error clearing persisted session:', error);
-        }
-    }
-
-    backupBackgroundData(backupData) {
-        try {
-            const backup = {
-                ...backupData,
-                backupTimestamp: new Date().toISOString(),
-                waypointCount: backupData.waypoints?.length || 0
-            };
-            
-            localStorage.setItem(this.STORAGE_KEYS.BACKGROUND_DATA, JSON.stringify(backup));
-        } catch (error) {
-            console.error('Error backing up background data:', error);
-        }
-    }
-
-    loadBackgroundBackup() {
-        try {
-            const data = localStorage.getItem(this.STORAGE_KEYS.BACKGROUND_DATA);
-            return data ? JSON.parse(data) : null;
-        } catch (error) {
-            console.error('Error loading background backup:', error);
-            return null;
-        }
-    }
-
-    clearBackgroundBackup() {
-        try {
-            localStorage.removeItem(this.STORAGE_KEYS.BACKGROUND_DATA);
-        } catch (error) {
-            console.error('Error clearing background backup:', error);
-        }
-    }
-
-    handleStorageError(error) {
-        if (error.name === 'QuotaExceededError' || error.code === 22) {
-            console.warn('Storage quota exceeded, clearing old data...');
-            const allWaypoints = this.loadAllWaypoints();
-            const removeCount = Math.floor(allWaypoints.length * 0.25);
-            const remaining = allWaypoints.slice(removeCount);
-            this.saveToStorage(remaining);
-            
-            this.updateSyncStatus({
-                totalWaypoints: remaining.length,
-                unsyncedCount: remaining.filter(w => !w.synced).length,
-                lastSave: new Date().toISOString()
-            });
-        }
-    }
-}
-
-// ✅ OFFLINE QUEUE MANAGER
-class OfflineQueueManager {
-    constructor() {
-        this.queue = [];
-        this.isOnline = navigator.onLine;
-        this.maxQueueSize = 1000;
-    }
-
-    addToQueue(gpsData) {
-        if (this.queue.length >= this.maxQueueSize) {
-            const removeCount = Math.floor(this.maxQueueSize * 0.1);
-            this.queue.splice(0, removeCount);
-        }
-        
-        this.queue.push({
-            ...gpsData,
-            queueTimestamp: new Date().toISOString(),
-            queueId: `queue_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        });
-    }
-
-    getQueueSize() {
-        return this.queue.length;
-    }
-
-    async processQueue() {
-        if (this.queue.length === 0 || !this.isOnline) return;
-
-        console.log(`🔄 Processing ${this.queue.length} queued items...`);
-        
-        const successItems = [];
-        const failedItems = [];
-
-        for (const item of this.queue) {
-            try {
-                await this.sendQueuedData(item);
-                successItems.push(item);
-            } catch (error) {
-                console.error('Failed to send queued data:', error);
-                failedItems.push(item);
-                
-                if (failedItems.length > 5) {
-                    break;
-                }
-            }
-        }
-
-        this.queue = failedItems;
-
-        console.log(`✅ Sent ${successItems.length} items, ${failedItems.length} failed`);
-        
-        if (successItems.length > 0 && window.dtLogger) {
-            window.dtLogger.addLog(`📡 Sync offline: ${successItems.length} data terkirim`, 'success');
-        }
-    }
-
-    async sendQueuedData(queuedData) {
-        if (!window.dtLogger?.firebaseRef) {
-            throw new Error('No Firebase reference');
-        }
-
-        const { queueTimestamp, queueId, ...cleanData } = queuedData;
-        await window.dtLogger.firebaseRef.set(cleanData);
-    }
-}
-
-// ✅ ENHANCED MOBILE GPS LOGGER - REAL TIME NO THRESHOLDS
 class EnhancedDTGPSLogger {
     constructor() {
         this.waypointConfig = {
@@ -1478,6 +2233,12 @@ class EnhancedDTGPSLogger {
         
         this.completeHistory = this.loadCompleteHistory();
         
+        // Advanced Features Integration
+        this.kalmanFilter = new AdvancedKalmanFilter();
+        this.useKalmanFilter = true;
+        this.mapsManager = new GoogleMapsPolylineManager();
+        this.dataCollector = new MassiveDataCollector();
+        
         this.backgroundManager = new EnhancedBackgroundTrackingManager(this);
         this.isInBackground = false;
         
@@ -1508,7 +2269,7 @@ class EnhancedDTGPSLogger {
                 this.checkPersistedSession();
             }, 1000);
             
-            console.log('🚀 Enhanced DT GPS Logger initialized - REAL TIME TRACKING READY');
+            console.log('🚀 Enhanced DT GPS Logger initialized - COMPLETE SYSTEM READY');
         } catch (error) {
             console.error('❌ Error during initialization:', error);
         }
@@ -1669,155 +2430,106 @@ class EnhancedDTGPSLogger {
 
         document.getElementById('quickStatusBtn')?.addEventListener('click', () => this.showQuickStatus());
         document.getElementById('refreshDataBtn')?.addEventListener('click', () => this.forceSync());
+        document.getElementById('toggleKalmanBtn')?.addEventListener('click', () => this.toggleKalmanFilter());
     }
 
-    startRealGPSTracking() {
-        if (!navigator.geolocation) {
-            this.addLog('❌ GPS tidak didukung di browser ini', 'error');
-            this.showGPSInstructions();
-            return;
-        }
-
-        console.log('📍 Starting REAL-TIME GPS tracking...');
+    toggleKalmanFilter() {
+        this.useKalmanFilter = !this.useKalmanFilter;
+        const status = this.useKalmanFilter ? 'AKTIF' : 'NON-AKTIF';
+        this.addLog(`🎯 Kalman Filter: ${status}`, this.useKalmanFilter ? 'success' : 'warning');
         
-        if (this.watchId) {
-            navigator.geolocation.clearWatch(this.watchId);
-            this.watchId = null;
+        const button = document.getElementById('toggleKalmanBtn');
+        if (button) {
+            button.textContent = `Kalman: ${status}`;
+            button.className = this.useKalmanFilter ? 'btn btn-success btn-sm' : 'btn btn-secondary btn-sm';
         }
-
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-            distanceFilter: 0
-        };
-
-        this.watchId = navigator.geolocation.watchPosition(
-            (position) => {
-                console.log('📍 GPS position received');
-                this.handleEnhancedPositionUpdate(position);
-            },
-            (error) => {
-                console.warn('❌ GPS watchPosition error:', error);
-                this.handleGPSError(error);
-            },
-            options
-        );
-
-        this.isTracking = true;
-        this.addLog('📍 Enhanced GPS Real-time diaktifkan - semua pergerakan terdeteksi', 'success');
-        
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const accuracy = pos.coords.accuracy;
-                let accuracyMessage = `✅ GPS Aktif - Akurasi: ${accuracy}m`;
-                
-                if (accuracy > 100) {
-                    accuracyMessage += ' - Cari area terbuka';
-                    this.addLog(accuracyMessage, 'warning');
-                } else if (accuracy > 50) {
-                    accuracyMessage += ' - Akurasi sedang';
-                    this.addLog(accuracyMessage, 'info');
-                } else {
-                    this.addLog(accuracyMessage, 'success');
-                }
-            },
-            (err) => {
-                let message = '⚠️ GPS initialization: ';
-                switch(err.code) {
-                    case err.PERMISSION_DENIED:
-                        message += 'Izin ditolak - aktifkan lokasi di browser';
-                        break;
-                    case err.POSITION_UNAVAILABLE:
-                        message += 'Posisi tidak tersedia - periksa GPS device';
-                        break;
-                    case err.TIMEOUT:
-                        message += 'Timeout - cari sinyal lebih baik';
-                        break;
-                    default:
-                        message += 'Error tidak diketahui';
-                }
-                this.addLog(message, 'warning');
-            },
-            { 
-                enableHighAccuracy: true, 
-                timeout: 8000,
-                maximumAge: 0 
-            }
-        );
     }
 
-    handleEnhancedPositionUpdate(position) {
+    async handleEnhancedPositionUpdate(position) {
         if (!this.isValidGPSPosition(position)) {
             return;
         }
 
         const accuracy = position.coords.accuracy;
-        
-        if (accuracy > 1000) {
-            console.warn(`⚠️ Akurasi GPS sangat rendah: ${accuracy}m`);
-            this.addLog(`⚠️ Akurasi sangat rendah (${accuracy}m) - data mungkin tidak akurat`, 'warning');
-        }
-
-        const currentTime = new Date().getTime();
-        const currentPosition = {
+        const rawPosition = {
             lat: parseFloat(position.coords.latitude.toFixed(6)),
             lng: parseFloat(position.coords.longitude.toFixed(6)),
-            accuracy: parseFloat(accuracy.toFixed(1)),
-            speed: 0,
+            accuracy: parseFloat(accuracy.toFixed(1))
+        };
+
+        let processedPosition = rawPosition;
+        let kalmanConfidence = 1.0;
+        let filteredSpeed = this.currentSpeed;
+
+        // Apply Kalman Filter if enabled
+        if (this.useKalmanFilter && accuracy <= 100) {
+            try {
+                const filteredResult = await this.kalmanFilter.filterPosition(rawPosition, accuracy);
+                processedPosition = filteredResult.position;
+                kalmanConfidence = filteredResult.confidence;
+                filteredSpeed = filteredResult.velocity;
+                
+                console.log(`🎯 Kalman: ${accuracy}m → ${filteredResult.accuracy.toFixed(1)}m | Confidence: ${(kalmanConfidence * 100).toFixed(1)}%`);
+            } catch (error) {
+                console.warn('Kalman filter error:', error);
+            }
+        }
+
+        const currentPosition = {
+            lat: processedPosition.lat,
+            lng: processedPosition.lng,
+            accuracy: processedPosition.accuracy,
+            speed: filteredSpeed,
             bearing: position.coords.heading ? parseFloat(position.coords.heading.toFixed(0)) : null,
-            timestamp: currentTime,
+            timestamp: new Date().getTime(),
             isOnline: this.isOnline,
+            processed: this.useKalmanFilter,
+            kalmanConfidence: kalmanConfidence,
             altitude: position.coords.altitude ? parseFloat(position.coords.altitude.toFixed(1)) : null,
             altitudeAccuracy: position.coords.altitudeAccuracy ? parseFloat(position.coords.altitudeAccuracy.toFixed(1)) : null
         };
 
         this.calculateRealTimeMovement(currentPosition);
 
-        this.processWaypoint({
+        // Update Google Maps
+        if (this.mapsManager && this.mapsManager.isInitialized) {
+            this.mapsManager.addPoint(processedPosition, {
+                isSignificant: this.dataPoints % 60 === 0,
+                title: `Point ${this.dataPoints + 1}`,
+                description: `Speed: ${filteredSpeed.toFixed(1)} km/h | Accuracy: ${processedPosition.accuracy}m`
+            });
+        }
+
+        // Add to massive data collector
+        this.dataCollector.addDataPoint(processedPosition, accuracy, {
+            speed: filteredSpeed,
+            kalmanApplied: this.useKalmanFilter,
+            kalmanConfidence: kalmanConfidence
+        });
+
+        const waypoint = {
             ...currentPosition,
-            id: `wp_real_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: `wp_${this.useKalmanFilter ? 'kf_' : 'raw_'}${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             sessionId: this.driverData?.sessionId || 'unknown',
             unit: this.driverData?.unit || 'unknown',
             driver: this.driverData?.name || 'unknown',
             synced: false,
-            lowAccuracy: accuracy > 50,
             isBackground: this.isInBackground,
-            batteryLevel: this.getBatteryLevel()
-        });
+            dataPointNumber: this.dataCollector.dataPoints.length,
+            kalmanFiltered: this.useKalmanFilter,
+            rawAccuracy: accuracy,
+            processedAccuracy: processedPosition.accuracy
+        };
 
+        this.processWaypoint(waypoint);
         this.lastPosition = currentPosition;
-        
+        this.currentSpeed = filteredSpeed;
+
         if (this.dataPoints % 10 === 0) {
             this.persistSession();
         }
-    }
 
-    isValidGPSPosition(position) {
-        if (!position || !position.coords) return false;
-        
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
-        
-        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
-            return false;
-        }
-        
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            return false;
-        }
-        
-        if (lat === 0 && lng === 0) {
-            return false;
-        }
-        
-        if (accuracy > 100000) {
-            console.warn('🎯 GPS accuracy extremely poor:', accuracy, 'm - skipping');
-            return false;
-        }
-        
-        return true;
+        this.updateAccuracyStatistics();
     }
 
     calculateRealTimeMovement(currentPosition) {
@@ -1874,28 +2586,131 @@ class EnhancedDTGPSLogger {
         return distance;
     }
 
-    enhancedSmoothSpeed(newSpeed) {
-        if (!this.speedHistory) {
-            this.speedHistory = [];
+    updateAccuracyStatistics() {
+        const accuracyElement = document.getElementById('accuracyImprovement');
+        const confidenceElement = document.getElementById('kalmanConfidence');
+        const dataProgressElement = document.getElementById('dataCollectionProgress');
+
+        if (accuracyElement) {
+            accuracyElement.textContent = `${this.dataCollector.dataStats.accuracyImprovement}%`;
+        }
+
+        if (confidenceElement && this.useKalmanFilter) {
+            const confidence = this.kalmanFilter.calculateConfidence();
+            confidenceElement.textContent = `${(confidence * 100).toFixed(1)}%`;
+        }
+
+        if (dataProgressElement) {
+            const progress = this.dataCollector.getCollectionProgress();
+            dataProgressElement.textContent = `${progress.percentage}%`;
+        }
+    }
+
+    isValidGPSPosition(position) {
+        if (!position || !position.coords) return false;
+        
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+            return false;
         }
         
-        this.speedHistory.push(newSpeed);
-        
-        if (this.speedHistory.length > 8) {
-            this.speedHistory.shift();
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return false;
         }
         
-        const weights = [1, 1, 1, 1.2, 1.2, 1.5, 1.5, 2];
-        let sum = 0;
-        let weightSum = 0;
+        if (lat === 0 && lng === 0) {
+            return false;
+        }
         
-        this.speedHistory.forEach((speed, index) => {
-            const weight = weights[Math.min(index, weights.length - 1)] || 1;
-            sum += speed * weight;
-            weightSum += weight;
-        });
+        if (accuracy > 100000) {
+            console.warn('🎯 GPS accuracy extremely poor:', accuracy, 'm - skipping');
+            return false;
+        }
         
-        return sum / weightSum;
+        return true;
+    }
+
+    startRealGPSTracking() {
+        if (!navigator.geolocation) {
+            this.addLog('❌ GPS tidak didukung di browser ini', 'error');
+            this.showGPSInstructions();
+            return;
+        }
+
+        console.log('📍 Starting REAL-TIME GPS tracking with Kalman Filter...');
+        
+        if (this.watchId) {
+            navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
+        }
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+            distanceFilter: 0
+        };
+
+        this.watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                console.log('📍 GPS position received');
+                this.handleEnhancedPositionUpdate(position);
+            },
+            (error) => {
+                console.warn('❌ GPS watchPosition error:', error);
+                this.handleGPSError(error);
+            },
+            options
+        );
+
+        this.isTracking = true;
+        this.addLog('📍 Enhanced GPS Real-time diaktifkan - semua pergerakan terdeteksi', 'success');
+        this.addLog(`🎯 Kalman Filter: ${this.useKalmanFilter ? 'AKTIF' : 'NON-AKTIF'}`, 'info');
+        
+        // Start massive data collection
+        this.dataCollector.startCollection();
+        
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const accuracy = pos.coords.accuracy;
+                let accuracyMessage = `✅ GPS Aktif - Akurasi: ${accuracy}m`;
+                
+                if (accuracy > 100) {
+                    accuracyMessage += ' - Cari area terbuka';
+                    this.addLog(accuracyMessage, 'warning');
+                } else if (accuracy > 50) {
+                    accuracyMessage += ' - Akurasi sedang';
+                    this.addLog(accuracyMessage, 'info');
+                } else {
+                    this.addLog(accuracyMessage, 'success');
+                }
+            },
+            (err) => {
+                let message = '⚠️ GPS initialization: ';
+                switch(err.code) {
+                    case err.PERMISSION_DENIED:
+                        message += 'Izin ditolak - aktifkan lokasi di browser';
+                        break;
+                    case err.POSITION_UNAVAILABLE:
+                        message += 'Posisi tidak tersedia - periksa GPS device';
+                        break;
+                    case err.TIMEOUT:
+                        message += 'Timeout - cari sinyal lebih baik';
+                        break;
+                    default:
+                        message += 'Error tidak diketahui';
+                }
+                this.addLog(message, 'warning');
+            },
+            { 
+                enableHighAccuracy: true, 
+                timeout: 8000,
+                maximumAge: 0 
+            }
+        );
     }
 
     handleGPSError(error) {
@@ -1969,9 +2784,10 @@ class EnhancedDTGPSLogger {
                 lastUpdate: new Date().toLocaleTimeString('id-ID'),
                 lat: 0, lng: 0, speed: 0, distance: 0,
                 fuel: 100, accuracy: 0, timestamp: new Date().toISOString(),
-                gpsMode: 'real',
+                gpsMode: 'enhanced',
                 isActive: true,
-                batteryLevel: this.getBatteryLevel()
+                batteryLevel: this.getBatteryLevel(),
+                kalmanFilter: this.useKalmanFilter
             };
 
             this.firebaseRef.set(cleanData);
@@ -2024,10 +2840,24 @@ class EnhancedDTGPSLogger {
         this.updateWaypointDisplay();
         this.setupChatSystem();
         
+        // Initialize Google Maps
+        this.initializeGoogleMaps('mapContainer');
+        
         this.startRealGPSTracking();
         
         this.addLog(`✅ Login berhasil - ${this.driverData.name} (${this.driverData.unit})`, 'success');
         this.addLog('🔄 Background tracking aktif - aplikasi tetap berjalan meski dimatikan', 'info');
+        this.addLog('📊 Massive data collection dimulai - target 61,200 data points', 'info');
+    }
+
+    async initializeGoogleMaps(containerId) {
+        try {
+            await this.mapsManager.initializeMap(containerId);
+            this.addLog('🗺️ Google Maps berhasil diinisialisasi', 'success');
+        } catch (error) {
+            console.error('Failed to initialize Google Maps:', error);
+            this.addLog('❌ Gagal menginisialisasi Google Maps', 'warning');
+        }
     }
 
     processWaypoint(waypoint) {
@@ -2077,6 +2907,15 @@ class EnhancedDTGPSLogger {
         document.getElementById('gpsBearing').textContent = waypoint.bearing ? waypoint.bearing + '°' : '-';
         
         this.updateGPSAccuracyDisplay(waypoint.accuracy);
+        
+        // Update Kalman filter status
+        if (this.useKalmanFilter) {
+            const kalmanElement = document.getElementById('kalmanStatus');
+            if (kalmanElement) {
+                kalmanElement.textContent = `AKTIF (${(waypoint.kalmanConfidence * 100).toFixed(1)}% confidence)`;
+                kalmanElement.className = 'text-success fw-bold';
+            }
+        }
     }
 
     updateGPSAccuracyDisplay(accuracy) {
@@ -2164,10 +3003,13 @@ class EnhancedDTGPSLogger {
                 sessionId: this.driverData.sessionId,
                 isOfflineData: false,
                 fuel: this.calculateFuelLevel(),
-                gpsMode: 'real',
+                gpsMode: 'enhanced',
                 isActive: true,
                 isBackground: this.isInBackground,
-                appState: this.isInBackground ? 'background' : 'foreground'
+                appState: this.isInBackground ? 'background' : 'foreground',
+                kalmanFilter: this.useKalmanFilter,
+                dataPoints: this.dataPoints,
+                waypointsCollected: this.waypointBuffer.length
             };
 
             if (this.isOnline) {
@@ -2359,6 +3201,10 @@ class EnhancedDTGPSLogger {
         if (this.isOnline) {
             this.syncWaypointsToServer();
         }
+        
+        // Export data collection
+        const exportedData = this.dataCollector.exportData();
+        console.log('📊 Data Collection Summary:', exportedData);
     }
 
     reportIssue() {
@@ -2398,7 +3244,7 @@ class EnhancedDTGPSLogger {
     }
 
     async runGPSDiagnostic() {
-        this.addLog('📡 Menjalankan diagnostic GPS...', 'info');
+        this.addLog('📡 Menjalankan diagnostic GPS lengkap...', 'info');
         
         if (!navigator.geolocation) {
             this.addLog('❌ GPS tidak didukung di browser ini', 'error');
@@ -2424,6 +3270,9 @@ class EnhancedDTGPSLogger {
 • Altitude: ${position.coords.altitude ? position.coords.altitude.toFixed(1) + 'm' : 'N/A'}
 • Heading: ${position.coords.heading ? position.coords.heading + '°' : 'N/A'}
 • Timestamp: ${new Date().toLocaleTimeString('id-ID')}
+• Kalman Filter: ${this.useKalmanFilter ? 'AKTIF' : 'NON-AKTIF'}
+• Data Points: ${this.dataPoints}
+• Total Distance: ${this.totalDistance.toFixed(3)} km
                     `.trim();
 
             this.addLog(diagnosticMessage, 'success');
@@ -2759,7 +3608,9 @@ class EnhancedDTGPSLogger {
             uploadedAt: new Date().toISOString(),
             batchSize: batch.length,
             totalWaypoints: this.waypointBuffer.length,
-            batchIndex: batchIndex
+            batchIndex: batchIndex,
+            kalmanFilter: this.useKalmanFilter,
+            dataCollectorPoints: this.dataCollector.dataPoints.length
         };
 
         await batchRef.set(batchData);
@@ -2804,6 +3655,7 @@ class EnhancedDTGPSLogger {
 
     getQuickStatus() {
         return `
+Enhanced GPS Tracking System:
 Driver: ${this.driverData?.name || '-'}
 Unit: ${this.driverData?.unit || '-'}
 Status: ${this.journeyStatus || 'ready'}
@@ -2816,6 +3668,9 @@ GPS Accuracy: ${this.lastPosition?.accuracy || '0'} m
 Session Duration: ${document.getElementById('sessionDuration')?.textContent || '00:00:00'}
 Background: ${this.backgroundManager?.isActive ? 'ACTIVE' : 'INACTIVE'}
 Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
+Kalman Filter: ${this.useKalmanFilter ? 'ACTIVE' : 'INACTIVE'}
+Data Collection: ${this.dataCollector.dataPoints.length}/${this.dataCollector.maxDataPoints}
+Google Maps: ${this.mapsManager.isInitialized ? 'ACTIVE' : 'INACTIVE'}
                 `.trim();
     }
 
@@ -2865,14 +3720,21 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
                 waypointsCollected: this.waypointBuffer.length,
                 unsyncedWaypoints: this.unsyncedWaypoints.size,
                 avgSpeed: document.getElementById('avgSpeed')?.textContent || '0',
-                sessionId: this.driverData.sessionId
+                sessionId: this.driverData.sessionId,
+                kalmanFilter: this.useKalmanFilter,
+                dataCollection: this.dataCollector.dataPoints.length
             };
             
             console.log('Session Summary:', sessionSummary);
             this.addLog(`Session ended - ${this.waypointBuffer.length} waypoints collected`, 'info');
             
+            // Export final data
+            const finalData = this.dataCollector.exportData();
+            console.log('Final Data Collection:', finalData);
+            
             this.waypointBuffer = [];
             this.unsyncedWaypoints.clear();
+            this.dataCollector.clearData();
             
             this.driverData = null;
             this.firebaseRef = null;
@@ -2901,14 +3763,35 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
     }
 }
 
-// Initialize app
+// =============================================
+// 🚀 APPLICATION INITIALIZATION
+// =============================================
+
 document.addEventListener('DOMContentLoaded', function() {
     try {
         window.dtLogger = new EnhancedDTGPSLogger();
-        console.log('✅ Enhanced DT GPS Logger successfully initialized');
+        console.log('✅ Enhanced DT GPS Logger successfully initialized - COMPLETE SYSTEM');
+        
+        // Initialize additional features after a delay
+        setTimeout(() => {
+            if (window.dtLogger.driverData) {
+                console.log('🚀 All advanced features activated');
+            }
+        }, 3000);
+
     } catch (error) {
         console.error('❌ Failed to initialize Enhanced DT GPS Logger:', error);
         alert('Gagal menginisialisasi aplikasi. Silakan refresh halaman.');
+    }
+});
+
+// Global event handlers
+window.addEventListener('online', () => {
+    if (window.dtLogger) {
+        setTimeout(() => {
+            window.dtLogger.syncWaypointsToServer();
+            window.dtLogger.offlineQueue.processQueue();
+        }, 1000);
     }
 });
 
@@ -2927,16 +3810,6 @@ window.addEventListener('resume', () => {
         if (!window.dtLogger.isTracking) {
             window.dtLogger.startRealGPSTracking();
         }
-    }
-});
-
-// Network status recovery
-window.addEventListener('online', () => {
-    if (window.dtLogger) {
-        setTimeout(() => {
-            window.dtLogger.syncWaypointsToServer();
-            window.dtLogger.offlineQueue.processQueue();
-        }, 1000);
     }
 });
 
@@ -3004,3 +3877,5 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial update
     updateFuelStatus();
 });
+
+console.log('📍 script-mobile-complete.js loaded successfully - COMPLETE INTEGRATED SYSTEM');
