@@ -1,242 +1,312 @@
+/* ============================================= */
+/* 🗺️ PERBAIKAN GOOGLE MAPS CONTAINER */
+/* ============================================= */
+
+#mapContainer {
+    height: 300px !important;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.map-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 40px 20px;
+    text-align: center;
+    border-radius: 10px;
+}
+
+.map-fallback .map-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.9;
+}
+
+.map-fallback .map-text {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
+/* ============================================= */
+/* 🎯 PERBAIKAN KALMAN FILTER STYLES */
+/* ============================================= */
+
+#toggleKalmanBtn {
+    border-radius: 25px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+#toggleKalmanBtn.active {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+#toggleKalmanBtn:not(.active) {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: white;
+}
+
+#kalmanStatus {
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+#kalmanStatus.active {
+    color: #28a745;
+}
+
+#kalmanStatus:not(.active) {
+    color: #6c757d;
+}
+
+#kalmanFilterStatus.badge {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+}
+
+/* ============================================= */
+/* 📊 PERBAIKAN DATA COLLECTION PROGRESS */
+/* ============================================= */
+
+#accuracyImprovement,
+#dataCollectionProgress {
+    font-weight: bold;
+    color: white;
+}
+
+#accuracyImprovement {
+    color: #20c997;
+}
+
+#dataCollectionProgress {
+    color: #ffc107;
+}
+
+/* ============================================= */
+/* 🔄 PERBAIKAN WAYPOINT STATS GRID */
+/* ============================================= */
+
+.waypoint-card .row.text-center {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -5px;
+}
+
+.waypoint-card .col-3 {
+    padding: 0 5px;
+    margin-bottom: 10px;
+}
+
+.waypoint-stats {
+    font-size: 1.1rem !important;
+    font-weight: bold !important;
+    color: white !important;
+    margin-bottom: 5px;
+}
+
+/* ============================================= */
+/* 🎨 PERBAIKAN KALMAN CONFIDENCE DISPLAY */
+/* ============================================= */
+
+#kalmanConfidence {
+    font-weight: bold;
+    color: #ffc107;
+}
+
+.confidence-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8rem;
+}
+
+/* ============================================= */
+/* 📱 PERBAIKAN RESPONSIVE DESIGN */
+/* ============================================= */
+
+@media (max-width: 768px) {
+    .waypoint-card .col-3 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+    
+    .waypoint-stats {
+        font-size: 1rem !important;
+    }
+    
+    #mapContainer {
+        height: 250px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .waypoint-card .col-3 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    #mapContainer {
+        height: 200px !important;
+    }
+    
+    .map-fallback {
+        padding: 20px 15px;
+    }
+    
+    .map-fallback .map-icon {
+        font-size: 2rem;
+    }
+}
+
+/* ============================================= */
+/* 🔧 PERBAIKAN DEBUG CONTROLS */
+/* ============================================= */
+
+.debug-controls .row.text-center {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -5px;
+}
+
+.debug-controls .col-4 {
+    padding: 0 5px;
+    margin-bottom: 10px;
+}
+
+.debug-controls .btn {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================= */
+/* 🎯 PERBAIKAN SYSTEM STATUS GRID */
+/* ============================================= */
+
+#systemStatusCard .row.text-center {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -5px;
+}
+
+#systemStatusCard .col-4 {
+    padding: 0 5px;
+    margin-bottom: 15px;
+}
+
+#systemStatusCard .fw-bold {
+    font-size: 0.9rem;
+}
+
+/* ============================================= */
+/* 📈 PERBAIKAN GPS DATA DISPLAY */
+/* ============================================= */
+
+.gps-data .row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -8px;
+}
+
+.gps-data .col-6 {
+    padding: 0 8px;
+    margin-bottom: 10px;
+}
+
+#gpsAccuracyStatus.accuracy-indicator {
+    display: inline-block;
+    margin-left: 5px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+/* ============================================= */
+/* 🚀 PERBAIKAN ANIMATIONS */
+/* ============================================= */
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* ============================================= */
+/* 🎨 PERBAIKAN COLOR CONSISTENCY */
+/* ============================================= */
+
 :root {
     --primary: #2c3e50;
     --secondary: #3498db;
     --success: #27ae60;
     --warning: #f39c12;
     --danger: #e74c3c;
+    --info: #17a2b8;
+    --light: #f8f9fa;
+    --dark: #343a40;
 }
 
-body {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    padding-bottom: 80px;
-    transition: all 0.3s ease;
-}
-
-/* Background Mode Styles */
-body.background-mode {
-    opacity: 0.95;
-}
-
-body.background-mode .driver-app {
-    filter: grayscale(0.3);
-}
-
-body.low-battery .stats-card {
-    opacity: 0.8;
-}
-
-body.low-battery .control-btn:not(.btn-primary) {
-    opacity: 0.6;
-}
-
-/* Enhanced Background Status Bar */
-.background-status-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    padding: 8px 15px;
-    font-size: 0.8rem;
-    z-index: 9999;
-    display: none;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    justify-content: space-between;
-    align-items: center;
-}
-
-.background-status-bar.active {
-    display: flex;
-    animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
-    from {
-        transform: translateY(-100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-/* Service Worker Status */
-.sw-status {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    background: rgba(0,0,0,0.8);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 15px;
-    font-size: 0.7rem;
-    z-index: 1000;
-}
-
-.sw-status.connected { 
-    background: rgba(40, 167, 69, 0.9); 
-}
-
-.sw-status.disconnected { 
-    background: rgba(220, 53, 69, 0.9); 
-}
-
-.sw-status.syncing {
-    background: rgba(23, 162, 184, 0.9);
-    animation: pulse 2s infinite;
-}
-
-/* Offline Indicator */
-.offline-indicator {
-    background: linear-gradient(135deg, #dc3545, #c82333);
-    color: white;
-    padding: 8px 15px;
-    text-align: center;
-    font-size: 0.8rem;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 10000;
-    display: none;
-}
-
-.offline-indicator.active {
-    display: block;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Enhanced Connection Status */
-.connection-status-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 10px;
-    border-radius: 20px;
-    background: rgba(255,255,255,0.1);
-}
-
-.connection-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-.connection-dot.connected {
-    background: #28a745;
-    box-shadow: 0 0 10px #28a745;
-}
-
-.connection-dot.disconnected {
-    background: #dc3545;
-    box-shadow: 0 0 10px #dc3545;
-}
-
-.connection-dot.syncing {
-    background: #17a2b8;
-    box-shadow: 0 0 10px #17a2b8;
-    animation: pulse 1s infinite;
-}
-
-/* Background Processing Animation */
-.processing-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.processing-dots {
-    display: flex;
-    gap: 2px;
-}
-
-.processing-dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: currentColor;
-    animation: processing 1.4s infinite ease-in-out;
-}
-
-.processing-dot:nth-child(1) { animation-delay: -0.32s; }
-.processing-dot:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes processing {
-    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-    40% { transform: scale(1); opacity: 1; }
-}
-
-/* Geofence Status */
-.geofence-status {
-    background: rgba(255,255,255,0.2);
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    margin-left: 10px;
-}
-
-/* Battery Status */
-.battery-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 8px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: bold;
-}
-
-.battery-high { background: rgba(40, 167, 69, 0.3); }
-.battery-medium { background: rgba(255, 193, 7, 0.3); }
-.battery-low { background: rgba(220, 53, 69, 0.3); }
-.battery-charging { background: rgba(0, 123, 255, 0.3); }
-
-/* Sync Status */
-.sync-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px 6px;
-    border-radius: 8px;
-    font-size: 0.6rem;
-    background: rgba(255,255,255,0.1);
-}
-
-/* Existing Styles */
-.login-container, .driver-app {
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    margin: 10px;
-}
-
-.driver-app {
-    display: none;
-}
-
+/* Pastikan semua element menggunakan variable yang konsisten */
 .vehicle-info {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-    border-radius: 12px;
-    margin: 10px;
+    background: linear-gradient(135deg, var(--secondary), var(--info));
 }
 
-.gps-data {
-    background: #f8f9fa;
-    border-radius: 10px;
-    border-left: 4px solid var(--success);
-    margin: 10px 0;
+.waypoint-card {
+    background: linear-gradient(135deg, var(--primary), var(--dark));
 }
+
+.chat-header {
+    background: linear-gradient(135deg, var(--success), var(--info));
+}
+
+/* ============================================= */
+/* 🔄 PERBAIKAN BUTTON STATES */
+/* ============================================= */
+
+.control-btn {
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: bold;
+    margin: 5px;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.control-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.control-btn:active {
+    transform: translateY(0);
+}
+
+/* ============================================= */
+/* 📊 PERBAIKAN STATS CARDS */
+/* ============================================= */
 
 .stats-card {
     background: white;
@@ -245,100 +315,55 @@ body.low-battery .control-btn:not(.btn-primary) {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     border: 1px solid #e9ecef;
     margin: 5px;
+    text-align: center;
+    transition: all 0.3s ease;
 }
 
-.btn-logout {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
-    border-radius: 50px;
-    padding: 12px 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-
-.data-log {
-    max-height: 200px;
-    overflow-y: auto;
-    font-size: 0.8rem;
+.stats-card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
 }
 
 .speed-gauge {
     font-size: 2rem;
     font-weight: bold;
-    color: #198754;
+    color: var(--success);
     line-height: 1;
+    margin-bottom: 5px;
 }
 
 .distance-counter {
     font-size: 2rem;
     font-weight: bold;
-    color: #0d6efd;
+    color: var(--info);
     line-height: 1;
+    margin-bottom: 5px;
 }
 
-.control-btn {
-    border-radius: 10px;
-    padding: 12px;
-    font-weight: bold;
-    margin: 5px;
-}
+/* ============================================= */
+/* 🎯 PERBAIKAN HEADER & LAYOUT */
+/* ============================================= */
 
-/* Enhanced Waypoint Datalogger Styles */
-.waypoint-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
+.driver-app .row.align-items-center {
     margin: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e9ecef;
 }
 
-.waypoint-stats {
-    font-size: 1.1rem;
+#gpsModeIndicator {
+    background: linear-gradient(135deg, var(--info), var(--success));
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
     font-weight: bold;
 }
 
-.waypoint-status {
-    font-size: 0.85rem;
-    opacity: 0.9;
-}
+/* ============================================= */
+/* 📱 PERBAIKAN MOBILE CHAT */
+/* ============================================= */
 
-.connection-status {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: 8px;
-}
-
-.connection-status.connected {
-    background-color: #198754;
-    box-shadow: 0 0 8px #198754;
-}
-
-.connection-status.disconnected {
-    background-color: #dc3545;
-    box-shadow: 0 0 8px #dc3545;
-}
-
-/* Enhanced Chat Styles */
-.chat-toggle-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
-    border-radius: 25px;
-    padding: 12px 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    transition: all 0.3s ease;
-}
-
-.chat-toggle-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-}
-
-.chat-window {
+#chatWindow {
     position: fixed;
     bottom: 80px;
     right: 20px;
@@ -351,832 +376,62 @@ body.low-battery .control-btn:not(.btn-primary) {
     z-index: 1001;
     display: none;
     flex-direction: column;
-    overflow: hidden;
 }
 
-.chat-header {
-    background: linear-gradient(135deg, #198754, #20c997);
-    color: white;
-    padding: 12px 15px;
-    border-bottom: 1px solid #ddd;
-}
-
-.chat-messages {
+#chatMessages {
     flex: 1;
     overflow-y: auto;
     padding: 15px;
-    background: #f8f9fa;
-}
-
-.chat-input-container {
-    padding: 15px;
-    border-top: 1px solid #eee;
-    background: white;
-}
-
-.chat-message {
-    margin-bottom: 10px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    max-width: 85%;
-    word-wrap: break-word;
-    animation: messageSlideIn 0.3s ease-out;
-}
-
-.message-sent {
-    background: #007bff;
-    color: white;
-    margin-left: auto;
-    border-bottom-right-radius: 4px;
-}
-
-.message-received {
-    background: #e9ecef;
-    color: #333;
-    margin-right: auto;
-    border-bottom-left-radius: 4px;
-}
-
-.message-sender {
-    font-size: 0.8rem;
-    font-weight: bold;
-    margin-bottom: 4px;
-}
-
-.message-time {
-    font-size: 0.7rem;
-    opacity: 0.7;
-    margin-top: 4px;
-}
-
-.typing-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
-    color: #6c757d;
-    padding: 8px;
-}
-
-.typing-dots {
-    display: flex;
-    gap: 3px;
-}
-
-.typing-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #6c757d;
-    animation: typing 1.4s infinite ease-in-out;
-}
-
-.typing-dot:nth-child(1) { animation-delay: -0.32s; }
-.typing-dot:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes typing {
-    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-    40% { transform: scale(1); opacity: 1; }
-}
-
-.chat-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #6c757d;
-}
-
-/* GPS Instructions */
-.gps-instructions {
-    background: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 15px;
-}
-
-.gps-status-indicator {
-    background: linear-gradient(135deg, #4ecdc4, #44a08d);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    margin-left: 10px;
-}
-
-/* Background Indicator */
-.background-indicator {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: rgba(0,0,0,0.7);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 15px;
-    font-size: 0.7rem;
-    z-index: 1002;
-    display: none;
-}
-
-/* GPS Recovery Status */
-.gps-recovery-status {
-    background: #d1ecf1;
-    border: 1px solid #bee5eb;
-    border-radius: 8px;
-    padding: 10px;
-    margin: 10px 0;
-    display: none;
-}
-
-/* Enhanced GPS Accuracy Colors */
-.gps-accuracy-excellent { color: #28a745; background: rgba(40, 167, 69, 0.1); }
-.gps-accuracy-good { color: #17a2b8; background: rgba(23, 162, 184, 0.1); }
-.gps-accuracy-fair { color: #ffc107; background: rgba(255, 193, 7, 0.1); }
-.gps-accuracy-poor { color: #fd7e14; background: rgba(253, 126, 20, 0.1); }
-.gps-accuracy-bad { color: #dc3545; background: rgba(220, 53, 69, 0.1); }
-
-.accuracy-indicator {
-    font-size: 0.8rem;
-    font-weight: bold;
-    padding: 4px 8px;
-    border-radius: 12px;
-}
-
-.gps-mode-selector {
-    background: #f8f9fa;
-    border-radius: 10px;
-    padding: 10px;
-    margin: 10px 0;
-}
-
-.debug-controls {
-    background: #f8f9fa;
-    border-radius: 10px;
-    padding: 15px;
-    margin: 10px 0;
-}
-
-/* GPS Status Badges */
-.gps-status-badge {
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 8px;
-    margin-left: 5px;
-}
-
-.gps-status-active {
-    background: #198754;
-    color: white;
-}
-
-.gps-status-warning {
-    background: #ffc107;
-    color: black;
-}
-
-.gps-status-error {
-    background: #dc3545;
-    color: white;
-}
-
-/* Chat Notification */
-.chat-notification {
-    animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-/* Message Animations */
-@keyframes messageSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Fallback untuk icon yang tidak ditemukan */
-.app-icon {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    width: 192px;
-    height: 192px;
-    font-size: 48px;
-}
-
-/* Hide broken images dan gunakan fallback */
-img[src*="icon-"]:not([src=""]) {
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-/* Fallback untuk favicon */
-link[rel*="icon"]:not([href]),
-link[rel*="apple-touch-icon"]:not([href]) {
-    display: none;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .chat-window {
-        width: 90vw;
-        right: 5vw;
-        height: 60vh;
-        bottom: 70px;
-    }
-    
-    .chat-toggle-btn {
-        right: 15px;
-        bottom: 15px;
-        padding: 10px 16px;
-        font-size: 14px;
-    }
-    
-    .waypoint-stats {
-        font-size: 1rem;
-    }
-    
-    .stats-card {
-        padding: 10px;
-    }
-    
-    .speed-gauge {
-        font-size: 1.5rem;
-    }
-    
-    .distance-counter {
-        font-size: 1.2rem;
-    }
-    
-    .btn-logout {
-        bottom: 10px;
-        right: 10px;
-        padding: 10px 15px;
-        font-size: 0.9rem;
-    }
-    
-    .background-status-bar {
-        font-size: 0.7rem;
-        padding: 6px 10px;
-    }
-    
-    .geofence-status, .battery-status {
-        font-size: 0.6rem;
-        padding: 2px 6px;
-    }
-    
-    .sw-status {
-        bottom: 5px;
-        left: 5px;
-        font-size: 0.6rem;
-        padding: 3px 8px;
-    }
-}
-
-@media (max-width: 480px) {
-    .chat-window {
-        width: 95vw;
-        right: 2.5vw;
-        height: 55vh;
-    }
-    
-    .speed-gauge, .distance-counter {
-        font-size: 1.7rem;
-    }
-    
-    .background-status-bar {
-        flex-direction: column;
-        gap: 3px;
-        text-align: center;
-    }
-    
-    .connection-status-wrapper {
-        justify-content: center;
-    }
+    background: var(--light);
 }
 
 /* ============================================= */
-/* 🗺️ GOOGLE MAPS CONTAINER STYLES */
+/* 🔧 PERBAIKAN MISC ELEMENTS */
 /* ============================================= */
 
-.map-container {
-    position: relative;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    background: #f8f9fa;
-}
-
-.map-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 40px 20px;
-    text-align: center;
-}
-
-.map-placeholder .map-icon {
-    font-size: 3rem;
-    margin-bottom: 15px;
-    opacity: 0.9;
-}
-
-.map-placeholder .map-text {
-    font-size: 0.9rem;
-    opacity: 0.8;
-    line-height: 1.4;
-}
-
-.map-info-window {
-    max-width: 250px;
+.data-log {
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    background: var(--light);
+    border-radius: 8px;
     padding: 10px;
 }
 
-.map-info-window h6 {
-    color: #2c3e50;
+.data-log .alert {
     margin-bottom: 8px;
-    font-weight: bold;
-}
-
-.map-info-window p {
-    color: #6c757d;
-    font-size: 0.85rem;
-    margin-bottom: 5px;
-}
-
-.map-info-window small {
-    color: #95a5a6;
-    font-size: 0.75rem;
-}
-
-/* ============================================= */
-/* 🎯 KALMAN FILTER STATUS STYLES */
-/* ============================================= */
-
-.kalman-status-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 12px;
-    padding: 15px;
-    margin: 10px;
-}
-
-.kalman-toggle-btn {
-    border-radius: 25px;
-    padding: 8px 16px;
-    font-weight: bold;
-    transition: all 0.3s ease;
-    border: 2px solid transparent;
-}
-
-.kalman-toggle-btn.active {
-    background: #28a745;
-    border-color: #28a745;
-    color: white;
-}
-
-.kalman-toggle-btn.inactive {
-    background: #6c757d;
-    border-color: #6c757d;
-    color: white;
-}
-
-.kalman-confidence-meter {
-    background: rgba(255,255,255,0.2);
-    border-radius: 10px;
-    padding: 10px;
-    margin-top: 10px;
-}
-
-.confidence-bar {
-    height: 8px;
-    background: rgba(255,255,255,0.3);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 5px;
-}
-
-.confidence-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #28a745, #20c997);
-    border-radius: 4px;
-    transition: width 0.5s ease;
-}
-
-/* ============================================= */
-/* 📊 ENHANCED DATA COLLECTION STYLES */
-/* ============================================= */
-
-.data-collection-progress {
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    padding: 15px;
-    margin: 10px 0;
-}
-
-.progress-container {
-    background: rgba(255,255,255,0.2);
-    border-radius: 10px;
-    height: 20px;
-    overflow: hidden;
-    margin: 10px 0;
-    position: relative;
-}
-
-.progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #28a745, #20c997);
-    border-radius: 10px;
-    transition: width 0.5s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.progress-bar::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-    animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-    0% { left: -100%; }
-    100% { left: 100%; }
-}
-
-.progress-stats {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.8);
-    margin-top: 5px;
-}
-
-/* ============================================= */
-/* 🔄 ENHANCED WAYPOINT DISPLAY */
-/* ============================================= */
-
-.waypoint-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    text-align: center;
-}
-
-.waypoint-stat-item {
-    background: rgba(255,255,255,0.1);
-    border-radius: 8px;
-    padding: 10px 5px;
-}
-
-.waypoint-stat-value {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: white;
-    margin-bottom: 2px;
-}
-
-.waypoint-stat-label {
-    font-size: 0.7rem;
-    opacity: 0.8;
-    color: white;
-}
-
-/* ============================================= */
-/* 📱 ENHANCED RESPONSIVE DESIGN */
-/* ============================================= */
-
-@media (max-width: 768px) {
-    .waypoint-stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-    }
-    
-    .map-placeholder {
-        padding: 30px 15px;
-    }
-    
-    .map-placeholder .map-icon {
-        font-size: 2.5rem;
-    }
-    
-    .kalman-toggle-btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-    }
-    
-    .data-collection-progress {
-        padding: 10px;
-    }
-}
-
-@media (max-width: 480px) {
-    .waypoint-stats-grid {
-        grid-template-columns: 1fr;
-        gap: 5px;
-    }
-    
-    .waypoint-stat-item {
-        padding: 8px 4px;
-    }
-    
-    .waypoint-stat-value {
-        font-size: 1rem;
-    }
-    
-    .map-placeholder {
-        padding: 20px 10px;
-    }
-    
-    .map-placeholder .map-icon {
-        font-size: 2rem;
-    }
-}
-
-/* ============================================= */
-/* 🎨 ENHANCED ANIMATIONS & TRANSITIONS */
-/* ============================================= */
-
-.smooth-transition {
-    transition: all 0.3s ease-in-out;
-}
-
-.pulse-glow {
-    animation: pulseGlow 2s infinite;
-}
-
-@keyframes pulseGlow {
-    0%, 100% {
-        box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
-    }
-    50% {
-        box-shadow: 0 0 20px rgba(40, 167, 69, 0.8);
-    }
-}
-
-.slide-in-up {
-    animation: slideInUp 0.5s ease-out;
-}
-
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* ============================================= */
-/* 🔧 ENHANCED DEBUG CONTROLS STYLING */
-/* ============================================= */
-
-.debug-controls-panel {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 15px;
-    border-left: 4px solid #6c757d;
-}
-
-.debug-btn-group {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 8px;
-    margin-bottom: 15px;
-}
-
-.debug-status-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    text-align: center;
-}
-
-.debug-status-item {
-    background: white;
-    border-radius: 8px;
-    padding: 8px;
-    border: 1px solid #e9ecef;
-}
-
-.debug-status-label {
-    font-size: 0.7rem;
-    color: #6c757d;
-    margin-bottom: 3px;
-}
-
-.debug-status-value {
-    font-size: 0.8rem;
-    font-weight: bold;
-    color: #2c3e50;
-}
-
-/* ============================================= */
-/* 📈 ENHANCED STATISTICS DISPLAY */
-/* ============================================= */
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px;
-    margin: 10px 0;
-}
-
-.stat-card {
-    background: white;
-    border-radius: 10px;
-    padding: 12px;
-    text-align: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border: 1px solid #e9ecef;
-}
-
-.stat-value {
-    font-size: 1.4rem;
-    font-weight: bold;
-    color: #2c3e50;
-    margin-bottom: 5px;
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-trend {
-    font-size: 0.7rem;
-    margin-top: 3px;
-}
-
-.trend-up { color: #28a745; }
-.trend-down { color: #dc3545; }
-.trend-neutral { color: #6c757d; }
-
-/* ============================================= */
-/* 🎯 KALMAN FILTER SPECIFIC STYLES */
-/* ============================================= */
-
-.kalman-confidence-display {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-    border-radius: 10px;
-    padding: 12px;
-    margin: 8px 0;
-}
-
-.confidence-level {
-    font-size: 1.1rem;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 8px;
-}
-
-.confidence-visual {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.confidence-dots {
-    display: flex;
-    gap: 3px;
-    flex: 1;
-}
-
-.confidence-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.3);
-    transition: all 0.3s ease;
-}
-
-.confidence-dot.active {
-    background: rgba(255,255,255,0.9);
-    transform: scale(1.2);
-}
-
-/* ============================================= */
-/* 📱 ENHANCED MOBILE OPTIMIZATIONS */
-/* ============================================= */
-
-.mobile-optimized-card {
-    margin: 8px;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    overflow: hidden;
-}
-
-.mobile-section-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 12px 15px;
-    font-weight: bold;
-    font-size: 0.9rem;
-}
-
-.mobile-section-content {
-    padding: 15px;
-    background: white;
-}
-
-.mobile-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-.mobile-grid-3 {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-}
-
-/* ============================================= */
-/* 🎨 ENHANCED COLOR SCHEME FOR NEW FEATURES */
-/* ============================================= */
-
-:root {
-    --kalman-active: #28a745;
-    --kalman-inactive: #6c757d;
-    --map-primary: #4285f4;
-    --map-secondary: #34a853;
-    --data-collection: #20c997;
-    --confidence-high: #28a745;
-    --confidence-medium: #ffc107;
-    --confidence-low: #dc3545;
-}
-
-.kalman-active-bg {
-    background: linear-gradient(135deg, var(--kalman-active), #20c997);
-}
-
-.map-active-bg {
-    background: linear-gradient(135deg, var(--map-primary), var(--map-secondary));
-}
-
-.data-collection-bg {
-    background: linear-gradient(135deg, var(--data-collection), #3bd5b0);
-}
-
-/* ============================================= */
-/* 🔄 LOADING AND PROGRESS INDICATORS */
-/* ============================================= */
-
-.loading-spinner {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255,255,255,0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.progress-indicator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    padding: 8px 12px;
     font-size: 0.8rem;
 }
 
-.progress-text {
-    min-width: 60px;
-    text-align: right;
+/* Session Information improvements */
+#sessionDuration, #dataPoints, #avgSpeed {
+    font-weight: bold;
+    color: var(--primary);
 }
+
+/* Battery status improvements */
+#batteryLevelDisplay {
+    font-weight: bold;
+}
+
+#batteryLevelDisplay.text-danger { color: var(--danger) !important; }
+#batteryLevelDisplay.text-warning { color: var(--warning) !important; }
+#batteryLevelDisplay.text-success { color: var(--success) !important; }
+
+/* Fuel level improvements */
+#fuelLevel {
+    font-weight: bold;
+}
+
+#fuelLevel.text-danger { color: var(--danger) !important; }
+#fuelLevel.text-warning { color: var(--warning) !important; }
+#fuelLevel.text-success { color: var(--success) !important; }
+
+/* Network status improvements */
+#networkStatus {
+    font-weight: bold;
+}
+
+#networkStatus.text-success { color: var(--success) !important; }
+#networkStatus.text-danger { color: var(--danger) !important; }
