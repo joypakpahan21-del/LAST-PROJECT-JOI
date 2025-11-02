@@ -5,7 +5,7 @@
 // 🌱 Optimized for Plantation Environment
 // =============================================
 
-// ✅ FIREBASE CONFIGURATION
+// ✅ FIREBASE CONFIGURATION - IMPROVED
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBMiER_5b51IEEoxivkCliRC0WID1f-yzk",
     authDomain: "joi-gps-tracker.firebaseapp.com",
@@ -16,11 +16,13 @@ const FIREBASE_CONFIG = {
     appId: "1:216572191895:web:a4fef1794daf200a2775d2"
 };
 
-// Initialize Firebase
+// Initialize Firebase - IMPROVED
 try {
     if (!firebase.apps.length) {
         firebase.initializeApp(FIREBASE_CONFIG);
         console.log('✅ Firebase initialized successfully');
+    } else {
+        firebase.app(); // jika sudah ada, gunakan yang sudah ada
     }
 } catch (error) {
     console.error('❌ Firebase initialization failed:', error);
@@ -2419,6 +2421,9 @@ class EnhancedDTGPSLogger {
         document.getElementById('closeChatBtn')?.addEventListener('click', () => this.toggleChat());
         document.getElementById('sendChatBtn')?.addEventListener('click', () => this.sendChatMessage());
         
+        // ✅ TAMBAHKAN EVENT LISTENER UNTUK TOMBOL KALMAN
+        document.getElementById('toggleKalmanBtn')?.addEventListener('click', () => this.toggleKalmanFilter());
+        
         const chatInput = document.getElementById('chatInput');
         if (chatInput) {
             chatInput.addEventListener('keypress', (e) => {
@@ -2430,18 +2435,56 @@ class EnhancedDTGPSLogger {
 
         document.getElementById('quickStatusBtn')?.addEventListener('click', () => this.showQuickStatus());
         document.getElementById('refreshDataBtn')?.addEventListener('click', () => this.forceSync());
-        document.getElementById('toggleKalmanBtn')?.addEventListener('click', () => this.toggleKalmanFilter());
     }
 
+    // ✅ TAMBAHKAN METHOD toggleKalmanFilter()
     toggleKalmanFilter() {
         this.useKalmanFilter = !this.useKalmanFilter;
         const status = this.useKalmanFilter ? 'AKTIF' : 'NON-AKTIF';
         this.addLog(`🎯 Kalman Filter: ${status}`, this.useKalmanFilter ? 'success' : 'warning');
         
         const button = document.getElementById('toggleKalmanBtn');
+        const statusElement = document.getElementById('kalmanStatus');
+        const filterStatusElement = document.getElementById('kalmanFilterStatus');
+        
         if (button) {
             button.textContent = `Kalman: ${status}`;
-            button.className = this.useKalmanFilter ? 'btn btn-success btn-sm' : 'btn btn-secondary btn-sm';
+            button.className = this.useKalmanFilter ? 
+                'btn btn-success btn-sm w-100' : 'btn btn-secondary btn-sm w-100';
+        }
+        
+        if (statusElement) {
+            statusElement.textContent = status;
+            statusElement.className = this.useKalmanFilter ? 'text-success' : 'text-secondary';
+        }
+        
+        if (filterStatusElement) {
+            filterStatusElement.textContent = status;
+            filterStatusElement.className = `fw-bold ${this.useKalmanFilter ? 'text-success' : 'text-secondary'}`;
+        }
+    }
+
+    // ✅ TAMBAHKAN METHOD initializeGoogleMaps()
+    async initializeGoogleMaps(containerId) {
+        try {
+            const success = await this.mapsManager.initializeMap(containerId);
+            if (success) {
+                this.addLog('🗺️ Google Maps berhasil diinisialisasi', 'success');
+                
+                // Tambahkan marker awal
+                if (this.lastPosition) {
+                    this.mapsManager.addPoint(this.lastPosition, {
+                        isSignificant: true,
+                        title: 'Posisi Awal',
+                        description: `Driver: ${this.driverData.name} | Unit: ${this.driverData.unit}`
+                    });
+                }
+            } else {
+                this.addLog('❌ Gagal menginisialisasi Google Maps', 'warning');
+            }
+        } catch (error) {
+            console.error('Failed to initialize Google Maps:', error);
+            this.addLog('❌ Error inisialisasi Google Maps', 'error');
         }
     }
 
@@ -2821,6 +2864,7 @@ class EnhancedDTGPSLogger {
         return 'SESS_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
+    // ✅ UPDATE METHOD showDriverApp() - TAMBAHKAN INISIALISASI MAPS
     showDriverApp() {
         const loginScreen = document.getElementById('loginScreen');
         const driverApp = document.getElementById('driverApp');
@@ -2848,16 +2892,6 @@ class EnhancedDTGPSLogger {
         this.addLog(`✅ Login berhasil - ${this.driverData.name} (${this.driverData.unit})`, 'success');
         this.addLog('🔄 Background tracking aktif - aplikasi tetap berjalan meski dimatikan', 'info');
         this.addLog('📊 Massive data collection dimulai - target 61,200 data points', 'info');
-    }
-
-    async initializeGoogleMaps(containerId) {
-        try {
-            await this.mapsManager.initializeMap(containerId);
-            this.addLog('🗺️ Google Maps berhasil diinisialisasi', 'success');
-        } catch (error) {
-            console.error('Failed to initialize Google Maps:', error);
-            this.addLog('❌ Gagal menginisialisasi Google Maps', 'warning');
-        }
     }
 
     processWaypoint(waypoint) {
