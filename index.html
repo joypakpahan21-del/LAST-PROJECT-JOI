@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NEW-CI-GPS-TRACKER - PT SAGM Kebun Templiling</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- AUTO REDIRECT SCRIPT -->
+    <script>
+        // Immediate redirect to mobile app
+        setTimeout(function() {
+            window.location.href = './mobile.html';
+        }, 100);
+    </script>
+    
     <style>
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -34,9 +43,46 @@
             padding: 12px 30px;
             font-weight: bold;
         }
+        .redirect-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            flex-direction: column;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <!-- Redirect Overlay -->
+    <div class="redirect-overlay">
+        <div class="spinner"></div>
+        <h4>🚚 NEW-CI-GPS-TRACKER</h4>
+        <p class="mt-2">Mengarahkan ke aplikasi driver...</p>
+        <p class="small mt-3">Jika tidak otomatis terarahkan, 
+            <a href="./mobile.html" class="text-warning">klik di sini</a>
+        </p>
+    </div>
+
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
@@ -144,5 +190,30 @@
             <p class="mb-0">&copy; 2024 PT SAGM Kebun Templiling. NEW-CI-GPS-TRACKER System</p>
         </div>
     </footer>
+
+    <!-- Additional Redirect Script -->
+    <script>
+        // Fallback redirect after 3 seconds
+        setTimeout(function() {
+            if (!window.location.href.includes('mobile.html')) {
+                window.location.href = './mobile.html';
+            }
+        }, 3000);
+
+        // Hide overlay after redirect or when leaving the page
+        window.addEventListener('beforeunload', function() {
+            document.querySelector('.redirect-overlay').style.display = 'none';
+        });
+    </script>
+
+    <!-- Noscript fallback -->
+    <noscript>
+        <style>
+            .redirect-overlay {
+                display: none !important;
+            }
+        </style>
+        <meta http-equiv="refresh" content="0; url=./mobile.html">
+    </noscript>
 </body>
 </html>
