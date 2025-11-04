@@ -4,13 +4,15 @@ const GPS_DATA_CACHE = 'gps-realtime-data-v4.0';
 const SYNC_QUEUE_CACHE = 'gps-sync-queue-v4.0';
 
 const urlsToCache = [
-  '/',
-  '/mobile.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/script-monitor.js',
-  '/script-mobile.js'
+  './',
+  './mobile.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './script-mobile.js',
+  '/LAST-PROJECT-JOI/',
+  '/LAST-PROJECT-JOI/mobile.html',
+  '/LAST-PROJECT-JOI/manifest.json'
 ];
 
 // ✅ INSTALL EVENT - Setup cache untuk offline support
@@ -37,6 +39,9 @@ self.addEventListener('install', (event) => {
     ]).then(() => {
       console.log('✅ All caches ready - Skipping waiting');
       return self.skipWaiting();
+    }).catch(error => {
+      console.error('❌ Cache installation failed:', error);
+      return self.skipWaiting();
     })
   );
 });
@@ -59,6 +64,8 @@ self.addEventListener('activate', (event) => {
     }).then(() => {
       console.log('✅ Cache cleanup completed');
       return self.clients.claim();
+    }).catch(error => {
+      console.error('❌ Activation failed:', error);
     })
   );
 });
@@ -104,10 +111,10 @@ self.addEventListener('fetch', (event) => {
             
             // Fallback untuk halaman utama
             if (event.request.destination === 'document') {
-              return caches.match('/');
+              return caches.match('./mobile.html');
             }
             
-            return new Response('Offline - Data cached locally', {
+            return new Response('Offline - GPS Tracking Active', {
               status: 200,
               headers: { 'Content-Type': 'text/plain' }
             });
@@ -218,7 +225,7 @@ async function handleGPSReadOperation(request) {
 async function cacheGPSDataForSync(url, method, data) {
   try {
     const cache = await caches.open(SYNC_QUEUE_CACHE);
-    const cacheKey = `/sync-queue/${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const cacheKey = `./sync-queue/${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const cacheItem = {
       url: url,
@@ -252,6 +259,19 @@ async function cacheGPSDataForSync(url, method, data) {
     
   } catch (error) {
     console.error('❌ Failed to cache GPS data for sync:', error);
+    
+    // Fallback: Gunakan localStorage
+    try {
+      const fallbackData = JSON.parse(localStorage.getItem('gps_fallback_queue') || '[]');
+      fallbackData.push({
+        url, method, data,
+        timestamp: new Date().toISOString(),
+        priority: getSyncPriority(data)
+      });
+      localStorage.setItem('gps_fallback_queue', JSON.stringify(fallbackData));
+    } catch (fallbackError) {
+      console.error('❌ Fallback caching also failed');
+    }
   }
 }
 
@@ -379,7 +399,7 @@ async function syncCachedGPSData() {
         self.registration.sync.register('background-gps-sync')
           .then(() => console.log('🔄 Retry scheduled for failed items'))
           .catch(err => console.error('Retry scheduling failed:', err));
-      }, 30000); // Retry dalam 30 detik
+      }, 30000);
     }
     
   } catch (error) {
@@ -469,7 +489,7 @@ async function performEmergencyBackup() {
     
     // Simpan backup ke GPS data cache
     const gpsCache = await caches.open(GPS_DATA_CACHE);
-    const backupKey = `/emergency-backup/${Date.now()}`;
+    const backupKey = `./emergency-backup/${Date.now()}`;
     const backupResponse = new Response(JSON.stringify({
       data: backupData,
       timestamp: new Date().toISOString(),
@@ -577,6 +597,9 @@ self.addEventListener('message', async (event) => {
           data: storageInfo
         });
         break;
+        
+      default:
+        console.log('📩 Unknown message type:', type);
     }
   } catch (error) {
     console.error('❌ Message handler error:', error);
@@ -592,7 +615,7 @@ self.addEventListener('message', async (event) => {
 async function handleCacheGPSData(gpsData) {
   try {
     const cache = await caches.open(GPS_DATA_CACHE);
-    const cacheKey = `/gps-realtime/${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const cacheKey = `./gps-realtime/${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     
     const cacheItem = {
       data: gpsData,
@@ -607,8 +630,8 @@ async function handleCacheGPSData(gpsData) {
     await cache.put(cacheKey, response);
     
     console.log('💾 Real-time GPS data cached:', {
-      lat: gpsData.lat.toFixed(6),
-      lng: gpsData.lng.toFixed(6),
+      lat: gpsData.lat?.toFixed(6),
+      lng: gpsData.lng?.toFixed(6),
       speed: gpsData.speed?.toFixed(1),
       accuracy: gpsData.accuracy?.toFixed(1),
       time: new Date().toLocaleTimeString()
@@ -893,8 +916,8 @@ self.addEventListener('push', (event) => {
   const data = event.data.json();
   const options = {
     body: data.body || 'GPS Tracking aktif di background',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
     tag: 'gps-tracking',
     requireInteraction: true,
     data: data
@@ -917,7 +940,7 @@ self.addEventListener('notificationclick', (event) => {
       }
       
       if (self.clients.openWindow) {
-        return self.clients.openWindow('/');
+        return self.clients.openWindow('./');
       }
     })
   );
