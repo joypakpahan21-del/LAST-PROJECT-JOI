@@ -812,7 +812,7 @@ class RealTimeSpeedCalculator {
 }
 
 // =============================================
-// 🔄 ENHANCED BACKGROUND SERVICE MANAGER
+// 🔄 ENHANCED BACKGROUND SERVICE MANAGER - IMPROVED
 // =============================================
 
 class EnhancedBackgroundService {
@@ -834,43 +834,25 @@ class EnhancedBackgroundService {
     }
 
     async registerServiceWorker() {
-        if (!'serviceWorker' in navigator) {
+        if (!('serviceWorker' in navigator)) {
             console.warn('❌ Service Worker not supported');
             this.updateSWStatus('unsupported');
             return;
         }
 
         try {
-            console.log('🔄 Attempting Service Worker registration...');
+            console.log('🔄 Attempting Enhanced Service Worker registration...');
             
-            const paths = ['/sw.js', './sw.js', 'sw.js'];
-            let registration = null;
-            
-            for (const path of paths) {
-                try {
-                    console.log(`🔄 Trying Service Worker path: ${path}`);
-                    registration = await navigator.serviceWorker.register(path, {
-                        scope: '/',
-                        updateViaCache: 'none'
-                    });
-                    
-                    console.log(`✅ Service Worker registered successfully at: ${path}`);
-                    break;
-                    
-                } catch (pathError) {
-                    console.warn(`❌ Path ${path} failed:`, pathError.message);
-                    continue;
-                }
-            }
-
-            if (!registration) {
-                throw new Error('All Service Worker paths failed');
-            }
+            // Gunakan path yang konsisten
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+                scope: '/',
+                updateViaCache: 'none'
+            });
 
             this.serviceWorker = registration;
             this.isServiceWorkerActive = true;
             
-            console.log('🚀 Service Worker registered:', registration);
+            console.log('🚀 Enhanced Service Worker registered:', registration);
             
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
@@ -881,6 +863,9 @@ class EnhancedBackgroundService {
                     if (newWorker.state === 'activated') {
                         this.updateSWStatus('connected');
                         setTimeout(() => this.triggerBackgroundSync(), 2000);
+                        
+                        // Notify new SW about current state
+                        this.notifyServiceWorkerAboutState();
                     }
                 });
             });
@@ -888,11 +873,18 @@ class EnhancedBackgroundService {
             if (registration.active) {
                 this.updateSWStatus('connected');
                 console.log('✅ Service Worker active and ready');
+                this.notifyServiceWorkerAboutState();
             }
 
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 console.log('🔄 Service Worker controller changed');
                 this.updateSWStatus('connected');
+                this.notifyServiceWorkerAboutState();
+            });
+
+            // Setup message listener untuk komunikasi dengan SW
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                this.handleServiceWorkerMessage(event);
             });
 
             setInterval(() => {
@@ -905,20 +897,62 @@ class EnhancedBackgroundService {
             }, 60 * 60 * 1000);
 
         } catch (error) {
-            console.error('❌ All Service Worker registration attempts failed:', error);
+            console.error('❌ Service Worker registration failed:', error);
             this.updateSWStatus('error');
-            
-            try {
-                console.log('🔄 Attempting final fallback registration...');
-                const fallbackRegistration = await navigator.serviceWorker.register('./sw.js');
-                this.serviceWorker = fallbackRegistration;
-                this.isServiceWorkerActive = true;
-                this.updateSWStatus('connected');
-                console.log('✅ Service Worker registered with fallback path');
-            } catch (finalError) {
-                console.error('❌ Final fallback also failed:', finalError);
-                this.updateSWStatus('error');
+        }
+    }
+
+    // Tambahkan method baru untuk komunikasi dengan Service Worker
+    notifyServiceWorkerAboutState() {
+        if (!this.serviceWorker?.active) return;
+        
+        this.serviceWorker.active.postMessage({
+            type: 'APP_STATE_UPDATE',
+            data: {
+                isTracking: this.logger.isTracking,
+                driverData: this.logger.driverData,
+                isOnline: this.logger.isOnline,
+                lastPosition: this.logger.lastPosition
             }
+        });
+    }
+
+    handleServiceWorkerMessage(event) {
+        const { type, data } = event.data;
+        
+        switch (type) {
+            case 'SYNC_STATUS':
+                this.updateSyncStatus(data.status);
+                break;
+            case 'STORAGE_INFO_RESPONSE':
+                this.handleStorageInfo(data);
+                break;
+            case 'HEALTH_CHECK':
+                this.handleHealthCheckData(data);
+                break;
+            case 'SYNC_COMPLETED':
+                this.handleSyncCompleted(data);
+                break;
+            case 'SYNC_FAILED':
+                this.handleSyncFailed(data);
+                break;
+        }
+    }
+
+    handleStorageInfo(storageInfo) {
+        console.log('💾 Storage Info:', storageInfo);
+        
+        if (storageInfo.storage?.status === 'warning') {
+            this.logger.addLog('⚠️ Storage hampir penuh - melakukan cleanup', 'warning');
+        }
+    }
+
+    handleHealthCheckData(healthData) {
+        console.log('🔍 Health Check Data:', healthData);
+        
+        // Update UI dengan health data jika diperlukan
+        if (healthData.syncQueueSize > 50) {
+            this.logger.addLog(`📊 Sync queue: ${healthData.syncQueueSize} items`, 'info');
         }
     }
 
@@ -963,15 +997,6 @@ class EnhancedBackgroundService {
                     break;
                 case 'STOP_TRACKING':
                     this.logger.stopTracking();
-                    break;
-                case 'SYNC_STATUS':
-                    this.updateSyncStatus(data.status);
-                    break;
-                case 'SYNC_COMPLETED':
-                    this.handleSyncCompleted(data);
-                    break;
-                case 'SYNC_FAILED':
-                    this.handleSyncFailed(data);
                     break;
             }
         });
@@ -1484,7 +1509,7 @@ class EnhancedStorageManager {
             this.updateSyncStatus({
                 totalWaypoints: updated.length,
                 unsyncedCount: updated.filter(w => !w.synced).length,
-                lastSync: new Date().toISOString()
+                lastSync: new Date().toLocaleString('id-ID')
             });
         } catch (error) {
             console.error('Error marking waypoints as synced:', error);
@@ -2424,6 +2449,10 @@ class EnhancedDTGPSLogger {
         // ✅ TAMBAHKAN EVENT LISTENER UNTUK TOMBOL KALMAN
         document.getElementById('toggleKalmanBtn')?.addEventListener('click', () => this.toggleKalmanFilter());
         
+        // ✅ TAMBAHKAN TOMBOL TEST SERVICE WORKER
+        document.getElementById('testSWBtn')?.addEventListener('click', () => this.testServiceWorker());
+        document.getElementById('testStorageBtn')?.addEventListener('click', () => this.testStorageInfo());
+        
         const chatInput = document.getElementById('chatInput');
         if (chatInput) {
             chatInput.addEventListener('keypress', (e) => {
@@ -3012,12 +3041,15 @@ class EnhancedDTGPSLogger {
         
         this.sendInterval = setInterval(() => {
             if (this.lastPosition) {
-                this.sendToFirebase();
+                this.sendToFirebaseWithCaching(); // Gunakan method baru dengan caching
             }
         }, this.isInBackground ? 30000 : 5000);
     }
 
-    async sendToFirebase() {
+    /**
+     * Enhanced method untuk mengirim data GPS ke Service Worker
+     */
+    async sendToFirebaseWithCaching() {
         if (!this.firebaseRef || !this.lastPosition) return;
 
         try {
@@ -3035,7 +3067,7 @@ class EnhancedDTGPSLogger {
                 journeyStatus: this.journeyStatus,
                 batteryLevel: this.getBatteryLevel(),
                 sessionId: this.driverData.sessionId,
-                isOfflineData: false,
+                isOfflineData: !this.isOnline,
                 fuel: this.calculateFuelLevel(),
                 gpsMode: 'enhanced',
                 isActive: true,
@@ -3043,8 +3075,12 @@ class EnhancedDTGPSLogger {
                 appState: this.isInBackground ? 'background' : 'foreground',
                 kalmanFilter: this.useKalmanFilter,
                 dataPoints: this.dataPoints,
-                waypointsCollected: this.waypointBuffer.length
+                waypointsCollected: this.waypointBuffer.length,
+                waypointId: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
             };
+
+            // Selalu cache data ke Service Worker terlebih dahulu
+            await this.cacheGPSDataInSW(gpsData);
 
             if (this.isOnline) {
                 await this.firebaseRef.set(gpsData);
@@ -3053,10 +3089,8 @@ class EnhancedDTGPSLogger {
                 }
                 this.updateConnectionStatus(true);
             } else {
-                this.offlineQueue.addToQueue(gpsData);
-                this.backgroundManager.backgroundService.cacheGPSData(gpsData);
                 if (!this.isInBackground) {
-                    this.addLog(`💾 Data disimpan offline (${this.offlineQueue.getQueueSize()} dalam antrian)`, 'warning');
+                    this.addLog(`💾 Data disimpan offline (${await this.getCachedItemsCount()} dalam antrian)`, 'warning');
                 }
                 this.updateConnectionStatus(false);
             }
@@ -3066,6 +3100,90 @@ class EnhancedDTGPSLogger {
             if (!this.isInBackground) {
                 this.addLog(`❌ Gagal kirim data`, 'error');
             }
+        }
+    }
+
+    /**
+     * Cache GPS data ke Service Worker
+     */
+    async cacheGPSDataInSW(gpsData) {
+        if (!navigator.serviceWorker?.controller) {
+            console.warn('Service Worker not available for caching');
+            return;
+        }
+
+        return new Promise((resolve) => {
+            const messageChannel = new MessageChannel();
+            
+            messageChannel.port1.onmessage = (event) => {
+                if (event.data.type === 'CACHE_GPS_DATA_RESPONSE') {
+                    resolve(event.data.success);
+                }
+            };
+
+            navigator.serviceWorker.controller.postMessage({
+                type: 'CACHE_GPS_DATA',
+                data: gpsData
+            }, [messageChannel.port2]);
+        });
+    }
+
+    /**
+     * Get jumlah cached items dari Service Worker
+     */
+    async getCachedItemsCount() {
+        if (!navigator.serviceWorker?.controller) return 0;
+
+        return new Promise((resolve) => {
+            const messageChannel = new MessageChannel();
+            
+            messageChannel.port1.onmessage = (event) => {
+                if (event.data.type === 'SYNC_STATUS_RESPONSE') {
+                    resolve(event.data.data?.totalItems || 0);
+                }
+            };
+
+            navigator.serviceWorker.controller.postMessage({
+                type: 'GET_SYNC_STATUS'
+            }, [messageChannel.port2]);
+        });
+    }
+
+    /**
+     * Enhanced sync method dengan Service Worker integration
+     */
+    async forceSyncWithSW() {
+        this.addLog('🔄 Memaksa sinkronisasi dengan Service Worker...', 'info');
+        
+        if (!navigator.serviceWorker?.controller) {
+            this.addLog('❌ Service Worker tidak tersedia', 'error');
+            return;
+        }
+
+        try {
+            // Trigger manual sync via Service Worker
+            const messageChannel = new MessageChannel();
+            
+            messageChannel.port1.onmessage = (event) => {
+                if (event.data.type === 'SYNC_STATUS_RESPONSE') {
+                    this.addLog(`📡 Sync status: ${event.data.data.status}`, 'info');
+                }
+            };
+
+            navigator.serviceWorker.controller.postMessage({
+                type: 'TRIGGER_SYNC'
+            }, [messageChannel.port2]);
+
+            // Juga sync waypoints biasa
+            this.syncWaypointsToServer();
+            
+            if (this.offlineQueue.getQueueSize() > 0) {
+                this.offlineQueue.processQueue();
+            }
+            
+        } catch (error) {
+            console.error('Force sync with SW failed:', error);
+            this.addLog('❌ Gagal trigger sync dengan Service Worker', 'error');
         }
     }
 
@@ -3208,7 +3326,7 @@ class EnhancedDTGPSLogger {
             vehicleStatus.className = 'bg-success text-white rounded px-2 py-1';
         }
         this.addLog('Perjalanan dimulai - GPS tracking aktif', 'success');
-        this.sendToFirebase();
+        this.sendToFirebaseWithCaching();
     }
 
     pauseJourney() {
@@ -3219,7 +3337,7 @@ class EnhancedDTGPSLogger {
             vehicleStatus.className = 'bg-warning text-dark rounded px-2 py-1';
         }
         this.addLog('Perjalanan dijeda', 'warning');
-        this.sendToFirebase();
+        this.sendToFirebaseWithCaching();
     }
 
     endJourney() {
@@ -3230,7 +3348,7 @@ class EnhancedDTGPSLogger {
             vehicleStatus.className = 'bg-info text-white rounded px-2 py-1';
         }
         this.addLog(`Perjalanan selesai - Total jarak: ${this.totalDistance.toFixed(3)} km`, 'info');
-        this.sendToFirebase();
+        this.sendToFirebaseWithCaching();
         
         if (this.isOnline) {
             this.syncWaypointsToServer();
@@ -3270,11 +3388,7 @@ class EnhancedDTGPSLogger {
 
     forceSync() {
         this.addLog('🔄 Memaksa sinkronisasi data...', 'info');
-        this.syncWaypointsToServer();
-        if (this.offlineQueue.getQueueSize() > 0) {
-            this.offlineQueue.processQueue();
-        }
-        this.backgroundManager.backgroundService.triggerBackgroundSync();
+        this.forceSyncWithSW(); // Gunakan method baru dengan Service Worker
     }
 
     async runGPSDiagnostic() {
@@ -3705,7 +3819,54 @@ Battery: ${this.backgroundManager?.batteryManager?.level || '0'}%
 Kalman Filter: ${this.useKalmanFilter ? 'ACTIVE' : 'INACTIVE'}
 Data Collection: ${this.dataCollector.dataPoints.length}/${this.dataCollector.maxDataPoints}
 Google Maps: ${this.mapsManager.isInitialized ? 'ACTIVE' : 'INACTIVE'}
+Service Worker: ${navigator.serviceWorker?.controller ? 'ACTIVE' : 'INACTIVE'}
                 `.trim();
+    }
+
+    // ✅ TAMBAHKAN METHOD TESTING SERVICE WORKER
+    async testServiceWorker() {
+        if (!navigator.serviceWorker) {
+            this.addLog('❌ Service Worker not supported', 'error');
+            return;
+        }
+        
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            this.addLog('✅ Service Worker ready', 'success');
+            
+            // Test message passing
+            const messageChannel = new MessageChannel();
+            messageChannel.port1.onmessage = (event) => {
+                this.addLog(`📩 Response from SW: ${JSON.stringify(event.data)}`, 'info');
+            };
+            
+            registration.active.postMessage({
+                type: 'GET_SYNC_STATUS'
+            }, [messageChannel.port2]);
+            
+        } catch (error) {
+            this.addLog(`❌ SW test failed: ${error.message}`, 'error');
+        }
+    }
+
+    async testStorageInfo() {
+        if (!navigator.serviceWorker?.controller) {
+            this.addLog('❌ Service Worker controller not available', 'error');
+            return;
+        }
+
+        try {
+            const messageChannel = new MessageChannel();
+            messageChannel.port1.onmessage = (event) => {
+                this.addLog(`💾 Storage Info: ${JSON.stringify(event.data)}`, 'info');
+            };
+            
+            navigator.serviceWorker.controller.postMessage({
+                type: 'GET_STORAGE_INFO'
+            }, [messageChannel.port2]);
+        } catch (error) {
+            this.addLog(`❌ Storage test failed: ${error.message}`, 'error');
+        }
     }
 
     logout() {
@@ -3798,65 +3959,131 @@ Google Maps: ${this.mapsManager.isInitialized ? 'ACTIVE' : 'INACTIVE'}
 }
 
 // =============================================
-// 🚀 APPLICATION INITIALIZATION
+// 🚀 APPLICATION INITIALIZATION - IMPROVED
 // =============================================
 
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        window.dtLogger = new EnhancedDTGPSLogger();
-        console.log('✅ Enhanced DT GPS Logger successfully initialized - COMPLETE SYSTEM');
+        console.log('🚀 Starting Enhanced DT GPS Logger with Service Worker...');
         
-        // Initialize additional features after a delay
-        setTimeout(() => {
-            if (window.dtLogger.driverData) {
-                console.log('🚀 All advanced features activated');
+        // Initialize the main logger
+        window.dtLogger = new EnhancedDTGPSLogger();
+        console.log('✅ Enhanced DT GPS Logger successfully initialized');
+        
+        // Setup global error handler
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            if (window.dtLogger && !window.dtLogger.isInBackground) {
+                window.dtLogger.addLog('⚠️ Error sistem terdeteksi', 'warning');
             }
-        }, 3000);
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            event.preventDefault();
+        });
+
+        // Initialize additional features after a short delay
+        setTimeout(() => {
+            if (window.dtLogger && window.dtLogger.driverData) {
+                console.log('🚀 All advanced features activated');
+                window.dtLogger.updateKalmanFilterDisplay();
+            }
+            
+            // Check Service Worker status
+            if (navigator.serviceWorker?.controller) {
+                console.log('✅ Service Worker is controlling the page');
+            }
+        }, 1000);
 
     } catch (error) {
         console.error('❌ Failed to initialize Enhanced DT GPS Logger:', error);
-        alert('Gagal menginisialisasi aplikasi. Silakan refresh halaman.');
+        
+        // Show user-friendly error message
+        const loginScreen = document.getElementById('loginScreen');
+        if (loginScreen) {
+            loginScreen.innerHTML = `
+                <div class="alert alert-danger">
+                    <h4>❌ Gagal Menginisialisasi Aplikasi</h4>
+                    <p>Terjadi kesalahan saat memuat aplikasi. Silakan refresh halaman.</p>
+                    <small>Error: ${error.message}</small>
+                    <br><br>
+                    <button class="btn btn-warning btn-sm" onclick="window.location.reload()">
+                        🔄 Refresh Halaman
+                    </button>
+                </div>
+            `;
+        }
     }
 });
 
-// Global event handlers
+// Enhanced online/offline handlers dengan Service Worker
 window.addEventListener('online', () => {
     if (window.dtLogger) {
+        console.log('📱 Network online - triggering sync procedures');
+        
+        window.dtLogger.addLog('📶 Koneksi pulih - memulai sinkronisasi', 'success');
+        
         setTimeout(() => {
+            // Trigger Service Worker sync
+            if (navigator.serviceWorker?.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'TRIGGER_SYNC'
+                });
+            }
+            
+            // Juga sync waypoints biasa
             window.dtLogger.syncWaypointsToServer();
             window.dtLogger.offlineQueue.processQueue();
-        }, 1000);
+        }, 2000);
     }
 });
 
-// Handle page freeze and resume events
+window.addEventListener('offline', () => {
+    if (window.dtLogger) {
+        console.log('📱 Network offline - enabling offline mode');
+        window.dtLogger.addLog('📶 Koneksi terputus - mode offline aktif', 'warning');
+    }
+});
+
+// Handle page lifecycle events
+window.addEventListener('beforeunload', () => {
+    if (window.dtLogger) {
+        console.log('📱 Page unloading - saving state');
+        window.dtLogger.persistSession();
+    }
+});
+
 window.addEventListener('freeze', () => {
     if (window.dtLogger) {
-        console.log('❄️ Page freezing, persisting session...');
+        console.log('❄️ Page freezing - emergency save');
         window.dtLogger.persistSession();
+        
+        // Notify Service Worker about freeze
+        if (navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'EMERGENCY_BACKUP'
+            });
+        }
     }
 });
 
 window.addEventListener('resume', () => {
     if (window.dtLogger && window.dtLogger.driverData) {
-        console.log('🔁 Page resuming from freeze...');
+        console.log('🔁 Page resuming from freeze');
         window.dtLogger.addLog('🔁 App dilanjutkan dari sleep mode', 'info');
+        
         if (!window.dtLogger.isTracking) {
             window.dtLogger.startRealGPSTracking();
         }
+        
+        // Trigger sync setelah resume
+        setTimeout(() => {
+            if (window.dtLogger.isOnline) {
+                window.dtLogger.forceSyncWithSW();
+            }
+        }, 3000);
     }
-});
-
-// Error boundary untuk unhandled errors
-window.addEventListener('error', (event) => {
-    console.error('Global error caught:', event.error);
-    if (window.dtLogger && !window.dtLogger.isInBackground) {
-        window.dtLogger.addLog('⚠️ Error sistem, tetapi aplikasi tetap berjalan', 'warning');
-    }
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled promise rejection:', event.reason);
 });
 
 // Additional initialization for enhanced features
@@ -3912,4 +4139,4 @@ document.addEventListener('DOMContentLoaded', function() {
     updateFuelStatus();
 });
 
-console.log('📍 script-mobile-complete.js loaded successfully - COMPLETE INTEGRATED SYSTEM');
+console.log('📍 script-mobile-complete.js loaded successfully - COMPLETE INTEGRATED SYSTEM WITH SERVICE WORKER');
