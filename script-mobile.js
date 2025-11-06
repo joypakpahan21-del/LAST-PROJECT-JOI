@@ -36,15 +36,15 @@ const database = firebase.database();
 
 class PlantationTrackingManager {
     constructor(unitId) {
-        this.unitId = unitId; // ID unit untuk multi unit support
-        this.state = 'STATIONARY'; // 'STATIONARY' | 'MOVING'
+        this.unitId = unitId;
+        this.state = 'STATIONARY';
         this.stationaryPosition = null;
         this.consecutiveLowSpeedCount = 0;
         
         // Threshold khusus perkebunan
-        this.movementThreshold = 15; // meter (lebih kecil untuk jalur kebun)
-        this.minSpeedThreshold = 1.5; // km/h (kecepatan slow-moving equipment)
-        this.gpsAccuracyThreshold = 25; // meter (GPS mungkin kurang akurat di kebun)
+        this.movementThreshold = 15;
+        this.minSpeedThreshold = 1.5;
+        this.gpsAccuracyThreshold = 25;
         
         // Filter settings
         this.positionHistory = [];
@@ -54,7 +54,7 @@ class PlantationTrackingManager {
         this.dataPointsCount = 0;
         
         // Sequential distance tracking
-        this.sequentialDistances = []; // Menyimpan jarak antar titik
+        this.sequentialDistances = [];
         this.lastCalculatedPoint = null;
         
         // Real-time statistics
@@ -339,7 +339,7 @@ class PlantationTrackingManager {
     }
 
     /**
-     * Haversine distance calculation
+     * Haversine distance calculation - FIXED VERSION
      */
     calculateHaversineDistance(lat1, lon1, lat2, lon2) {
         try {
@@ -416,20 +416,95 @@ class PlantationTrackingManager {
 }
 
 // =============================================
+// ⚡ FIXED REAL-TIME SPEED CALCULATOR - DENGAN TIME-BASED CALCULATION
+// =============================================
+
+class RealTimeSpeedCalculator {
+    constructor() {
+        this.positionHistory = [];
+        this.maxHistorySize = 8;
+        this.lastValidSpeed = 0;
+        this.speedSmoothingFactor = 0.7;
+        this.lastCalculationTime = Date.now();
+    }
+
+    calculateRealTimeSpeed(newPosition, previousPosition) {
+        if (!previousPosition || !newPosition) return this.lastValidSpeed;
+
+        const currentTime = Date.now();
+        const timeDiffMs = (currentTime - this.lastCalculationTime);
+        
+        if (timeDiffMs <= 0) return this.lastValidSpeed;
+
+        // Hitung jarak sebenarnya
+        const distance = this.calculateHaversineDistance(
+            previousPosition.lat, previousPosition.lng,
+            newPosition.lat, newPosition.lng
+        );
+
+        // Hitung kecepatan berdasarkan waktu (m/s → km/h)
+        const timeDiffHours = timeDiffMs / 3600000; // ms ke hours
+        const speedKmh = timeDiffHours > 0 ? (distance / timeDiffHours) : 0;
+        
+        console.log(`🕒 Time-based Speed Calc: ${distance.toFixed(2)}m / ${(timeDiffMs/1000).toFixed(1)}s = ${speedKmh.toFixed(1)} km/h`);
+
+        // Validasi kecepatan realistis untuk perkebunan
+        const MAX_PLANTATION_SPEED = 60;
+        
+        if (speedKmh > MAX_PLANTATION_SPEED) {
+            console.warn(`🚫 Kecepatan tidak realistis: ${speedKmh.toFixed(1)} km/h, menggunakan nilai sebelumnya`);
+            return this.lastValidSpeed;
+        }
+
+        // Smoothing untuk menghindari fluktuasi
+        const smoothedSpeed = this.smoothSpeed(speedKmh);
+        this.lastValidSpeed = smoothedSpeed;
+        this.lastCalculationTime = currentTime;
+        
+        return smoothedSpeed;
+    }
+
+    calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000; // Earth radius in meters
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+        
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                 Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * 
+                 Math.sin(dLon/2) * Math.sin(dLon/2);
+        
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        
+        return distance;
+    }
+
+    toRad(degrees) {
+        return degrees * (Math.PI/180);
+    }
+
+    smoothSpeed(newSpeed) {
+        if (this.lastValidSpeed === 0) return newSpeed;
+        return (this.speedSmoothingFactor * this.lastValidSpeed) + 
+               ((1 - this.speedSmoothingFactor) * newSpeed);
+    }
+}
+
+// =============================================
 // 🚀 MAIN TRACKING SYSTEM - MULTI UNIT MANAGER
 // =============================================
 
 class EnhancedHaversineCalculator {
     constructor() {
-        this.unitId = null; // Current active unit
+        this.unitId = null;
         this.plantationManager = null;
-        this.speedHistory = [];
+        this.speedCalculator = new RealTimeSpeedCalculator(); // Use fixed speed calculator
         this.offlineBuffer = [];
         this.maxOfflineBuffer = 10000;
         this.isOnline = navigator.onLine;
         
         // Multi-unit support
-        this.unitSessions = new Map(); // Store sessions for multiple units
+        this.unitSessions = new Map();
         this.currentSessionId = null;
         
         // Real-time statistics
@@ -491,8 +566,13 @@ class EnhancedHaversineCalculator {
 
         const timestamp = Date.now();
         
-        // Gunakan plantation manager untuk processing
-        const speed = 0; // Akan dihitung berdasarkan movement
+        // Calculate speed using the improved speed calculator
+        let speed = 0;
+        if (position.coords.speed && position.coords.speed > 0) {
+            speed = position.coords.speed * 3.6; // Convert m/s to km/h
+        }
+        
+        // Use plantation manager untuk processing
         const result = this.plantationManager.updatePosition(
             position, speed, accuracy, isBackground
         );
@@ -528,7 +608,7 @@ class EnhancedHaversineCalculator {
 
         return {
             instantDistance: result.distance || 0,
-            instantSpeed: this.calculateInstantSpeed(result),
+            instantSpeed: speed,
             timeDiffSeconds: 0,
             totalDistance: this.plantationManager.totalDistanceMeters,
             dataPointId: positionData.dataPointId,
@@ -539,18 +619,6 @@ class EnhancedHaversineCalculator {
             sequentialDistance: result.sequentialDistance,
             sequentialSummary: this.plantationManager.getSequentialSummary()
         };
-    }
-
-    /**
-     * Hitung kecepatan instan berdasarkan state dan movement
-     */
-    calculateInstantSpeed(result) {
-        if (result.state === 'STATIONARY') {
-            return 0;
-        }
-        
-        // Untuk moving state, estimasi speed berdasarkan movement pattern
-        return result.distance > 0 ? (result.distance / 10) * 3.6 : 0;
     }
 
     /**
@@ -862,6 +930,8 @@ function handleGPSSuccess(position) {
     const isOnline = navigator.onLine;
     const isBackground = document.hidden || document.visibilityState === 'hidden';
 
+    console.log(`📍 RAW GPS: ${gpsData.lat.toFixed(6)}, ${gpsData.lng.toFixed(6)}, Acc: ${gpsData.accuracy}m`);
+
     // Process dengan plantation tracker
     const result = plantationTracker.addPosition(
         gpsData,
@@ -900,28 +970,28 @@ function handleGPSError(error) {
 function updateDisplay(trackingData) {
     try {
         // Update speed display
-        const speedElement = document.querySelector('#kecepatan-saat-ini');
+        const speedElement = document.querySelector('#currentSpeed');
         if (speedElement) {
-            speedElement.textContent = trackingData.instantSpeed.toFixed(1) + ' km/h';
+            speedElement.textContent = trackingData.instantSpeed.toFixed(1);
         }
 
         // Update distance display
-        const distanceElement = document.querySelector('#jarak-hari-ini');
+        const distanceElement = document.querySelector('#todayDistance');
         if (distanceElement) {
             const distanceKm = trackingData.totalDistance / 1000;
             distanceElement.textContent = distanceKm.toFixed(3);
         }
 
         // Update status based on state
-        const statusElement = document.querySelector('#status-unit');
+        const statusElement = document.querySelector('#vehicleStatus');
         if (statusElement) {
             const state = trackingData.state || 'UNKNOWN';
             statusElement.textContent = state === 'STATIONARY' ? 'DIAM' : 'BERGERAK';
-            statusElement.className = state === 'STATIONARY' ? 'status-diam' : 'status-bergerak';
+            statusElement.className = state === 'STATIONARY' ? 'bg-warning' : 'bg-success';
         }
 
         // Update waypoint counter
-        const waypointElement = document.querySelector('#total-waypoint');
+        const waypointElement = document.querySelector('#waypointCount');
         if (waypointElement) {
             waypointElement.textContent = plantationTracker.plantationManager.dataPointsCount;
         }
@@ -932,10 +1002,19 @@ function updateDisplay(trackingData) {
             unitElement.textContent = currentUnitInfo.unitId;
         }
 
-        // Update sequential info jika ada
-        if (trackingData.sequentialSummary) {
-            console.log('📊 Sequential Summary:', trackingData.sequentialSummary);
+        // Update driver info
+        const driverElement = document.querySelector('#driverDisplayName');
+        if (driverElement && currentUnitInfo) {
+            driverElement.textContent = currentUnitInfo.driverName;
         }
+
+        // Update data points
+        const dataPointsElement = document.querySelector('#dataPoints');
+        if (dataPointsElement) {
+            dataPointsElement.textContent = plantationTracker.plantationManager.dataPointsCount;
+        }
+
+        console.log(`📊 Display Updated: ${trackingData.instantSpeed.toFixed(1)} km/h, ${(trackingData.totalDistance/1000).toFixed(3)} km`);
 
     } catch (error) {
         console.error('Error updating display:', error);
